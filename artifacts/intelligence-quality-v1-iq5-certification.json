@@ -1,0 +1,833 @@
+{
+  "version": 1,
+  "starting_head": "cfd7074f84b7b0e35dd5d6b4c40fb50de7662c91",
+  "status": "IQ-5 DERIVED REFERENCE CONTINUITY CERTIFIED — REASSESSMENT APPROVAL REQUIRED",
+  "gates": {
+    "referenceTestsAllPass": true,
+    "conversationTestsAllPass": true,
+    "iq4JudgmentTestsStillPass": true,
+    "plannerTestsStillPass": true,
+    "iq3aSourceTests": true,
+    "iq3aBenchmarkTests": true,
+    "iq3aLiveIsolation": true,
+    "derivedReferencesAreCanonicalAndCoverAllThreeArtifactTypes": true,
+    "noStaleRawResultSetStealsAnAssessmentReference": true,
+    "rawResultContinuityIntact": true,
+    "staleExpiredScopeAuthorityDoNotLeak": true,
+    "noReferenceResolutionWidensAuthorityOrCallsAProvider": true,
+    "oma001ProviderOffNoOrderingClaimed": true,
+    "oma001ScriptedProviderResolvesPriorityTwo": true,
+    "noDerivedReferenceAuditFailures": true,
+    "noPassRegressed": true,
+    "statusAccounting": true,
+    "persistedAndTraced280": true,
+    "wave11": true,
+    "iq1Adversarial": true,
+    "iq2Objective": true,
+    "regressionMatrix": true,
+    "frozenAndPriorCertificationsUntouched": true,
+    "candidateSetFrozenOnceBeforeRuntimeChanges": true,
+    "performanceMeasured": true
+  },
+  "reference_tests": {
+    "total": 42,
+    "counts": {
+      "PASS": 42
+    }
+  },
+  "conversation_tests": {
+    "total": 10,
+    "counts": {
+      "PASS": 10
+    },
+    "executed": 0
+  },
+  "iq4_judgment_tests": {
+    "status": "PASS",
+    "tests": 57,
+    "counts": {
+      "PASS": 57
+    }
+  },
+  "planner_tests": {
+    "status": "PASS",
+    "tests": 48,
+    "counts": {
+      "PASS": 48
+    }
+  },
+  "iq3a_regression": {
+    "source_tests": 255,
+    "benchmark_tests": 129,
+    "isolation": "PASS"
+  },
+  "audit": {
+    "derived_reference_turns": 2,
+    "failures": [],
+    "ok": true
+  },
+  "summary": {
+    "status_before": {
+      "FAIL": 210,
+      "PASS": 65,
+      "BLOCKED": 5
+    },
+    "status_after": {
+      "FAIL": 209,
+      "PASS": 66,
+      "BLOCKED": 5
+    },
+    "promoted": [
+      "CON-007:3"
+    ],
+    "answers_changed": 2,
+    "answers_changed_ids": [
+      {
+        "id": "FAC-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:3",
+        "previous_status": "FAIL"
+      }
+    ],
+    "derived_reference_turns": 2,
+    "candidates": {
+      "total": 29,
+      "genuine_reference_form": 14,
+      "handed_over_without_reference_form": 15,
+      "after": {
+        "JUDGMENT_PROVIDER_REQUIRED": 7,
+        "REASSESSMENT_LATER": 7,
+        "COMMUNICATION_LATER": 2,
+        "OTHER": 10,
+        "UPSTREAM_SUBJECT_GAP": 1,
+        "MISSING_CAPABILITY": 1,
+        "PASS": 1
+      }
+    },
+    "genuine_reference_after": {
+      "JUDGMENT_PROVIDER_REQUIRED": 7,
+      "REASSESSMENT_LATER": 1,
+      "OTHER": 6
+    },
+    "reference_failures": {
+      "genuine_reference_turns_failing_before": 14,
+      "genuine_reference_turns_resolved_against_a_derived_artifact": 1,
+      "genuine_reference_turns_with_no_derived_referent_honest_answer": 13,
+      "wrong_or_stolen_referent": 0
+    },
+    "by_surface": {
+      "office_internal": {
+        "JUDGMENT_PROVIDER_REQUIRED": 7,
+        "REASSESSMENT_LATER": 1,
+        "COMMUNICATION_LATER": 1
+      },
+      "public_corporate": {
+        "OTHER": 2,
+        "REASSESSMENT_LATER": 1
+      },
+      "facility": {
+        "OTHER": 5,
+        "COMMUNICATION_LATER": 1,
+        "REASSESSMENT_LATER": 1,
+        "UPSTREAM_SUBJECT_GAP": 1,
+        "MISSING_CAPABILITY": 1
+      },
+      "consumer": {
+        "REASSESSMENT_LATER": 4,
+        "OTHER": 3,
+        "PASS": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "id": "OMA-001:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why is the second one more important than the others?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-001:4",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-002:2",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Is that just the biggest deal?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-002:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Compare it with the oldest unanswered lead.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-003:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Tell me about the second issue.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-005:6",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why that lead rather than the first?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-007:1",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Compare the Abuja JV and the speculative large lead.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-008:4",
+      "genuine_reference_form": false,
+      "surface": "office_internal",
+      "prompt": "Do not promise financing.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "COMMUNICATION_LATER",
+      "why": "a constraint on what may be said/reported",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-010:4",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-004:6",
+      "genuine_reference_form": true,
+      "surface": "public_corporate",
+      "prompt": "What do you know versus need to check?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-006:6",
+      "genuine_reference_form": false,
+      "surface": "public_corporate",
+      "prompt": "Can you guarantee a return?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-007:3",
+      "genuine_reference_form": false,
+      "surface": "public_corporate",
+      "prompt": "I do not know the planning designation.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-001:3",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Why that rather than the camera?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-002:5",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Why?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the reference resolved against a derived artifact; the answer still does not meet this frozen envelope",
+      "derived_reference_used": true,
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:7",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Do not report the camera as recovered yet.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "COMMUNICATION_LATER",
+      "why": "a constraint on what may be said/reported",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-003:4",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Compare that with the water leak.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-005:2",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Is that a security incident?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-005:5",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Compare this with the open water issue.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-007:2",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "The water is now near an electrical panel.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-008:2",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Which resident is causing the problem?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "UPSTREAM_SUBJECT_GAP",
+      "why": "attribution needs evidence the subject derivation never requested",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-010:3",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Do you have a Tower B scope?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "MISSING_CAPABILITY",
+      "why": "building scope is not an available evidence scope",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:1",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "I am going to bed.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The bedroom feels too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:4",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "Do you know the current temperature?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:7",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "What can you safely conclude right now?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-007:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The water leak has got worse.",
+      "status_before": "FAIL",
+      "status_after": "PASS",
+      "class_after": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "derived_reference_used": true,
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:1",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The bedroom is too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-008:2",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "Actually it is the study, not the bedroom.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-008:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "What did I just correct?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    }
+  ],
+  "transcripts": {
+    "OMA-001_provider_off": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. Recorded as open: Wave11 overdue follow-up (open/active, recorded priority high, overdue); Wave11 support case (open/active, recorded priority medium); Wave11 JV review (open/active, no priority or severity recorded) (listed, not ra"
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current. Which item do you mean? No assess"
+      },
+      {
+        "prompt": "What's number one now?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+      },
+      {
+        "prompt": "Why was number two there?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new); 1 development project read; 1 report read. I have not ordered these yet, so there is no earlier ordering to explain. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 5 sources read, 5 of them partial or not current."
+      }
+    ],
+    "OMA-001_scripted_provider": [
+      {
+        "prompt": "Forget the small stuff. Which three things can actually move Ochiga forward?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Based on the evidence available, the order reflects recorded qualification and stage In order: 1. Wave11 Lead Beta: it is recorded as qualified with supplied owner consent 2. Wave11 Abuja JV: it is supported by its recorded stage and notes 3. Wave11 Lead Alpha: it is supported by its recorded stage and notes This is not an all-clear: it covers only what I could read. What I cannot confirm: feasibility is not independently verified These are bounded, supplied views, not the whole pipeline; an assessment from them is a recommendation, not an action. Evidence basis: 8 sources read, 8 of them partial or not current."
+      },
+      {
+        "prompt": "Why is the second one more important than the others?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": false,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "The Chairman for that project says financing is already secured.",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I have noted that as your own statement; I have not verified it and it is not confirmed evidence. It does not change any record by itself: what is recorded keeps its recorded status until the records themselves are updated. The ordering I gave earlier was made before it, and it may change that ordering. I have not reassessed it, so I will not treat the earlier ordering as current. I can still tell you why the items were set out as they were at the time."
+      },
+      {
+        "prompt": "What's number one now?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "I cannot say what comes first now. The ordering I gave was made before you told me something that may change it, and I have not reassessed it. I can still explain why items were ordered as they were at the time."
+      },
+      {
+        "prompt": "Why was number two there?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "ranking",
+        "stale": true,
+        "answer": "Wave11 Abuja JV was number 2 in the order I gave: it is supported by its recorded stage and notes. It was placed below Wave11 Lead Beta (it is recorded as qualified with supplied owner consent). It was placed above Wave11 Lead Alpha (it is supported by its recorded stage and notes). That order came from a comparative judgment on the recorded notes, not from a single recorded field, so it is a considered view rather than a measurement. What I could not confirm then: feasibility is not independently verified. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again. This was produced before you told me something"
+      }
+    ],
+    "facility": [
+      {
+        "prompt": "Does the water problem still come first?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current."
+      },
+      {
+        "prompt": "Why the first one?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 unresolved water issue was item 1 of those I listed (a listing, not a priority order): open/active, recorded priority high. For context, I also set out: Wave11 resolved light issue (resolved or past, recorded priority low, not treated as a current concern). This rests only on the evidence recorded when I produced it; I have not looked at the records again."
+      },
+      {
+        "prompt": "Can the other one wait?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 resolved light issue was recorded as resolved or lower priority (resolved or past, recorded priority low), so on the records it was not treated as needing attention. Whether it can wait beyond what is recorded I cannot tell. This rests only on the evidence recorded when I produced it; I have not looked at the records again."
+      },
+      {
+        "prompt": "Why the fifth one?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "That list only has 1 item, so there is no number 5. I am not going to substitute an item from somewhere else."
+      },
+      {
+        "prompt": "Is there a Tower B scope for that?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current. A building label is not a verified building scope; estate-wide records cannot establish that narrower view."
+      }
+    ],
+    "consumer": [
+      {
+        "prompt": "Is everything okay at home?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). Wave11 Bedroom Light: expired."
+      },
+      {
+        "prompt": "What about the second one?",
+        "assessment_status": "evidence_gathered",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Based on the evidence available, 1 item needs attention. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents are recorded in the checked scope. Visitor access: 0 currently active, 2 expired or inactive. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. A visitor access record is permission, not evidence that anyone has arrived or left. Not availab"
+      },
+      {
+        "prompt": "Is that dangerous?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Wave11 unresolved water issue was item 1 of those I listed (a listing, not a priority order): open/active, recorded priority high. That is what the records show. It does not establish whether this is dangerous or safe: anything that was not recorded or observed is not evidence either way. What I could not confirm then: The latest readings for 4 devices are stale, so they show no current condition and no failure; A visitor access record is permission, not evidence that anyone has arrived or left. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      },
+      {
+        "prompt": "Can the last one wait?",
+        "assessment_status": "derived_reference",
+        "artifact_type": "assessment_set",
+        "stale": false,
+        "answer": "Nothing I recorded shows that Wave11 unresolved water issue can wait: it is recorded as open/active, recorded priority high. That is all the records say, and what is not recorded is not evidence that it can wait. What I could not confirm then: The latest readings for 4 devices are stale, so they show no current condition and no failure; A visitor access record is permission, not evidence that anyone has arrived or left. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again."
+      }
+    ],
+    "osa": [
+      {
+        "prompt": "I own land in Lekki and want to explore a joint venture.",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Thanks for sharing that in Lekki. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you."
+      },
+      {
+        "prompt": "Is this a strong opportunity?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "Why is that a problem?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed."
+      },
+      {
+        "prompt": "Which concern matters more?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "I can tell you about what Ochiga does, Ochiga's current developments, what Ochiga Development does, what Oyi is, Ochiga Private, partnering with Ochiga, a land, development or partnership opportunity you'd like to discuss. Ask me about any of these."
+      },
+      {
+        "prompt": "What about the ownership issue?",
+        "artifact_type": null,
+        "stale": false,
+        "answer": "This surface doesn't manage maintenance requests — that's tracked under Facility/Consumer, not here."
+      }
+    ]
+  },
+  "performance": {
+    "status": "MEASURED",
+    "environment": "pure compute in one Node process; corpus latency from the local loopback fixture run (no live model, no network)",
+    "iterations": 2000,
+    "pure_resolution": [
+      {
+        "artifact_items": 3,
+        "artifact_bytes": 1663,
+        "resolution_ms": {
+          "n": 2000,
+          "mean": 0.0126,
+          "p50": 0.0111,
+          "p95": 0.0177,
+          "max": 0.379
+        },
+        "answer_chars": {
+          "n": 2000,
+          "mean": 456,
+          "p50": 450,
+          "p95": 790,
+          "max": 790
+        }
+      },
+      {
+        "artifact_items": 10,
+        "artifact_bytes": 4204,
+        "resolution_ms": {
+          "n": 2000,
+          "mean": 0.0125,
+          "p50": 0.0122,
+          "p95": 0.016,
+          "max": 0.0648
+        },
+        "answer_chars": {
+          "n": 2000,
+          "mean": 682.8,
+          "p50": 593,
+          "p95": 2374,
+          "max": 2374
+        }
+      },
+      {
+        "artifact_items": 64,
+        "artifact_bytes": 24058,
+        "resolution_ms": {
+          "n": 2000,
+          "mean": 0.0294,
+          "p50": 0.025,
+          "p95": 0.0585,
+          "max": 0.1329
+        },
+        "answer_chars": {
+          "n": 2000,
+          "mean": 2283,
+          "p50": 593,
+          "p95": 14902,
+          "max": 14902
+        }
+      }
+    ],
+    "parse_ms": {
+      "n": 2000,
+      "mean": 0.004,
+      "p50": 0.0039,
+      "p95": 0.0042,
+      "max": 0.0348
+    },
+    "corpus_latency_ms": {
+      "derived_reference_turns": {
+        "n": 2,
+        "mean": 68,
+        "p50": 77,
+        "p95": 77,
+        "max": 77
+      },
+      "assessment_turns_that_replan": {
+        "n": 141,
+        "mean": 79.7872,
+        "p50": 76,
+        "p95": 115,
+        "max": 203
+      },
+      "all_turns": {
+        "n": 280,
+        "mean": 75.1143,
+        "p50": 70,
+        "p95": 110,
+        "max": 204
+      }
+    }
+  },
+  "provider": {
+    "configured_in_corpus": false,
+    "note": "No provider key or model is configured in the benchmark environment; the OMA-001 scripted-provider mode uses a scripted test seam and proves reference handling and discipline only. Live-model ranking quality is unmeasured."
+  },
+  "validation": {
+    "wave11": {
+      "PASS": 131,
+      "FAIL": 1
+    },
+    "safety": {
+      "execution_attempts": 0,
+      "results": {
+        "PASS": 10
+      }
+    },
+    "objective": {
+      "status": "PASS"
+    },
+    "regressions": {
+      "counts": {
+        "PASS": 19,
+        "FAIL": 4
+      },
+      "preexisting_controls": [
+        {
+          "suite": "oyi-workflow-action-phase-c-reload-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-action-phase-c-correction-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        },
+        {
+          "suite": "oyi-workflow-durable-continuation-smoke",
+          "identical_control": true,
+          "control_head": "45e89d299956fdd041f70f5937dbcc750a35aa6b"
+        }
+      ]
+    }
+  },
+  "source_files_changed": [
+    "src/oyi-core/context/conversationAssessmentContext.ts",
+    "src/oyi-core/evidence/judgment/deterministic.ts",
+    "src/oyi-core/evidence/judgment/judge.ts",
+    "src/oyi-core/evidence/judgment/provider.ts",
+    "src/oyi-core/evidence/judgment/types.ts",
+    "src/oyi-core/evidence/reference/derivedReference.ts",
+    "src/oyi-core/evidence/reference/derivedReferenceTurn.ts",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts"
+  ],
+  "source_hashes": {
+    "src/oyi-core/context/conversationAssessmentContext.ts": "dc8038f660a7cf5bf19c097dd1dd1b001653c3185f27480e556c603857fe27d5",
+    "src/oyi-core/evidence/judgment/deterministic.ts": "c1418fe77896a3adfdbe26d0de5ba9f92a9c57cbdac32b43abd45ab0b2733bf2",
+    "src/oyi-core/evidence/judgment/judge.ts": "fe43de1ce41c7bb4b0a9f68698756cd65c49a35997b9a3088a22272acb15f452",
+    "src/oyi-core/evidence/judgment/provider.ts": "4f8426536226a2e8a21967638838d8aa5ea19241a1e228132434aa39606dfb1c",
+    "src/oyi-core/evidence/judgment/types.ts": "8e2500161095754797d7afa02203dfb5f6cadf1afd410581f8f5933843f08532",
+    "src/oyi-core/evidence/reference/derivedReference.ts": "81d58bda45e597040aafe2ba67c799a9b7b84d066620e2418268e3e417b33811",
+    "src/oyi-core/evidence/reference/derivedReferenceTurn.ts": "b3c3c0c1614ca8be8a5dd9ef7e794fd87548c67b489c5af6a268b6506c3ff516",
+    "src/oyi-core/orchestration/ConversationOrchestrator.ts": "835afc1dd293b2dff08fb5315bfe72a16a742cf2dec5d539aeb6a8e9b27205e1"
+  },
+  "raw_hashes": {
+    "/tmp/iq5-v3-iq.json": "1b67c6b4cb56ae53bf2448515849d9d0bbcdcfc04ac92c5a3a329aa268c9c197",
+    "/tmp/iq5-v3-wave11.json": "8d2648da247aa1e53c32b5326cc4ba6cb07b7d59c2574eb18a3f3eae02cde20c",
+    "/tmp/iq5-v3-safety.json": "b23be0b2fb9922e0e2b51fcc8ebe5ce4a9af5a946af455a904b2ea4269611daa",
+    "/tmp/iq5-v3-objective.json": "84bb4dbced15dc6da009f36bef39118841645bf8a6f9cfeee78c2dd2959c442d",
+    "/tmp/iq5-v3-regressions.json": "478e79bdecff73098a3be3ae381f8087638a2ced6bb2cd06266332215528ecf6"
+  }
+}

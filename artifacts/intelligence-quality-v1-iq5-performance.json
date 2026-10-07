@@ -1,0 +1,91 @@
+{
+  "status": "MEASURED",
+  "environment": "pure compute in one Node process; corpus latency from the local loopback fixture run (no live model, no network)",
+  "iterations": 2000,
+  "pure_resolution": [
+    {
+      "artifact_items": 3,
+      "artifact_bytes": 1663,
+      "resolution_ms": {
+        "n": 2000,
+        "mean": 0.0126,
+        "p50": 0.0111,
+        "p95": 0.0177,
+        "max": 0.379
+      },
+      "answer_chars": {
+        "n": 2000,
+        "mean": 456,
+        "p50": 450,
+        "p95": 790,
+        "max": 790
+      }
+    },
+    {
+      "artifact_items": 10,
+      "artifact_bytes": 4204,
+      "resolution_ms": {
+        "n": 2000,
+        "mean": 0.0125,
+        "p50": 0.0122,
+        "p95": 0.016,
+        "max": 0.0648
+      },
+      "answer_chars": {
+        "n": 2000,
+        "mean": 682.8,
+        "p50": 593,
+        "p95": 2374,
+        "max": 2374
+      }
+    },
+    {
+      "artifact_items": 64,
+      "artifact_bytes": 24058,
+      "resolution_ms": {
+        "n": 2000,
+        "mean": 0.0294,
+        "p50": 0.025,
+        "p95": 0.0585,
+        "max": 0.1329
+      },
+      "answer_chars": {
+        "n": 2000,
+        "mean": 2283,
+        "p50": 593,
+        "p95": 14902,
+        "max": 14902
+      }
+    }
+  ],
+  "parse_ms": {
+    "n": 2000,
+    "mean": 0.004,
+    "p50": 0.0039,
+    "p95": 0.0042,
+    "max": 0.0348
+  },
+  "corpus_latency_ms": {
+    "derived_reference_turns": {
+      "n": 2,
+      "mean": 68,
+      "p50": 77,
+      "p95": 77,
+      "max": 77
+    },
+    "assessment_turns_that_replan": {
+      "n": 141,
+      "mean": 79.7872,
+      "p50": 76,
+      "p95": 115,
+      "max": 203
+    },
+    "all_turns": {
+      "n": 280,
+      "mean": 75.1143,
+      "p50": 70,
+      "p95": 110,
+      "max": 204
+    }
+  }
+}

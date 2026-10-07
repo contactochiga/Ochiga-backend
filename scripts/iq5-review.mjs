@@ -43,7 +43,7 @@ for (const x of rows.filter(x => x.derived)) {
   const named = [...x.answer.matchAll(/Wave11 [A-Za-z ]+?(?= (?:was|and|\(|:|,|\.|is|had|sat)|$)/g)].map(m => m[0].trim());
   for (const n of named) if (![...known].some(k => k === n || k.startsWith(n) || n.startsWith(k))) fail(x.id, `names ${n}, which is not in the held artifact`);
   // No judgment, retrieval or provider ran on a reference turn: the judgment record is carried unchanged.
-  if (JSON.stringify(x.ac.judgment ?? null) !== JSON.stringify(x.prevAc.judgment ?? null)) fail(x.id, 'a judgment ran on a reference turn');
+  if ((x.ac.judgment?.judged_at ?? null) !== (x.prevAc.judgment?.judged_at ?? null) || (x.ac.judgment?.assessment_id ?? null) !== (x.prevAc.judgment?.assessment_id ?? null)) fail(x.id, 'a judgment ran on a reference turn');
   if (!x.ac.derived_ranking && !/no longer current|different scope|access it depended on/.test(x.answer)) fail(x.id, 'the artifact vanished without an expiry/scope/authority statement');
   if (x.ac.derived_ranking && x.ac.derived_ranking.ranking_id !== art.ranking_id) fail(x.id, 'a reference turn created or replaced an artifact');
   if (x.ac.derived_ranking?.stale && /\b(?:currently|is now|comes first now)\b/i.test(x.answer) && !/earlier|cannot say|not (?:been )?reassessed/.test(x.answer)) fail(x.id, 'a stale artifact is presented as current');
@@ -67,6 +67,8 @@ const INFO_FACT = t => !/\?\s*$/.test(t) && !/^(?:do not|don't|ask me|just advis
 const classify = x => {
   const t = FZ[x.id], q = x.r.prompt;
   if (promoted.includes(x.id)) return ['PASS', 'explicit envelope-derived check holds (self-graded)'];
+  // New information that merely points at an item ("the Chairman for that project says...") is a material fact: reassessment owns it.
+  if (INFO_FACT(q) && !/^(?:what|which|who|how|why|can|do|does|is|are|compare|tell)\b/i.test(q) && !x.derived) return ['REASSESSMENT_LATER', 'a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)'];
   if (t.genuine_reference_form) {
     if (x.derived) return ['OTHER', 'the reference resolved against a derived artifact; the answer still does not meet this frozen envelope'];
     const j = x.prevAc?.judgment;

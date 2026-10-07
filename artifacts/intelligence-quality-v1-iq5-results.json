@@ -1,0 +1,437 @@
+{
+  "version": 1,
+  "status": "IQ5_REVIEW",
+  "raw_sha256": "1b67c6b4cb56ae53bf2448515849d9d0bbcdcfc04ac92c5a3a329aa268c9c197",
+  "baseline_sha256": "7de40d03501ef506b5afb646f2d947cbaf6d0b056c4012269b6ea202890e2bca",
+  "note": "Promotion checks are self-graded; the audit is the certification gate. Candidate classes for non-PASS turns come from frozen rules over the prompt and the earlier turn, not from a regrade.",
+  "audit": {
+    "derived_reference_turns": 2,
+    "failures": [],
+    "ok": true
+  },
+  "summary": {
+    "status_before": {
+      "FAIL": 210,
+      "PASS": 65,
+      "BLOCKED": 5
+    },
+    "status_after": {
+      "FAIL": 209,
+      "PASS": 66,
+      "BLOCKED": 5
+    },
+    "promoted": [
+      "CON-007:3"
+    ],
+    "answers_changed": 2,
+    "answers_changed_ids": [
+      {
+        "id": "FAC-002:5",
+        "previous_status": "FAIL"
+      },
+      {
+        "id": "CON-007:3",
+        "previous_status": "FAIL"
+      }
+    ],
+    "derived_reference_turns": 2,
+    "candidates": {
+      "total": 29,
+      "genuine_reference_form": 14,
+      "handed_over_without_reference_form": 15,
+      "after": {
+        "JUDGMENT_PROVIDER_REQUIRED": 7,
+        "REASSESSMENT_LATER": 7,
+        "COMMUNICATION_LATER": 2,
+        "OTHER": 10,
+        "UPSTREAM_SUBJECT_GAP": 1,
+        "MISSING_CAPABILITY": 1,
+        "PASS": 1
+      }
+    },
+    "genuine_reference_after": {
+      "JUDGMENT_PROVIDER_REQUIRED": 7,
+      "REASSESSMENT_LATER": 1,
+      "OTHER": 6
+    },
+    "reference_failures": {
+      "genuine_reference_turns_failing_before": 14,
+      "genuine_reference_turns_resolved_against_a_derived_artifact": 1,
+      "genuine_reference_turns_with_no_derived_referent_honest_answer": 13,
+      "wrong_or_stolen_referent": 0
+    },
+    "by_surface": {
+      "office_internal": {
+        "JUDGMENT_PROVIDER_REQUIRED": 7,
+        "REASSESSMENT_LATER": 1,
+        "COMMUNICATION_LATER": 1
+      },
+      "public_corporate": {
+        "OTHER": 2,
+        "REASSESSMENT_LATER": 1
+      },
+      "facility": {
+        "OTHER": 5,
+        "COMMUNICATION_LATER": 1,
+        "REASSESSMENT_LATER": 1,
+        "UPSTREAM_SUBJECT_GAP": 1,
+        "MISSING_CAPABILITY": 1
+      },
+      "consumer": {
+        "REASSESSMENT_LATER": 4,
+        "OTHER": 3,
+        "PASS": 1
+      }
+    }
+  },
+  "candidates": [
+    {
+      "id": "OMA-001:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why is the second one more important than the others?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-001:4",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "The Chairman for that project says financing is already secured.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-002:2",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Is that just the biggest deal?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-002:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Compare it with the oldest unanswered lead.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-003:3",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Tell me about the second issue.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-005:6",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why that lead rather than the first?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-007:1",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Compare the Abuja JV and the speculative large lead.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-008:4",
+      "genuine_reference_form": false,
+      "surface": "office_internal",
+      "prompt": "Do not promise financing.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "COMMUNICATION_LATER",
+      "why": "a constraint on what may be said/reported",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OMA-010:4",
+      "genuine_reference_form": true,
+      "surface": "office_internal",
+      "prompt": "Why?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "JUDGMENT_PROVIDER_REQUIRED",
+      "why": "nothing was named earlier (no provider, so the business records were counted, not ordered): there is no derived referent to resolve; the answer says so and does not substitute a list",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-004:6",
+      "genuine_reference_form": true,
+      "surface": "public_corporate",
+      "prompt": "What do you know versus need to check?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-006:6",
+      "genuine_reference_form": false,
+      "surface": "public_corporate",
+      "prompt": "Can you guarantee a return?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "OSA-007:3",
+      "genuine_reference_form": false,
+      "surface": "public_corporate",
+      "prompt": "I do not know the planning designation.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-001:3",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Why that rather than the camera?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-002:5",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Why?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the reference resolved against a derived artifact; the answer still does not meet this frozen envelope",
+      "derived_reference_used": true,
+      "answer_changed": true
+    },
+    {
+      "id": "FAC-002:7",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Do not report the camera as recovered yet.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "COMMUNICATION_LATER",
+      "why": "a constraint on what may be said/reported",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-003:4",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Compare that with the water leak.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-005:2",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Is that a security incident?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-005:5",
+      "genuine_reference_form": true,
+      "surface": "facility",
+      "prompt": "Compare this with the open water issue.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "the earlier turn presented a raw list, an overview answer or a clarification (existing result-set/selection mechanism), not a derived artifact",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-007:2",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "The water is now near an electrical panel.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-008:2",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Which resident is causing the problem?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "UPSTREAM_SUBJECT_GAP",
+      "why": "attribution needs evidence the subject derivation never requested",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "FAC-010:3",
+      "genuine_reference_form": false,
+      "surface": "facility",
+      "prompt": "Do you have a Tower B scope?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "MISSING_CAPABILITY",
+      "why": "building scope is not an available evidence scope",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:1",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "I am going to bed.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The bedroom feels too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:4",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "Do you know the current temperature?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-002:7",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "What can you safely conclude right now?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-007:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The water leak has got worse.",
+      "status_before": "FAIL",
+      "status_after": "PASS",
+      "class_after": "PASS",
+      "why": "explicit envelope-derived check holds (self-graded)",
+      "derived_reference_used": true,
+      "answer_changed": true
+    },
+    {
+      "id": "CON-008:1",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "The bedroom is too hot.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-008:2",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "Actually it is the study, not the bedroom.",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "REASSESSMENT_LATER",
+      "why": "a new fact arrived; reassessment is a later slice (the earlier ranking, if any, is marked stale and preserved)",
+      "derived_reference_used": false,
+      "answer_changed": false
+    },
+    {
+      "id": "CON-008:3",
+      "genuine_reference_form": false,
+      "surface": "consumer",
+      "prompt": "What did I just correct?",
+      "status_before": "FAIL",
+      "status_after": "FAIL",
+      "class_after": "OTHER",
+      "why": "handed over by IQ-4 by recorded boundary label; the prompt carries no reference form",
+      "derived_reference_used": false,
+      "answer_changed": false
+    }
+  ]
+}
