@@ -1,0 +1,40 @@
+{
+ "runner_sha256": "d1a4b8a9d454bf6df58ec4a1f3471304b2b9b9b24d1aa80b189c2f2c07a8fd6f",
+ "expectations_sha256": "c9395a372b19b91616aa7ebc7876022830802ef81fdf3befacef7fa9073d03c1",
+ "protocol_sha256": "26a4badc941bacbe66774ae0445175e35928a6d12e3ee7026208b7e800b4b3c7",
+ "spec_sha256": "4c9c1e24155ab2eedb80cadfff2d3b37aadfc6427d99b5fc15180a9a6555524b",
+ "authors": [
+  {
+   "worker": "Oma",
+   "file": "author-Oma.json",
+   "sha256": "eba52d169191d7ea0e9928d1fd052a6424236c18312ea8e4443c38768a17113e"
+  },
+  {
+   "worker": "Osa",
+   "file": "author-Osa.json",
+   "sha256": "206d3642030b2e9fb5ae2b1a246569f8b1c22d8521362004887c17973fce3e1c"
+  },
+  {
+   "worker": "Facility",
+   "file": "author-Facility.json",
+   "sha256": "95522e76fe1c4c21c27794f258e8b650ade464849ff3da3036d4240e212ad59b"
+  },
+  {
+   "worker": "Consumer",
+   "file": "author-Consumer.json",
+   "sha256": "8377bbef0806db1df0c47346759324776982167052f3dd4f30fd7de96d696314"
+  }
+ ],
+ "overlap": {
+  "prior_utterances_compared": 610,
+  "exact_duplicates": 7,
+  "near_duplicates": 1,
+  "items": 520,
+  "exact_rate": 0.0135,
+  "near_ids": [
+   "IQ8F-FACILITY-P0278"
+  ]
+ },
+ "frozen_at": "2026-10-07T20:22:09.255Z",
+ "head": "e62a772+"
+}
