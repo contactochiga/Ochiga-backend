@@ -37,12 +37,15 @@ export function limitationAnswer(target: AnswerTarget, question: string): string
 /** An authority denial states WHY (scope, surface or permission) without widening anything; unknown reasons keep the generic refusal. */
 export function denialAnswer(reason: string | null | undefined, asked: string, act = false): string {
   const q = asked ? ` (“${asked}”)` : "";
-  if (act && (reason === "home_scope_required" || reason === "room_scope_required" || reason === "estate_scope_required")) return `I can't do that from here${q}: it needs a specific home or room in scope, and this view has no estate-wide control. Nothing was changed.`;
-  if (reason === "home_scope_required" || reason === "room_scope_required") return `I can't read that from here${q}: it needs a specific home or room in scope, and this view has no estate-wide read for it.`;
-  if (reason === "estate_scope_required") return `I can't read that from here${q}: it needs an estate in scope.`;
-  if (reason === "surface_not_supported" || reason === "public_corporate_surface_cannot_use_operational_capability") return `That isn't available from this surface${q}.`;
-  if (reason === "missing_permission") return `I can't do that for you here${q}: your role doesn't have the permission it needs.`;
-  return `I can't do that for you here: you are not authorised to use it from this surface or scope${q}.`;
+  // the established denial sentence is kept verbatim (it is the product's safe-denial contract); the reason follows it
+  const base = `I can't do that for you here: you are not authorised to use it from this surface or scope${q}`;
+  if (reason === "home_scope_required" || reason === "room_scope_required") return act
+    ? `${base} — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing was changed.`
+    : `${base} — it needs a specific home or room in scope, and this view has no estate-wide read for it.`;
+  if (reason === "estate_scope_required") return `${base} — it needs an estate in scope.`;
+  if (reason === "surface_not_supported" || reason === "public_corporate_surface_cannot_use_operational_capability") return `${base} — that isn't available from this surface.`;
+  if (reason === "missing_permission") return `${base} — your role doesn't have the permission it needs.`;
+  return `${base}.`;
 }
 
 /** The specific question that resolves an ambiguity the path already knows about. Never a menu, never "nothing pending". */
