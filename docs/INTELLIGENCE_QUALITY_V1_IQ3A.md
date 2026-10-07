@@ -514,3 +514,11 @@ only when a room-scoped device read returns zero rows; otherwise the same querie
 history 3, cameras 2-3, scenes 1, public 0-1 (+ one bounded GET).
 
 **IQ-3A EVIDENCE CONTRACT CERTIFIED — IQ-3B APPROVAL REQUIRED**
+
+### Superseded in IQ-3B: the pure-read mechanism
+The IQ-3A runtime guard described above (wrapping the shared Supabase client's `from`/`rpc` on first planner read) was
+**replaced in IQ-3B** by a dedicated, structurally read-only dependency (`evidence/ReadOnlyEvidenceDb.ts`): certified sources
+receive an object exposing only `select`; no write verb and no RPC exist on it and nothing global is patched. The IQ-3A
+certification, readiness counts and source states are unchanged; the tests that exercised the old guard were rewritten to
+assert the structural property (and that every DB-backed source reads only through the injected dependency).
+See `docs/INTELLIGENCE_QUALITY_V1_IQ3B.md`.
