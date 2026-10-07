@@ -5,7 +5,7 @@ import type { ResolvedTurn } from "../contracts/resolvedTurn";
 import { parseSemanticFrame, isCancellationUtterance } from "../interpretation/SemanticFrameParser";
 import { loadConversationAssessment, nextConversationAssessment, isAssessmentObjective, isAssessmentInformation, assessmentContinuation, assessmentSubjectDomains, assessmentEvidenceRequirements, assessmentEvidenceAnswer, assessmentCaveats, ASSESSMENT_TTL_MS } from "../context/conversationAssessmentContext";
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
-import { handleDerivedReferenceTurn, rawSetFacts } from "../evidence/reference/derivedReferenceTurn";
+import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { parseDerivedReference, scopeBinding } from "../evidence/reference/derivedReference";
 import { runReassessment } from "../evidence/reassessment/integration";
 import { providerFromEnv as reassessProvider } from "../evidence/judgment/provider";
@@ -3741,7 +3741,7 @@ export class ConversationOrchestrator {
       });
       // IQ-6: an explicit reassessment request (or a "now" question) on a stale artifact reassesses ONLY what the new facts can affect.
       if (!derivedTurn.handled && derivedTurn.why === "reassess_requested" && boolFlag("OYI_REASSESSMENT_ENABLED", true) && previousAssessment.derived_ranking) {
-        const r = await runReassessment({ context, resolvedTurn, previous: previousAssessment, text: frame.rawText, tracer, provider: reassessProvider(), scopeBinding: binding, authorised: authorisedFor }).catch((error) => {
+        const r = await runReassessment({ context, resolvedTurn, previous: derivedTurn.assessment ?? previousAssessment, text: frame.rawText, tracer, provider: reassessProvider(), scopeBinding: binding, authorised: authorisedFor }).catch((error) => {
           logger.warn("oyi_reassessment_failed", { request_id: tracer.requestId, error: error instanceof Error ? error.message : String(error) });
           return null;
         });
@@ -3841,7 +3841,7 @@ export class ConversationOrchestrator {
         if (gathered && assessment.derived_ranking) {
           const inv = planned!.state.invalidation;
           if (inv.some(x => x === "scope_change" || x.startsWith("authority_changed"))) assessment = { ...assessment, derived_ranking: null };
-          else if (inv.includes("material_fact_changed")) assessment = { ...assessment, derived_ranking: { ...assessment.derived_ranking, stale: { reason: "material_fact", at: new Date().toISOString() } } };
+          else if (inv.includes("material_fact_changed") && informationConcernsArtifact(frame.rawText, assessment.derived_ranking)) assessment = { ...assessment, derived_ranking: { ...assessment.derived_ranking, stale: { reason: "material_fact", at: new Date().toISOString() } } };
         }
         // IQ-4: bounded, evidence-linked judgment over the gathered bundle. Advisory only: it retrieves nothing, executes nothing
         // and any failure degrades to an honest bounded statement without touching canonical assessment state.

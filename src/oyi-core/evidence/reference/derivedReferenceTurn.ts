@@ -30,7 +30,7 @@ export type DerivedTurnArgs = {
   scopeBinding: string; authorised: (sourceKeys: string[]) => boolean;
 };
 export type DerivedTurnResult =
-  | { handled: false; why: string }
+  | { handled: false; why: string; assessment?: ConversationAssessmentContext }
   | { handled: true; outcome: string; answer: string; assessment: ConversationAssessmentContext };
 
 const kindOf = (a: DerivedRanking) => ((a.artifact_type ?? "ranking") === "ranking" ? "ordering" : "assessment");
@@ -44,7 +44,7 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
   const stamp = new Date(a.now).toISOString(), facts = prev.facts || [];
   const touch = (extra: Partial<ConversationAssessmentContext> = {}): ConversationAssessmentContext => ({
     ...prev, ...extra, suspended: false, status: "assessment_pending", updated_at: stamp, expires_at: new Date(a.now + ASSESSMENT_TTL_MS).toISOString() });
-  const asksReassess = a.objective === "reassess" || REASSESS_ASK.test(a.text);
+  const asksReassess = a.objective === "reassess" || (/\?\s*$/.test(a.text) && !/\b(?:do not|don'?t|never)\b/i.test(a.text) && REASSESS_ASK.test(a.text));
   let info = classifyUpdate(a.text, facts);
   // A bare pointer ("the second one") is a reference, not a detail.
   if (info.type === "non_material_detail" && parseDerivedReference(a.text).any) info = { type: "question", attributed: false };
@@ -52,7 +52,10 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
 
   // ---- no derived artifact: only honest statements about that, never a manufactured ordering ----
   if (!art0) {
-    if (!prev.evidence_plan) return { handled: false, why: "no_artifact" };
+    // Only when an ordering was WITHHELD (no comparative judgment available) do facts and reassessment questions get an honest "nothing to reorder"
+    // answer; elsewhere the ordinary evidence-based flow already answers.
+    const withheld = prev.evidence_plan && ["bounded_no_provider", "fallback_after_rejection"].includes(prev.judgment?.mode || "");
+    if (!withheld) return { handled: false, why: "no_artifact" };
     if (asksReassess && !isAssessmentInformation(a.text)) return { handled: true, outcome: "reassess_no_prior_ordering", answer: composeNotReassessed("no_prior", null, activeFacts(facts)), assessment: touch() };
     if (["material_new_fact", "unverified_claim"].includes(info.type) && !/\b(?:actually|i meant|i mean)\b/i.test(a.text)) {
       const fact = makeFact(a.text, info, { status: "none", items: [], how: "no_artifact" }, facts, a.now);
@@ -75,10 +78,12 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
     if (info.type === "hypothetical") return { handled: true, outcome: "hypothetical_not_applied", assessment: touch(), answer: `I am treating that as a hypothetical, not as a fact, so I have not stored it and the ${kind} I gave stands. If it were true it could bear on the items; tell me if it is actually the case.` };
     if (info.type === "opinion") return { handled: true, outcome: "opinion_noted", assessment: touch(), answer: `Noted as your preference or view. It is not evidence about the items, so the ${kind} I gave stands.` };
     if (info.type === "confirmation") return { handled: true, outcome: "confirmation_noted", assessment: touch(), answer: `That matches what I already hold, so nothing changes. It is still your own statement, not something I have verified.` };
-    const binding = bindFact(a.text, art);
-    const classes = affectedClasses(a.text), artClasses = artifactClasses(art);
+    const artClasses = artifactClasses(art), binding = bindFact(a.text, art, artClasses);
+    const classes = affectedClasses(a.text);
     const bears = binding.status === "bound" || classes.some(c => artClasses.includes(c)) || (concerns && classes.length > 0);
-    if (info.type === "non_material_detail" || !bears) {
+    // Information about something the assessment does not cover is left to the normal flow (it neither touches nor replaces this artifact).
+    if (info.type !== "non_material_detail" && !bears) return { handled: false, why: "fact_unrelated_to_artifact" };
+    if (info.type === "non_material_detail") {
       return { handled: true, outcome: "non_material_noted", assessment: touch(), answer: `Noted. As far as I can tell it does not bear on the items in the ${kind} I gave, so I have not changed or marked anything.` };
     }
     if (binding.status === "ambiguous") {
@@ -101,7 +106,16 @@ export function handleDerivedReferenceTurn(a: DerivedTurnArgs): DerivedTurnResul
   // ---- reassessment request / a "now" question about a stale artifact ----
   const wantsHistory = parseDerivedReference(a.text).historical && prev.derived_history && !isExpired(prev.derived_history, a.now);
   if (!wantsHistory && live && !art.parked && asksReassess && !isAssessmentInformation(a.text)) {
-    if (art.stale || activeFacts(facts).length) return { handled: false, why: "reassess_requested" };
+    // A fact the ordinary flow already took in (IQ-2 pending information) counts as the new fact for this reassessment.
+    let working = facts;
+    if (!activeFacts(facts).length && prev.pending_information) {
+      const pi = classifyUpdate(prev.pending_information, facts);
+      if (["material_new_fact", "unverified_claim", "correction"].includes(pi.type)) {
+        const artClasses = artifactClasses(art); const b = bindFact(prev.pending_information, art, artClasses);
+        if (b.status !== "ambiguous" && (b.status === "bound" || affectedClasses(prev.pending_information).some(c => artClasses.includes(c)))) working = addFact(facts, makeFact(prev.pending_information, pi, b, facts, a.now));
+      }
+    }
+    if (art.stale || activeFacts(working).length) return { handled: false, why: "reassess_requested", assessment: touch({ facts: working, pending_information: null, derived_ranking: art.stale ? art : { ...art, stale: { reason: "material_fact", at: stamp } } }) };
     return { handled: true, outcome: "reassess_nothing_new", assessment: touch(), answer: `Nothing new has been added since I gave that ${kind}, so there is nothing to reassess: it stands, as of when I gave it.` };
   }
 

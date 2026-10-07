@@ -79,6 +79,14 @@
       "status": "PASS"
     },
     {
+      "id": "iq6:a-fact-the-ordinary-flow-already-took-in-counts-for-the-next-reassessment",
+      "status": "PASS"
+    },
+    {
+      "id": "iq6:a-lone-item-is-not-bound-to-an-unrelated-fact",
+      "status": "PASS"
+    },
+    {
       "id": "iq6:a-now-question-on-a-stale-artifact-requests-reassessment-not-a-stale-answer",
       "status": "PASS"
     },
@@ -96,6 +104,6 @@
     }
   ],
   "counts": {
-    "PASS": 23
+    "PASS": 25
   }
 }

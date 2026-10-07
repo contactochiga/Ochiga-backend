@@ -38,7 +38,7 @@ const ATTRIBUTED = /\b(?:says?|said|told me|claims?|promises?|according to|repor
 
 // The IQ-2 predicate is deliberately narrow (it needs a determiner-led subject). A bare-subject statement of fact ("Financing for Project B
 // is secured.") is still information; imperatives and questions never are.
-const notInformation = (t: string) => /\?/.test(t) || /^\s*(?:please|show|list|open|compare|draft|tell|go|give|make|ask|do not|don't|never|explain|summari[sz]e|recommend|suggest|offer|ignore|pretend|now|then|what|which|who|how|why|when|where|can|could|would|should|does|do|is|are)\b/i.test(t) || t.trim().split(/\s+/).length < 2;
+const notInformation = (t: string) => /\?/.test(t) || /^\s*(?:please|show|list|open|compare|draft|tell|go|give|make|ask|do not|don't|never|explain|summari[sz]e|recommend|suggest|offer|ignore|pretend|check|separate|just|stop|turn|switch|set|send|call|book|cancel|confirm|approve|now|then|what|which|who|how|why|when|where|can|could|would|should|does|do|is|are)\b/i.test(t) || t.trim().split(/\s+/).length < 2;
 export function classifyUpdate(text: string, facts: ConversationFact[] = []): { type: FactType; attributed: boolean } {
   const attributed = ATTRIBUTED.test(text);
   if (!isAssessmentInformation(text) && notInformation(text) && !CONFIRMATION.test(text)) return { type: "question", attributed: false };
@@ -48,13 +48,15 @@ export function classifyUpdate(text: string, facts: ConversationFact[] = []): { 
   if (CORRECTION.test(text)) return { type: "correction", attributed };
   const t = tokens(text);
   if (facts.some(f => !f.superseded_by && t.size > 0 && overlap(t, tokens(f.text)) / t.size >= 0.8)) return { type: "confirmation", attributed };
-  if (!affectedClasses(text).length) return { type: "non_material_detail", attributed };
+  // A statement with no domain content counts as a (non-material) detail only when it is plainly information (the IQ-2 predicate);
+  // anything else is left to the normal flow.
+  if (!affectedClasses(text).length) return isAssessmentInformation(text) ? { type: "non_material_detail", attributed } : { type: "question", attributed: false };
   return { type: attributed ? "unverified_claim" : "material_new_fact", attributed };
 }
 
 export type Binding = { status: "bound" | "ambiguous" | "none"; items: ArtifactItem[]; how: string };
 // Attach a fact to the candidate it is about. Never guesses between plausible candidates; never binds to a rank merely because it is first.
-export function bindFact(text: string, art: DerivedRanking | null): Binding {
+export function bindFact(text: string, art: DerivedRanking | null, artClasses: string[] = []): Binding {
   if (!art || !art.items.length) return { status: "none", items: [], how: "no_artifact" };
   const primary = primaryGroup(art), all = art.items;
   const named = namedItems(text, art);
@@ -72,7 +74,8 @@ export function bindFact(text: string, art: DerivedRanking | null): Binding {
   if (hit.length === 1) return { status: "bound", items: hit, how: "shared_word" };
   if (hit.length > 1) return { status: "ambiguous", items: hit.slice(0, 4), how: "several_shared_words" };
   if (ref.demonstrative && focus) return { status: "bound", items: [focus], how: "focus" };
-  if (primary.length === 1) return { status: "bound", items: primary, how: "single_salient" };
+  // A lone item is bound only when the fact is about the same kind of thing; "the bedroom is hot" does not attach to a water leak.
+  if (primary.length === 1 && affectedClasses(text).some(c => artClasses.includes(c))) return { status: "bound", items: primary, how: "single_salient" };
   return { status: "none", items: [], how: "no_basis" };
 }
 
