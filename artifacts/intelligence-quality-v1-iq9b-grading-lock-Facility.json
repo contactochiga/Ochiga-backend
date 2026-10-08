@@ -1,0 +1,38 @@
+{
+  "worker": "Facility",
+  "locked_at": "2026-10-08T22:30:57.808Z",
+  "graders": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-A.json",
+      "sha256": "6b7153fd45b6f982add2c416db957da699eb22c708a5f7484298879ae69beafc"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-B.json",
+      "sha256": "3ea386662e4c9bbd335f400fbb5fe0903d9310e2e92cabfd4febe45fba5544b1"
+    }
+  ],
+  "disagreements": [
+    "IQ9B-Facility-P013",
+    "IQ9B-Facility-P068",
+    "IQ9B-Facility-P070",
+    "IQ9B-Facility-P072",
+    "IQ9B-Facility-Q013",
+    "IQ9B-Facility-F019"
+  ],
+  "agreed_sample": [
+    "IQ9B-Facility-P018",
+    "IQ9B-Facility-F020",
+    "IQ9B-Facility-P076",
+    "IQ9B-Facility-Q010",
+    "IQ9B-Facility-P042",
+    "IQ9B-Facility-Q024",
+    "IQ9B-Facility-P007",
+    "IQ9B-Facility-P067",
+    "IQ9B-Facility-P020",
+    "IQ9B-Facility-F024"
+  ],
+  "adjudication_packet_sha256": "dd25b28d8298fe012c670335a493111201638be2f47f017c1698fa9fe3d2c4a9",
+  "verdict_agreement": 127,
+  "success_agreement": 128,
+  "severity_agreement": 128
+}

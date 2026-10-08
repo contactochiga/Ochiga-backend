@@ -1,0 +1,297 @@
+{
+  "candidate": "872fb7bf264d30865e1aadb5dfa44ae46a9579d6",
+  "artifact_head_at_validation": "e3df6dfe53f542b4347137cdab8cc95e241b036e",
+  "runtime_schema_dependency_diff_zero": true,
+  "changed_paths_only_iq9b": true,
+  "diff_check": "PASS",
+  "secret_pattern_scan": {
+    "status": "PASS",
+    "files": 57,
+    "scope": "Private-key/GitHub/provider-token/JWT patterns; not a comprehensive security audit",
+    "hits": []
+  },
+  "files": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Consumer.json",
+      "bytes": 142339
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Facility.json",
+      "bytes": 157314
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Oma.json",
+      "bytes": 131425
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Osa.json",
+      "bytes": 130817
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+      "bytes": 12018
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+      "bytes": 1109
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-commissioning.json",
+      "bytes": 1673
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-corpus.json",
+      "bytes": 217248
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-expectations.json",
+      "bytes": 650680
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact-hashes.json",
+      "bytes": 1096
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact-raw.json",
+      "bytes": 34169062
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact-start.json",
+      "bytes": 5044
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact.jsonl",
+      "bytes": 18658410
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+      "bytes": 3904
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Consumer.json",
+      "bytes": 4930607
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Facility.json",
+      "bytes": 4913810
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Oma.json",
+      "bytes": 6211202
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Osa.json",
+      "bytes": 4749650
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-preservation.json",
+      "bytes": 47032
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-seal.json",
+      "bytes": 97568
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+      "bytes": 10787
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+      "bytes": 1679
+    },
+    {
+      "path": "scripts/iq9b-first-contact.mjs",
+      "bytes": 6123
+    },
+    {
+      "path": "scripts/iq9b-local-launch.mjs",
+      "bytes": 803
+    },
+    {
+      "path": "scripts/iq9b-prepare-grading.mjs",
+      "bytes": 2113
+    },
+    {
+      "path": "scripts/iq9b-preservation.mjs",
+      "bytes": 4243
+    },
+    {
+      "path": "scripts/iq9b-seal-corpus.mjs",
+      "bytes": 4876
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Consumer.json",
+      "bytes": 49986
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Facility.json",
+      "bytes": 22382
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Oma.json",
+      "bytes": 52074
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Osa.json",
+      "bytes": 18955
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudication-Consumer.json",
+      "bytes": 1323870
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudication-Facility.json",
+      "bytes": 623973
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudication-Oma.json",
+      "bytes": 1777486
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-adjudication-Osa.json",
+      "bytes": 433608
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-A.json",
+      "bytes": 111653
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-B.json",
+      "bytes": 114977
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-A.json",
+      "bytes": 110804
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-B.json",
+      "bytes": 112980
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Oma-A.json",
+      "bytes": 115992
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Oma-B.json",
+      "bytes": 115320
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-A.json",
+      "bytes": 117176
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-B.json",
+      "bytes": 112229
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-lock-Consumer.json",
+      "bytes": 1816
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-lock-Facility.json",
+      "bytes": 1088
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-lock-Oma.json",
+      "bytes": 1791
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-lock-Osa.json",
+      "bytes": 909
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-result.json",
+      "bytes": 593057
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-review-provenance.json",
+      "bytes": 15997
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-validation.json",
+      "bytes": 14302
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ9B_CERTIFICATION.md",
+      "bytes": 17815
+    },
+    {
+      "path": "scripts/iq9b-aggregate.mjs",
+      "bytes": 9234
+    },
+    {
+      "path": "scripts/iq9b-expand-adjudication.mjs",
+      "bytes": 1606
+    },
+    {
+      "path": "scripts/iq9b-prepare-adjudication.mjs",
+      "bytes": 3475
+    },
+    {
+      "path": "scripts/iq9b-report.mjs",
+      "bytes": 13226
+    },
+    {
+      "path": "scripts/iq9b-review-provenance.mjs",
+      "bytes": 1752
+    },
+    {
+      "path": "scripts/iq9b-validation.mjs",
+      "bytes": 2663
+    }
+  ],
+  "largest_files": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact-raw.json",
+      "bytes": 34169062
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-first-contact.jsonl",
+      "bytes": 18658410
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Oma.json",
+      "bytes": 6211202
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Consumer.json",
+      "bytes": 4930607
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Facility.json",
+      "bytes": 4913810
+    }
+  ],
+  "frozen_historical_hashes": "UNCHANGED",
+  "historical_workflow_failures": [
+    {
+      "suite": "oyi-workflow-action-phase-c-reload-smoke",
+      "exit": 1,
+      "stderr_sha256": "ae43a8363bc83d01b52756f26f1821cb7e9a5287f852cf4cc041ee56639bd822",
+      "stderr": "⚠️ Missing RESEND_API_KEY (emails will fail until set).\nOPENAI_API_KEY not set — AI features disabled\n{\"timestamp\":\"2026-10-08T22:03:43.836Z\",\"level\":\"warn\",\"message\":\"oyi_conversation_trace_unconfigured\",\"reason\":\"OYI_TRACE_REFERENCE_KEY missing or too short\",\"min_length\":32}\nFAIL reload restores pending channel clarification through canonical thread workflow metadata\nnode:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\nfalse !== true\n\n    at restoreThread (file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-reload-smoke.mjs:198:10)\n    at async file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-reload-smoke.mjs:221:26\n    at async check (file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-reload-smoke.mjs:205:5)\n    at async file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-reload-smoke.mjs:213:1 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n",
+      "stdout_sha256": "66c757f819f8d9700cfe4db39cc45b3ba80ef6230480e0b1c2ec1d203683cfe1"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+      "exit": 1,
+      "stderr_sha256": "f2c4bde5d98dbc2050bb14d6a09e062de8e318d9486a685af41151bcc6058dac",
+      "stderr": "⚠️ Missing RESEND_API_KEY (emails will fail until set).\nOPENAI_API_KEY not set — AI features disabled\n{\"timestamp\":\"2026-10-08T22:03:45.565Z\",\"level\":\"warn\",\"message\":\"oyi_conversation_trace_unconfigured\",\"reason\":\"OYI_TRACE_REFERENCE_KEY missing or too short\",\"min_length\":32}\n{\"timestamp\":\"2026-10-08T22:03:45.598Z\",\"level\":\"error\",\"message\":\"oyi_capability_claim_evidence_violation\",\"request_id\":\"142246d3-c2c5-4767-9f6a-aeebfeaf5124\",\"correlation_id\":\"142246d3-c2c5-4767-9f6a-aeebfeaf5124\",\"capability_key\":\"devices.status.read\",\"domain\":\"devices\",\"result_status\":\"answered\",\"evidence_count\":2,\"error\":\"Canonical claim cannot promote unavailable or restricted evidence to confirmed/observed\"}\nFAIL channel continuation stays inside pending workflow\nnode:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: The input did not match the regular expression /Please confirm/i. Input:\n\n'I could not confirm that evidence-backed answer safely, so I am not reporting it as confirmed.'\n\n    at file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-multigang-smoke.mjs:295:10\n    at async check (file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-multigang-smoke.mjs:218:5)\n    at async file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-multigang-smoke.mjs:290:1 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'I could not confirm that evidence-backed answer safely, so I am not reporting it as confirmed.',\n  expected: /Please confirm/i,\n  operator: 'match',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n",
+      "stdout_sha256": "5ca84d89dd2aeb7908894911e3144c93800ba96f4b2202d4e8d7c644dd8ca2f9"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-correction-smoke",
+      "exit": 1,
+      "stderr_sha256": "95256e5f4706880179743506d777dfaa9a58e851f18239d1bb6cb32fb03470e2",
+      "stderr": "⚠️ Missing RESEND_API_KEY (emails will fail until set).\nOPENAI_API_KEY not set — AI features disabled\n{\"timestamp\":\"2026-10-08T22:03:47.347Z\",\"level\":\"warn\",\"message\":\"oyi_conversation_trace_unconfigured\",\"reason\":\"OYI_TRACE_REFERENCE_KEY missing or too short\",\"min_length\":32}\n{\"timestamp\":\"2026-10-08T22:03:47.368Z\",\"level\":\"error\",\"message\":\"oyi_capability_claim_evidence_violation\",\"request_id\":\"c5a0d14d-8d54-494b-b142-bf19aed922e6\",\"correlation_id\":\"c5a0d14d-8d54-494b-b142-bf19aed922e6\",\"capability_key\":\"devices.status.read\",\"domain\":\"devices\",\"result_status\":\"answered\",\"evidence_count\":2,\"error\":\"Canonical claim cannot promote unavailable or restricted evidence to confirmed/observed\"}\nFAIL typed continuation selects channel and does not route availability read\nnode:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: The input did not match the regular expression /Please confirm/i. Input:\n\n'I could not confirm that evidence-backed answer safely, so I am not reporting it as confirmed.'\n\n    at file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-correction-smoke.mjs:200:10\n    at async check (file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-correction-smoke.mjs:170:5)\n    at async file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-action-phase-c-correction-smoke.mjs:195:1 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'I could not confirm that evidence-backed answer safely, so I am not reporting it as confirmed.',\n  expected: /Please confirm/i,\n  operator: 'match',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n",
+      "stdout_sha256": "bbaad06d2db504c9877a373f5cad51393b577c94f1f2c0ed881a3d11246ab793"
+    },
+    {
+      "suite": "oyi-workflow-durable-continuation-smoke",
+      "exit": 1,
+      "stderr_sha256": "8e55e59d4c60e0b21c8b3c2b8bc9fe1622bf96ceaa339799cd44b722d7ea7148",
+      "stderr": "⚠️ Missing RESEND_API_KEY (emails will fail until set).\nOPENAI_API_KEY not set — AI features disabled\n{\"timestamp\":\"2026-10-08T22:03:49.209Z\",\"level\":\"warn\",\"message\":\"oyi_conversation_trace_unconfigured\",\"reason\":\"OYI_TRACE_REFERENCE_KEY missing or too short\",\"min_length\":32}\nFAIL confirmation journey reaches a legal completed workflow, not a failure, after a successful action\nnode:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: confirmation must execute the device command exactly once\n\n0 !== 1\n\n    at file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-durable-continuation-smoke.mjs:273:10\n    at async check (file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-durable-continuation-smoke.mjs:240:5)\n    at async file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/oyi-workflow-durable-continuation-smoke.mjs:254:1 {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: 0,\n  expected: 1,\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n",
+      "stdout_sha256": "7b8b44c40123b87c33c85a4faf83ff4159add19e1ea4ead8847df9f4f3a30641"
+    }
+  ],
+  "no_merge_or_deploy": true
+}

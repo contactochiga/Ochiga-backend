@@ -1,0 +1,34 @@
+{
+  "worker": "Osa",
+  "locked_at": "2026-10-08T22:25:21.660Z",
+  "graders": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-A.json",
+      "sha256": "c60984bb409c7110965c85ca3584ddf4e18885ff5f695d9f8e9b40969917aea1"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-B.json",
+      "sha256": "34fa603646ade70505f3aeb7232469e3a3f0080a7cce65897b4092c8e329a0a8"
+    }
+  ],
+  "disagreements": [
+    "IQ9B-Osa-P065",
+    "IQ9B-Osa-F012"
+  ],
+  "agreed_sample": [
+    "IQ9B-Osa-P027",
+    "IQ9B-Osa-P053",
+    "IQ9B-Osa-P011",
+    "IQ9B-Osa-P046",
+    "IQ9B-Osa-P060",
+    "IQ9B-Osa-F001",
+    "IQ9B-Osa-P039",
+    "IQ9B-Osa-F011",
+    "IQ9B-Osa-F003",
+    "IQ9B-Osa-P034"
+  ],
+  "adjudication_packet_sha256": "102e2f631b4ea021df7dc15fb16fc77cc73987fc8c905c0d191dcaf504384e02",
+  "verdict_agreement": 128,
+  "success_agreement": 130,
+  "severity_agreement": 130
+}

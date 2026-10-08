@@ -1,0 +1,327 @@
+{
+  "roles": [
+    {
+      "worker": "Oma",
+      "role": "A",
+      "agent": "/root/iq9b_grade_oma_a",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Oma-A.json",
+          "sha256": "a008ad44a57a7fd4185ff2d7e12045ac8de275ee54d00b0666392d03cf34a0bb"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grading-Oma.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grade-Oma-A.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review",
+        "protocol_clarification_acknowledged": true,
+        "capture_limitations": "Authorized diagnostics report durable trace writes unavailable (PGRST204; missing planner_admitted/planner_admission_reason columns), zero durable trace correlations and no repair/replay. Oma packet responses and setup dialogues reviewed as captured; no successful durable trace write inferred. Diagnostic unsaved setup is in Osa, not this worker.",
+        "isolation_attestation": "Only the listed allowed documents/packet/diagnostics were read. No implementation, runtime, other grader, earlier corpus or prior results access; no subagents. All 130 cases, their complete answer text, expectations, linked primary expectations for companions, setup dialogues and material structural evidence individually reviewed. Scripts only projected packet fields and packaged manually authored decisions."
+      }
+    },
+    {
+      "worker": "Oma",
+      "role": "B",
+      "agent": "/root/iq9b_grade_oma_b",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Oma-B.json",
+          "sha256": "b569eef330f85cbdba4804a3ae79b624e2cdd2a5ae0d45fcd61f1d02c942d2fc"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grading-Oma.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review",
+        "protocol_clarification_acknowledged": true,
+        "capture_limitations": "The additional authorized diagnostics report zero durable trace correlations from PGRST204 missing planner_admitted/planner_admission_reason columns and an unsaved Osa setup response outside this packet. No repair/replay occurred. Oma packet contains 274 captured dialogue turns, all persistence_saved true, trace null; successful durable tracing is not inferred. Every Oma setup/scored answer and pertinent structural evidence was semantically reviewed using only allowlisted material. One source label in P058 conflicts with its corporate-private fact label; this discrepancy is recorded in its rationale.",
+        "isolation": "Explicit read allowlist and auditable tool history only; no OS isolation or cross-model independence claimed."
+      }
+    },
+    {
+      "worker": "Oma",
+      "role": "adjudicator",
+      "agent": "/root/iq9b_adjudicate_oma",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Oma.json",
+          "sha256": "5ce9d4c603f5946ec920b89d5aefba7817955f1283098727cd75dab91266e874"
+        }
+      ],
+      "reviewed": 54,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-adjudication-Oma.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-adjudicated-Oma.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Osa",
+      "role": "A",
+      "agent": "/root/iq9b_grade_osa_a",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-A.json",
+          "sha256": "c60984bb409c7110965c85ca3584ddf4e18885ff5f695d9f8e9b40969917aea1"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grading-Osa.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grade-Osa-A.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Osa",
+      "role": "B",
+      "agent": "/root/iq9b_grade_osa_b",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Osa-B.json",
+          "sha256": "34fa603646ade70505f3aeb7232469e3a3f0080a7cce65897b4092c8e329a0a8"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-grading-Osa.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-grade-Osa-B.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Osa",
+      "role": "adjudicator",
+      "agent": "/root/iq9b_adjudicate_osa",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Osa.json",
+          "sha256": "733c61ce215bfdf127e410127c5cedc0fd9f88898620effa2f57484baa604799"
+        }
+      ],
+      "reviewed": 12,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-adjudication-Osa.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-adjudicated-Osa.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Facility",
+      "role": "A",
+      "agent": "/root/iq9b_grade_facility_a",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-A.json",
+          "sha256": "6b7153fd45b6f982add2c416db957da699eb22c708a5f7484298879ae69beafc"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-grading-Facility.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-grade-Facility-A.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Facility",
+      "role": "B",
+      "agent": "/root/iq9b_grade_facility_b",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Facility-B.json",
+          "sha256": "3ea386662e4c9bbd335f400fbb5fe0903d9310e2e92cabfd4febe45fba5544b1"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grading-Facility.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "/Users/ochigaidoko/Documents/oyi-intelligence-quality/artifacts/intelligence-quality-v1-iq9b-grade-Facility-B.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Facility",
+      "role": "adjudicator",
+      "agent": "/root/iq9b_adjudicate_facility",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Facility.json",
+          "sha256": "3dc2019877aee780a0df8ea1790eb983464c8ef2bab0a37ebe34ec50433e9f5c"
+        }
+      ],
+      "reviewed": 16,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-adjudication-Facility.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-adjudicated-Facility.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Consumer",
+      "role": "A",
+      "agent": "/root/iq9b_grade_consumer_a",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-A.json",
+          "sha256": "96b50186a97ab2190f3811116e4cdb7b423a377c2b4b85d4abdffbde116d57ae"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-grading-Consumer.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-A.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Consumer",
+      "role": "B",
+      "agent": "/root/iq9b_grade_consumer_b",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-B.json",
+          "sha256": "54eb928026dda8ef8c655b3df56d1ffcb8fa7c330e4ebf7dd5f0b1451946c005"
+        }
+      ],
+      "reviewed": 130,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-grading-Consumer.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+          "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-B.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    },
+    {
+      "worker": "Consumer",
+      "role": "adjudicator",
+      "agent": "/root/iq9b_adjudicate_consumer",
+      "fork_turns": "none",
+      "output_files": [
+        {
+          "path": "artifacts/intelligence-quality-v1-iq9b-adjudicated-Consumer.json",
+          "sha256": "d2e45c0f5f2502c324bd02ad0e49ed42a6ee105b984058c8f0f8000486ac51b5"
+        }
+      ],
+      "reviewed": 44,
+      "exposure": {
+        "files_read": [
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+          "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+          "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+          "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+          "artifacts/intelligence-quality-v1-iq9b-adjudication-Consumer.json",
+          "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json"
+        ],
+        "prior_source_or_results_exposure": false,
+        "review_method": "individual semantic review"
+      }
+    }
+  ],
+  "coordinator_graded": false,
+  "blinding": "Fresh role contexts and explicit read allowlists; shared filesystem and model family. Not OS-sandbox, cross-model or human-panel independence.",
+  "diagnostic_supplement": {
+    "path": "artifacts/intelligence-quality-v1-iq9b-capture-diagnostics.json",
+    "sha256": "db8c6307b56588b19dbfb8691731b1b7a354d5d4c679c8313b2d8921d14299a4"
+  },
+  "previous_verdicts_supplied_to_adjudicators": false
+}

@@ -1,0 +1,66 @@
+{
+  "worker": "Consumer",
+  "locked_at": "2026-10-08T22:33:45.107Z",
+  "graders": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-A.json",
+      "sha256": "96b50186a97ab2190f3811116e4cdb7b423a377c2b4b85d4abdffbde116d57ae"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grade-Consumer-B.json",
+      "sha256": "54eb928026dda8ef8c655b3df56d1ffcb8fa7c330e4ebf7dd5f0b1451946c005"
+    }
+  ],
+  "disagreements": [
+    "IQ9B-Consumer-P006",
+    "IQ9B-Consumer-P033",
+    "IQ9B-Consumer-P034",
+    "IQ9B-Consumer-P035",
+    "IQ9B-Consumer-P037",
+    "IQ9B-Consumer-P038",
+    "IQ9B-Consumer-P039",
+    "IQ9B-Consumer-P040",
+    "IQ9B-Consumer-P043",
+    "IQ9B-Consumer-P044",
+    "IQ9B-Consumer-P046",
+    "IQ9B-Consumer-P047",
+    "IQ9B-Consumer-P049",
+    "IQ9B-Consumer-P058",
+    "IQ9B-Consumer-P060",
+    "IQ9B-Consumer-P065",
+    "IQ9B-Consumer-P067",
+    "IQ9B-Consumer-P071",
+    "IQ9B-Consumer-P072",
+    "IQ9B-Consumer-P073",
+    "IQ9B-Consumer-P074",
+    "IQ9B-Consumer-Q012",
+    "IQ9B-Consumer-Q015",
+    "IQ9B-Consumer-Q017",
+    "IQ9B-Consumer-Q018",
+    "IQ9B-Consumer-Q021",
+    "IQ9B-Consumer-Q022",
+    "IQ9B-Consumer-F001",
+    "IQ9B-Consumer-F014",
+    "IQ9B-Consumer-F017",
+    "IQ9B-Consumer-F018",
+    "IQ9B-Consumer-F019",
+    "IQ9B-Consumer-F021",
+    "IQ9B-Consumer-F022"
+  ],
+  "agreed_sample": [
+    "IQ9B-Consumer-P009",
+    "IQ9B-Consumer-P012",
+    "IQ9B-Consumer-P080",
+    "IQ9B-Consumer-P016",
+    "IQ9B-Consumer-F015",
+    "IQ9B-Consumer-P011",
+    "IQ9B-Consumer-Q019",
+    "IQ9B-Consumer-F020",
+    "IQ9B-Consumer-P057",
+    "IQ9B-Consumer-Q002"
+  ],
+  "adjudication_packet_sha256": "2949eb2530286848f5772369e5df764e707383b2df041cf1ebed2b912baf00f9",
+  "verdict_agreement": 119,
+  "success_agreement": 124,
+  "severity_agreement": 120
+}
