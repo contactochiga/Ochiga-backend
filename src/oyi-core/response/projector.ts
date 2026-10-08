@@ -85,6 +85,16 @@ function measureText(e: ResultEnvelope, ms: NonNullable<ResultEnvelope["measures
 }
 
 export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; raw?: string }): Projection | null {
+  const p = projectCore(t, e, ctx);
+  // IQ-9A12: a wallet-history answer that was asked together with the balance states the canonical balance beside the rows (separate source, never derived from them),
+  // or says that the balance could not be read
+  if (p && e.capability_key === "wallet.transactions.read" && /\b(?:history|balance)\b/i.test(ctx.raw || ctx.asked)) {
+    if (e.value) { const v = e.value; return { ...p, primary: `${p.primary}\n\n${cap(v.label ?? "Balance")}: ${v.currency} ${Number(v.amount).toLocaleString("en-NG")}${v.as_of ? ` (as of ${v.as_of})` : ""}${v.frozen ? ". This wallet is currently frozen" : ""}.` }; }
+    if (e.limitations?.some(l => l.kind === "UNAVAILABLE" && l.label === "current wallet balance")) return { ...p, primary: `${p.primary}\n\nI could not read the current wallet balance just now, so I am not stating one.` };
+  }
+  return p;
+}
+function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; raw?: string }): Projection | null {
   const sup = (...xs: string[]) => xs.filter(Boolean);
   const done = (shape: string, primary: string, ...more: string[]): Projection => ({ shape, primary, supporting: sup(...more) });
   const legacy = e.legacy_prose;
@@ -106,7 +116,7 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   if (e.measures?.length && (t.quantity === "sum" || t.quantity === "value" || !e.records?.length)) return done("AGGREGATE_VALUE", measureText(e, pickMeasures(t, e)), legacy);
   if (t.quantity === "sum") return done("LIMITATION", `I can't give you a total amount for ${e.subject.noun}: what I read lists individual entries but no total, and I won't add up partial information.`, legacy);
   // 5. current value (balance)
-  if (e.value && (t.quantity === "value" || ["STATUS", "DIRECT_ANSWER", "LIST", "COUNT", "SUMMARY", "ASSESSMENT"].includes(intent))) {
+  if (e.value && !(e.capability_key === "wallet.transactions.read" && e.records?.length) && (t.quantity === "value" || ["STATUS", "DIRECT_ANSWER", "LIST", "COUNT", "SUMMARY", "ASSESSMENT"].includes(intent))) {
     const v = e.value; return done("VALUE", `${cap(v.label ?? "Balance")}: ${v.currency} ${Number(v.amount).toLocaleString("en-NG")}${v.as_of ? ` (as of ${v.as_of})` : ""}${v.frozen ? ". This wallet is currently frozen" : ""}.`, legacy);
   }
   if (t.facet === "balance" && !e.subject.facets.includes("balance") && !e.value && e.subject.object_class === "wallet") return null; // wrong source for the facet: left to routing (IQ-8E)

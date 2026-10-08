@@ -15,6 +15,7 @@ import { loadWalletTransactionFacts, loadWalletBalanceFacts } from "../domains/w
 import { loadUtilitySpendingFacts, loadServiceAccountFacts, loadUtilityTariffFacts, loadUtilityPurchaseFacts, UTILITY_SERVICE_KEYS } from "../domains/utilities/utilityEvidence";
 import { buildUtilitySpendingAnswer, buildUtilityActiveAnswer, buildUtilityTariffAnswer, buildUtilityPurchasesAnswer } from "../domains/utilities/utilityConversationAnswers";
 import { loadMaintenanceRequestFacts } from "../domains/maintenance/maintenanceEvidence";
+import { hasPermission } from "../../core/foundation";
 import { loadVisitorAccessFacts } from "../domains/visitors/visitorEvidence";
 import { buildMaintenanceRequestsAnswer, buildVisitorAccessAnswer, buildWalletBalanceAnswer, maintenanceAnswerRows, visitorAnswerRows, walletAnswerRows } from "../presentation/conversationAnswerPresentation";
 import { loadSecurityIncidentFacts } from "../domains/security/securityEvidence";
@@ -218,7 +219,8 @@ function declaredModule(input: {
 }
 
 function deviceStatusSupports(frame: SemanticFrame) {
-  return frame.domain === "devices" && ["inform", "inspect", "list", "summarize", "device.status"].includes(frame.operation);
+  // IQ-9A12: "open items" names records of any kind, not the device inventory
+  return frame.domain === "devices" && !/\bopen\s+items?\b/i.test(frame.normalizedText) && ["inform", "inspect", "list", "summarize", "device.status"].includes(frame.operation);
 }
 
 export function buildPhaseBReadCapabilities(): CapabilityModule[] {
@@ -252,25 +254,40 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       supports: (frame) => ((frame.domain === null || frame.domain === "global")
         && ["assess", "advise"].includes(frame.cognitiveObjective || ""))
         || (/\b(?:estate|building|what needs attention|anything wrong|(?:i should|should i) deal with|what needs my attention)\b/i.test(frame.normalizedText)
-        && /\b(?:happening|overview|status|wrong|attention|issues?|deal with)\b/i.test(frame.normalizedText)),
+        && /\b(?:happening|overview|status|wrong|attention|issues?|deal with)\b/i.test(frame.normalizedText))
+        || /\b(?:open\s+items?|combined\s+picture|everything\s+(?:that\s+is\s+)?open)\b/i.test(frame.normalizedText),
       collect: async (context) => {
         const contract = requestContract(context);
         const [maintenance, incidents] = await Promise.all([
           loadMaintenanceRequestFacts(context.input, context.oisContext, contract),
           loadSecurityIncidentFacts(context.input, context.oisContext, contract),
         ]);
-        return [...maintenance, ...incidents].map(evidenceFromFact);
+        // IQ-9A12: an "open items" overview also covers visitor permission records and camera state, but ONLY when this actor already holds those read permissions;
+        // a source that is not permitted is disclosed as not checked, never silently dropped and never read on the actor's behalf.
+        const extra: OyiEvidence[] = [];
+        if (hasPermission(context.actor, "visitors.read")) extra.push(...(await loadVisitorAccessFacts(context.input, context.oisContext, contract, context.evidence_db)).map(evidenceFromFact));
+        if (hasPermission(context.actor, "cameras.view")) extra.push(...(await facilityCameraEvidence(context).catch(() => [])));
+        return [...maintenance, ...incidents].map(evidenceFromFact).concat(extra);
       },
-      answer: (_context, evidence) => {
+      answer: (context, evidence) => {
         const facts = factsFromEvidence(evidence);
-        const unavailable = facts.filter((fact) => fact.truth_state === "unavailable").map((fact) => fact.domain);
-        const open = facts.filter((fact) => fact.truth_state === "confirmed" && !/^(?:resolved|closed|completed)$/i.test(text(recordOf(fact.value).status)));
+        const visitorFacts = facts.filter((fact) => fact.domain === "visitors"), cameraFacts = facts.filter((fact) => fact.domain === "cameras");
+        const notChecked = [hasPermission(context.actor, "visitors.read") ? null : "visitor access records", hasPermission(context.actor, "cameras.view") ? null : "camera state"].filter(Boolean);
+        const visitorRows = visitorFacts.some((fact) => fact.truth_state === "unavailable") ? [] : visitorAnswerRows(visitorFacts).rows;
+        const cameraUnknown = cameraFacts.filter((fact) => fact.truth_state !== "unavailable" && ["unknown", "unavailable"].includes(text(recordOf(fact.value).overall))).length;
+        const extraText = [
+          visitorFacts.some((fact) => fact.truth_state === "unavailable") ? "Visitor access records could not be loaded." : visitorRows.length ? `Visitor permission records: ${visitorRows.map((r) => `${r.label} (${r.status})`).join(", ")}; these show permission, not presence.` : "",
+          cameraFacts.some((fact) => fact.truth_state === "unavailable") ? "Camera state could not be loaded." : cameraFacts.length ? `Cameras: ${cameraFacts.length} registered${cameraUnknown ? `, ${cameraUnknown} with a current state that cannot be observed (neither working nor failed)` : ""}.` : "",
+          notChecked.length ? `Not checked (not permitted for this role): ${notChecked.join(", ")}.` : "",
+        ].filter(Boolean).join(" ");
+        const unavailable = facts.filter((fact) => fact.truth_state === "unavailable" && ["maintenance", "security"].includes(String(fact.domain))).map((fact) => fact.domain);
+        const open = facts.filter((fact) => ["maintenance", "security"].includes(String(fact.domain)) && fact.truth_state === "confirmed" && !/^(?:resolved|closed|completed)$/i.test(text(recordOf(fact.value).status)));
         const maintenance = open.filter((fact) => fact.domain === "maintenance");
         const incidents = open.filter((fact) => fact.domain === "security");
         const detail = open.slice(0, 3).map((fact) => fact.statement).join(" ");
-        const answer = `From the available maintenance and security records: ${maintenance.length} open maintenance request${maintenance.length === 1 ? "" : "s"} and ${incidents.length} open security incident${incidents.length === 1 ? "" : "s"}.${detail ? ` Priority items: ${detail}` : ""}${unavailable.length ? ` ${Array.from(new Set(unavailable)).join(" and ")} evidence is unavailable; this is not a complete estate-health verdict.` : " This covers those two sources only, not every estate system."}`;
+        const answer = `From the available maintenance and security records: ${maintenance.length} open maintenance request${maintenance.length === 1 ? "" : "s"} and ${incidents.length} open security incident${incidents.length === 1 ? "" : "s"}.${detail ? ` Priority items: ${detail}` : ""}${unavailable.length ? ` ${Array.from(new Set(unavailable)).join(" and ")} evidence is unavailable; this is not a complete estate-health verdict.` : extraText ? "" : " This covers those two sources only, not every estate system."}${extraText ? ` ${extraText} This covers those sources only, not every estate system.` : ""}`;
         const view = { maintenance: maintenance.map((f) => ({ label: String(recordOf(f.value).title || f.object?.label || "Maintenance request"), status: text(recordOf(f.value).status) || "open", priority: text(recordOf(f.value).priority) })), incidents: incidents.map((f) => ({ label: String(recordOf(f.value).title || f.object?.label || "Security incident"), status: text(recordOf(f.value).status) || "open" })), unavailable };
-        return { status: unavailable.length ? "unavailable" : open.length ? "answered" : "empty", answer, presentation_policy: resultPresentation("list"), metadata: { overview_view: view } };
+        return { status: unavailable.length ? "unavailable" : open.length || visitorRows.length || cameraFacts.length ? "answered" : "empty", answer, presentation_policy: resultPresentation("list"), metadata: { overview_view: view } };
       },
       primary: "list",
     }),
@@ -451,11 +468,21 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
       // IQ-8B: the facet (balance vs transactions) comes from the concept bridge, not from re-reading the wording
       supports: (frame) => frame.domain === "wallet" && (frame.concepts ? frame.concepts.facet !== "balance" : (frame.operation === "wallet.history" || /\btransactions?|history|wallet\b/i.test(frame.normalizedText))),
       collect: async (context) => {
-        const facts = await loadWalletTransactionFacts(context.input, context.oisContext, requestContract(context));
-        return facts.map(evidenceFromFact);
+        const contract = requestContract(context);
+        const facts = await loadWalletTransactionFacts(context.input, context.oisContext, contract);
+        // IQ-9A12: a wallet-history request that also names the balance reads the canonical balance source (same wallet.read authority and home scope); the two are never merged or derived from each other
+        const withBalance = /\b(?:history|balance)\b/i.test(String(context.input.message || ""));
+        const balance = withBalance ? await loadWalletBalanceFacts(context.input, context.oisContext, contract) : [];
+        return [...facts, ...balance].map(evidenceFromFact);
       },
       answer: (context, evidence) => {
-        const facts = factsFromEvidence(evidence);
+        const all = factsFromEvidence(evidence);
+        const balanceFacts = all.filter((fact) => fact.fact_type === "wallet_balance" || fact.fact_type === "wallet_balance_unavailable");
+        const facts = all.filter((fact) => !balanceFacts.includes(fact));
+        const balanceOk = balanceFacts.filter((fact) => fact.fact_type === "wallet_balance" && fact.truth_state !== "unavailable");
+        const balanceMissing = balanceFacts.length > 0 && !balanceOk.length;
+        const bv = balanceOk.length ? recordOf(balanceOk[0].value) : null;
+        const balanceMeta = bv ? { value: { amount: Number(bv.balance || 0), currency: text(bv.currency) || "NGN", label: "Current wallet balance", frozen: Boolean(bv.is_frozen), as_of: balanceOk[0].occurred_at ? String(balanceOk[0].occurred_at).slice(0, 10) : undefined } } : balanceMissing ? { limitations: [{ kind: "UNAVAILABLE", label: "current wallet balance" }] } : {};
         if (facts.some((fact) => fact.truth_state === "unavailable")) {
           return {
             status: "unavailable",
@@ -465,7 +492,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         }
         const contract = requestContract(context);
         const block = tableBlockForContract(contract, facts, presentationFactPredicates);
-        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: { answer_rows: walletAnswerRows(facts), result_facts: { measures: walletMeasures(facts) } } };
+        return { status: facts.length ? "answered" : "empty", answer: buildWalletHistoryAnswer(facts), blocks: block ? [block as any] : [], presentation_policy: resultPresentation("table"), metadata: { answer_rows: walletAnswerRows(facts), result_facts: { measures: walletMeasures(facts), ...balanceMeta } } };
       },
       primary: "table",
     }),

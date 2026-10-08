@@ -1358,6 +1358,19 @@ async function resolveCommunicationRecipient(
     return { kind: "hint", hint: recipientHintFromResolved(personCtx.recipient) };
   }
 
+  // IQ-9A12: "the first one" / "the second" names an entry of the result set this thread currently holds; the entry's own label is then looked up like any named person
+  const ordinalToken = /^(?:the\s+)?(first|second|third|last)(?:\s+(?:one|lead|contact))?$/i.exec(recipientToken.trim());
+  if (ordinalToken) {
+    const held = await loadThreadResultSetContext(threadId).catch(() => null);
+    const picked = resolveFollowUpReference(held, { type: "ordinal", ordinal: ordinalToken[1].toLowerCase() as "first" | "second" | "third" | "last" });
+    if (picked.status !== "resolved") return { kind: "unresolved" };
+    let result = await resolveRecipientByQuery(picked.ref.label, "auto");
+    if (result.status === "not_found") result = await resolveRecipientByQuery(picked.ref.label.replace(/^\S+\s+(?=Lead\b)/i, ""), "auto");
+    if (result.status === "resolved") return { kind: "hint", hint: recipientHintFromResolved(result.recipient), personContext: buildPersonContext(result.recipient) };
+    if (result.status === "ambiguous") return { kind: "ambiguous", candidates: result.candidates, query: picked.ref.label };
+    return { kind: "not_found", query: picked.ref.label };
+  }
+
   if (isPersonLookupToken(recipientToken)) {
     const result = await resolveRecipientByQuery(recipientToken, "auto");
     if (result.status === "resolved") {
@@ -2084,7 +2097,9 @@ async function handleCommunicationTurn(
     const result: DomainResult = {
       status: "answered",
       answer: lookup.kind === "not_found"
-        ? `I couldn't find "${intent.recipientToken}" in the staff directory or CRM. Give me an explicit email address or phone number instead.`
+        ? (lookup.query && lookup.query !== intent.recipientToken
+          ? `${intent.recipientToken[0].toUpperCase()}${intent.recipientToken.slice(1)} in the list I showed is ${lookup.query}, but I couldn't find a contact for it in the staff directory or CRM. Nothing has been sent or proposed. Give me an explicit email address or phone number and I'll prepare it for your confirmation.`
+          : `I couldn't find "${intent.recipientToken}" in the staff directory or CRM. Give me an explicit email address or phone number instead.`)
         : `I couldn't tell who to send that to. Give me an explicit email address or phone number (e.g. "email idoko@ochiga.com.ng saying ...").`,
       presentation_policy: resultPresentation("text"),
       ...(lookup.kind === "unresolved" ? { blocks: [{ type: "limitation", text: "\"him/her/them\" only resolves once a person has been identified earlier in this conversation (e.g. by opening a lead or naming them explicitly)." }] } : {}),
@@ -2974,9 +2989,11 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     visibleState: null,
   });
   const fact = factFromHydration(hydration);
+  // IQ-9A12: a follow-up about a visitor access record keeps the permission-not-presence limit
+  const permissionNote = /visitor|pass|access/i.test(String(ref.object_type)) ? " This is a permission record only; it says nothing about arrival, presence or departure." : "";
   const result: DomainResult = {
     status: fact ? "answered" : "unavailable",
-    answer: refAnswer || (fact ? followUpDetailAnswer(hydration, intent, fact, context.input.message) : ref.status ? `${ref.label} was recorded as ${ref.status} when I listed it; I could not re-check it just now, so treat that as the earlier reading.` : "I could not confirm that item right now, so I am not answering as confirmed."),
+    answer: (refAnswer || (fact ? followUpDetailAnswer(hydration, intent, fact, context.input.message) : ref.status ? `${ref.label} was recorded as ${ref.status} when I listed it; I could not re-check it just now, so treat that as the earlier reading.` : "I could not confirm that item right now, so I am not answering as confirmed.")) + (/permission record only|permission, not|permission \(active/i.test(String(refAnswer || "")) ? "" : permissionNote),
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
   const evidence = fact ? [evidenceFromFollowUpFact(fact)] : [];
@@ -3645,6 +3662,24 @@ export class ConversationOrchestrator {
         }
       }
       response = await this.runTurn(context, traceHolder);
+      // IQ-9A12: a truthful "nothing was done / nothing was passed on" answer is completed with what the thread's own governed records show about the subject the user named.
+      // The companion read is a separate governed turn (its own authority decision); the not-done statement is kept first and is never softened.
+      const answerNow = String((response as any)?.answer ?? "");
+      const rawMsg = String(context.input?.message ?? "");
+      let companion: { read: string; prefix: string } | null = null;
+      if (context.input.surface === "consumer" && /^I can't confirm that anything was sent/.test(answerNow) && /\b(?:both|all|them|those|these|each)\b/i.test(rawMsg) && context.input.thread_id) companion = { read: "Show my maintenance requests", prefix: "For reference, the requests recorded for your home:" };
+      else if (context.input.surface === "office_internal" && /^I haven't done that:/.test(answerNow)) { const lead = /\b(Lead\s+[A-Z][a-z]+)\b/.exec(rawMsg); if (lead) companion = { read: `Show ${lead[1]}`, prefix: "What is recorded:" }; }
+      if (companion) {
+        traceHolder.tracer = null;
+        const r2 = await this.runTurn({ ...context, input: { ...context.input, message: companion.read, thread_id: (response as any).thread_id || context.input.thread_id } }, traceHolder);
+        const extra = String((r2 as any).answer ?? "").split("\n\nSupporting detail:")[0].trim();
+        if (extra && (r2 as any).persistence_saved !== false && !/not authorised|I can't do that/i.test(extra)) {
+          const combined = `${answerNow}\n\n${companion.prefix} ${extra}`;
+          (r2 as any).answer = (r2 as any).reply = (r2 as any).message = (r2 as any).summary = combined;
+          await collapseMultipartExchange({ threadId: String((r2 as any).thread_id || context.input.thread_id), turns: 2, originalMessage: rawMsg, combinedAnswer: combined, keepLastTurn: false });
+          response = r2;
+        }
+      }
     } catch (error) {
       finalize(null, error);
       throw error;
@@ -3882,14 +3917,14 @@ export class ConversationOrchestrator {
       const sf = resolvedTurn.semantic_frame, earlyTarget = sf.answerTarget!;
       let direct: string | null = null, key = "";
       let publicObjectiveToKeep: Awaited<ReturnType<typeof recordContactPreference>> = null;
-      if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.`; key = "answer_target.action_not_executed"; }
+      if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.${/\b(?:note|message|email|mail|text|reminder|notify|inform|tell)\b/i.test(sf.rawText) && /^\s*(?:(?:what|how)\s+(?:can|could)\s+you\b|(?:can|could|would|will)\s+you\b)/i.test(sf.rawText) ? " I can't send email or messages from this chat; a send could at most be prepared as a proposal for your explicit confirmation." : ""}`; key = "answer_target.action_not_executed"; }
       else if (earlyTarget.confirmation_kind === "constraint") {
         direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged";
         // IQ-9A8: a contact preference stated on Osa is kept (conversation-scoped) in the thread's opportunity objective so a later contact request can respect it
         if (context.input.surface === "public_corporate") { const kept = recordContactPreference(await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null), sf.rawText); if (kept) publicObjectiveToKeep = kept; }
       }
       else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action. If anyone may be in danger, contact emergency services or estate security directly now.`; key = "answer_target.safety_report"; }
-      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event)) : `${actionTruthLead(await threadActionTruth(context.input.thread_id))}${/\b(?:somebody|someone|anybody|anyone|earlier|else|manually)\b/i.test(sf.rawText) ? " I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier." : ""}`; key = "answer_target.action_result"; }
+      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? `${communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event))}${/\b(?:rung|rang|phoned|called\s+back|call\s+back|ring\s+back)\b/i.test(sf.rawText) ? " Any callback request here was only ever a proposal awaiting your confirmation; no call has been confirmed." : ""}` : `${actionTruthLead(await threadActionTruth(context.input.thread_id))}${/\b(?:somebody|someone|anybody|anyone|earlier|else|manually)\b/i.test(sf.rawText) ? " I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier." : ""}`; key = "answer_target.action_result"; }
       else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
         const capability = syntheticOfficeActionCapability(key, "global");
@@ -4132,14 +4167,18 @@ export class ConversationOrchestrator {
       const boundedDomainAssessment = ["assess", "advise", "prioritize"].includes(frame.cognitiveObjective || "") && selection.authority?.allowed
         && ["facility.overview.read", "home.summary.read"].includes(selection.capability?.key || "")
         && (assessment.subject_domains!.length > 1 || assessment.subject_domains!.every(d => (declaredRead?.evidence_requirements || []).some(e => e.domain === d)))
-        && !/\b(?:stale|broken|verify|replac|authorization|unknown|missing|not be attempted|scope|privacy|caus)\w*\b/i.test(frame.rawText);
+        && !/\b(?:stale|broken|verify|replac|authorization|unknown|missing|not be attempted|scope|privacy|caus)\w*\b/i.test(frame.rawText)
+        // IQ-9A12: a request for the open items names the overview's own sources, whatever else the sentence mentions
+        || Boolean(selection.capability?.key === "facility.overview.read" && selection.authority?.allowed && /\bopen\s+items?\b/i.test(frame.normalizedText));
       const existingBoundedAnalysis = ["anomalies.read", "recommendations.read", "automations.list.read"].includes(declaredRead?.key || "")
         && declaredRead?.supported_surfaces?.includes(context.input.surface)
         && (!previousAssessment || assessment.subject_domains!.length > 1 || (declaredRead?.key === "automations.list.read" && assessment.subject_domains?.includes("automations")));
       const existingRelativePrioritization = !previousAssessment && parseFollowUpIntent(frame.rawText)?.type === "prioritize"
         && await loadThreadResultSetContext(context.input.thread_id);
       const existingOfficeOverview = !previousAssessment && context.input.surface === "office_internal"
-        && /\battention|happening|overview|update\b/i.test(frame.normalizedText);
+        && /\battention|happening|overview|update\b/i.test(frame.normalizedText)
+        // IQ-9A12: "is there anything open that needs urgent attention" names no single record type; the bounded evidence plan covers every authorised Office source instead of one list
+        && !/\b(?:anything|everything)\b[\s\S]{0,30}\b(?:open|urgent)\b/i.test(frame.normalizedText);
       const existingDomainReturn = /^(?:go back|return)\b/i.test(frame.rawText) && !frame.cognitiveObjective
         && !assessment.subject_label && declaredRead?.risk_class === "read" && selection.authority?.allowed;
       // IQ-8E: a yes/no about the state of a wallet or utility record is answered from the governed record read; the assessment planner has no class

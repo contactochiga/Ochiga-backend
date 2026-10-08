@@ -129,6 +129,8 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
           return ex.record_count > 0 ? { lead: sentence(`Yes — ${ex.record_count} ${ex.record_count === 1 ? noun.replace(/ies$/, "y").replace(/s$/, "") : noun}${names.length ? `: ${names.slice(0, 4).join(", ")}` : ""}`), support: [] } : { lead: sentence(`No — I found no ${noun} in what I read`), support: [] };
         }
       }
+      // IQ-9A12: "is there anything open / needing attention?" is an existence question: answer it from what is recorded, and say that urgency is not ranked
+      if (["do", "does", "is", "are", "have", "has"].includes(T[0]) && (T.includes("anything") || T.includes("any")) && business.length && !named.length) return { lead: sentence("Yes — there are recorded items open or needing attention; I can list them but I can't rank which is most urgent"), support: [businessSummary(index)] };
       if (noJudgment && business.length && !named.length) return { lead: sentence(`I can't judge that: ${lower(limitNote)}`), support: [businessSummary(index)] };
       if (T.some(t => ["first", "top", "priority", "ahead", "before"].includes(t)) && T.includes("still") && named.length === 1) {
         if (r.ranking?.length) { const yes = r.ranking[0].cid === named[0].cid; return { lead: sentence(`${yes ? "Yes" : "No"} — ${yes ? `${named[0].ref.label} is first on what is recorded` : `${r.ranking[0].ref.label} comes ahead of ${named[0].ref.label} on what is recorded`}`), support: [] }; }

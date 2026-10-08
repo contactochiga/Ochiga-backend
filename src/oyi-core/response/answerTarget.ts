@@ -221,7 +221,7 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
   // did/have you <done something>? -> truth about actions taken in this conversation
   // IQ-9A: a past-tense question about an action or a communication, whoever the agent is (you / anybody / someone / the team), asks for the TRUTH of what was done
   const AGENT = ["you", "u", "anybody", "anyone", "someone", "somebody", "oyi", "they", "we", "team", "staff", "anything"];
-  const COMM = ["email", "emailed", "mailed", "called", "told", "informed", "notified", "alerted", "contacted", "forwarded", "submitted", "escalated", "dispatched", "passed", "messaged", "texted", "reported", "sent", "reached", "arranged", "acknowledged"];
+  const COMM = ["rung", "rang", "phoned", "email", "emailed", "mailed", "called", "told", "informed", "notified", "alerted", "contacted", "forwarded", "submitted", "escalated", "dispatched", "passed", "messaged", "texted", "reported", "sent", "reached", "arranged", "acknowledged"];
   const SEND = ["sent", "emailed", "mailed", "notified", "alerted", "informed", "told", "forwarded", "dispatched", "texted", "messaged", "delivered", "called", "contacted", "received"];
   const PART = ["turned", "switched", "sent", "told", "informed", "notified", "emailed", "delivered", "done", "called", "closed", "marked", "updated", "changed", "received", "acknowledged", "processed", "executed", "completed"];
   const passiveOutcome = (u.q || u.auxLead || /\?\s*$/.test(text)) && T.some((t, i) => (["been", "get", "got"].includes(t) && PART.includes(T[i + 1] ?? "")) || (t === "through" && ["gone", "went", "go", "goes"].includes(T[i - 1] ?? "")) || ["acknowledged", "received", "delivered"].includes(t));

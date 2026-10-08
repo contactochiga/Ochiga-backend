@@ -1,0 +1,141 @@
+{
+ "items": [
+  {
+   "id": "C1-W1",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Show my wallet history and balance"
+  },
+  {
+   "id": "C1-W2",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Show my recent transactions"
+  },
+  {
+   "id": "C1-W3",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Show the wallet history"
+  },
+  {
+   "id": "C1-L1",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Show lead Wave11 Lead Beta"
+  },
+  {
+   "id": "C1-V1",
+   "surface": "consumer",
+   "seeds": [
+    "Who are my expected visitors?"
+   ],
+   "utterance": "what about the other one"
+  },
+  {
+   "id": "C1-D1",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which devices do I have at home?"
+  },
+  {
+   "id": "C2-M1",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What's my wallet history, did the electricity purchase happen?"
+  },
+  {
+   "id": "C2-O1",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "What's the combined picture of open items for the estate?"
+  },
+  {
+   "id": "C2-O2",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "what is recorded on open items right now so I know what to raise on the call"
+  },
+  {
+   "id": "C2-O3",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Is there anything open that needs urgent attention today?"
+  },
+  {
+   "id": "C2-O4",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What's the combined picture of open items for the estate?"
+  },
+  {
+   "id": "C3-E1",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Why is the water issue still open?"
+  },
+  {
+   "id": "C3-E2",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which is bigger, the electricity purchase or the wallet funding?"
+  },
+  {
+   "id": "C3-E3",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Should we put more money into VI Development? Is it a good project?"
+  },
+  {
+   "id": "C4-A1",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the AC"
+   ],
+   "utterance": "Did you turn off the AC?"
+  },
+  {
+   "id": "C4-A2",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Did you turn off the AC?"
+  },
+  {
+   "id": "C4-A3",
+   "surface": "consumer",
+   "seeds": [
+    "call me about the water issue",
+    "actually the light is also bad"
+   ],
+   "utterance": "So both are with the team now?"
+  },
+  {
+   "id": "C4-A4",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "What can you do about getting a note out to Lead Beta?"
+  },
+  {
+   "id": "C4-A5",
+   "surface": "office_internal",
+   "seeds": [
+    "Show leads needing attention."
+   ],
+   "utterance": "email the first one a reminder"
+  },
+  {
+   "id": "C4-A6",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Can you mark Lead Alpha as contacted?"
+  },
+  {
+   "id": "C4-A7",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease."
+   ],
+   "utterance": "Has someone called me back?"
+  }
+ ]
+}
