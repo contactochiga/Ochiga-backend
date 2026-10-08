@@ -550,6 +550,32 @@ function reportsApprovalsReadModule(): CapabilityModule {
 // ---------------------------------------------------------------------
 // office_internal — Development status
 // ---------------------------------------------------------------------
+function developmentProjectFact(project: NonNullable<OperationalSnapshot["development"]>["projects"][number]): IntelligenceFact {
+  const p = project as unknown as Record<string, unknown>;
+  const value: Record<string, string | number | null> = { status: String(p.status ?? "") || null };
+  for (const k of ["percent_complete", "units_sold", "units_total"]) if (p[k] !== undefined && p[k] !== null) value[k] = p[k] as number;
+  return {
+    fact_id: `development_project:${project.id}`,
+    domain: "office_development",
+    fact_type: "development_project_status",
+    scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
+    object: { object_type: "development_project", canonical_id: project.id, label: project.name },
+    statement: `${project.name} — ${String(p.status ?? "status not recorded")}`,
+    value,
+    previous_value: null,
+    occurred_at: null,
+    observed_at: new Date().toISOString(),
+    source_type: "database",
+    source_id: project.id,
+    truth_state: "observed",
+    confidence: 0.9,
+    freshness: "unknown",
+    privacy_class: officePrivate,
+    permissions: [],
+    evidence: [],
+  };
+}
+
 function developmentStatusReadModule(): CapabilityModule {
   return readModule({
     key: "development.status.read",
@@ -577,7 +603,7 @@ function developmentStatusReadModule(): CapabilityModule {
           privacy_class: officePrivate,
           confidence: 0.9,
           authorised_scope: { estate_id: null, building_id: null, home_id: null, room_id: null },
-          payload: { project },
+          payload: { project, fact: developmentProjectFact(project) },
         })
       );
     },

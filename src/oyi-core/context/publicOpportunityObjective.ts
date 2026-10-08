@@ -42,6 +42,8 @@ export type PublicOpportunityObjective = {
   turns: number;
   // IQ-6: what the caller's LAST update changed (field, previous value or null, new value). Caller-supplied, unverified; no raw message text.
   last_changes?: Array<{ field: string; from: string | null; to: string }>;
+  // IQ-9A8: values the caller replaced, kept as provenance (never re-presented as current). Caller-supplied, unverified; no raw message text.
+  superseded?: Array<{ field: string; value: string }>;
   created_at: string;
   updated_at: string;
 };

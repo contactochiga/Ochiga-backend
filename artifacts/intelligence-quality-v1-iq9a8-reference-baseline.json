@@ -1,0 +1,159 @@
+{
+ "version": 1,
+ "status": "IQ9A8_R4_REFERENCE_BASELINE",
+ "head": "31c9e584401986363ff539da126e8a50f8c0c5f2",
+ "note": "Derived from the committed IQ-9A7 development run (iq9a7-dev-raw). Written during implementation, not committed before it; the underlying run data predate every R4 edit. Graded_success_after is the final R4 grading.",
+ "items": [
+  {
+   "id": "IQ9A-016",
+   "surface": "consumer",
+   "previous_turns": [
+    "what about my neighbour's visitors?"
+   ],
+   "utterance": "ok then just mine",
+   "intended_referent": "Elliptical own-scope reset after a refused neighbour ask; the refused scope must not be inherited and \"mine\" is a fresh own-scope read.",
+   "expected": "Own visitor records: 'Expected Visitor' active, 'Historical Visitor' inactive; these are permission records, not proof of arrival.",
+   "actual_before": "I'm not sure what \u201cok then just mine\u201d refers to, so I haven't looked anything up. Tell me what you want to see for your home \u2014 for example your visitors, wallet, devices or maintenance requests.",
+   "class": "reference-resolution/scope",
+   "earliest_causal_failure": "no previous-subject binding: generic clarification",
+   "graded_success_before": false,
+   "graded_success_after": false,
+   "answer_after": "Taking \u201cjust mine\u201d to mean your own visitors, not anyone else's: Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactiv"
+  },
+  {
+   "id": "IQ9A-142",
+   "surface": "public_corporate",
+   "previous_turns": [
+    "Land in Kano, 5 acres, sale. Please call me back."
+   ],
+   "utterance": "On second thought don't call me. Keep what I told you though.",
+   "intended_referent": "Callback withdrawal with a hold clause; held facts were never stored because a callback request turn did not record the facts stated in it.",
+   "expected": "Callback request withdrawn; nothing was submitted; details (land, Kano, 5 acres, sale) are held within this conversation only; no contact will be arranged.",
+   "actual_before": "Understood \u2014 I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. I don't have structured opportunity details stored for this conversat",
+   "class": "public continuity",
+   "earliest_causal_failure": "objective not updated on the callback branch",
+   "graded_success_before": false,
+   "graded_success_after": true,
+   "answer_after": "Understood \u2014 I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location:"
+  },
+  {
+   "id": "IQ9A-143",
+   "surface": "public_corporate",
+   "previous_turns": [
+    "Please never contact me by phone."
+   ],
+   "utterance": "Ok now arrange a call with your sales team for Friday.",
+   "intended_referent": "Earlier \"never contact me by phone\" must govern a later \"arrange a call\"; the preference was never stored.",
+   "expected": "Notes the no-phone preference stated earlier; a call conflicts with it so clarifies; any handoff is only proposed and needs governed confirmation, with nothing arranged.",
+   "actual_before": "I can't arrange or book a call from this chat, and nothing has been booked. If you'd like the team to contact you, say so and I'll pass a callback request on (the team receiving it is not a booked cal",
+   "class": "public continuity",
+   "earliest_causal_failure": "contact preference not recorded",
+   "graded_success_before": false,
+   "graded_success_after": true,
+   "answer_after": "You told me earlier not to contact you by phone, so I would not arrange a phone call in any case (that is a note for this conversation only, not a standing rule). I can't arrange or book a call from t"
+  },
+  {
+   "id": "IQ9A-149",
+   "surface": "facility",
+   "previous_turns": [
+    "Show me the maintenance requests."
+   ],
+   "utterance": "and the other one?",
+   "intended_referent": "\"and the other one?\" after a plain list with no selected object and no named subject.",
+   "expected": "Two requests recorded; the other (second) one is resolved light issue, resolved, low priority, alongside the unresolved water issue (open, high).",
+   "actual_before": "I found more than one match \u2014 did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+   "class": "reference-resolution",
+   "earliest_causal_failure": "genuinely ambiguous: clarification is the correct behaviour",
+   "graded_success_before": false,
+   "graded_success_after": false,
+   "answer_after": "I found more than one match \u2014 did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one."
+  },
+  {
+   "id": "IQ9A-153",
+   "surface": "office_internal",
+   "previous_turns": [
+    "What stale opportunities do we have?"
+   ],
+   "utterance": "how long for the second one?",
+   "intended_referent": "\"how long for the second one?\" after \"What stale opportunities do we have?\"; the seed was taken by the assessment planner so no result set existed.",
+   "expected": "The second listed opportunity (Abuja JV) has 8 days since activity at qualification stage; if the order is ambiguous, VI Development has 21 days.",
+   "actual_before": "Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new). Ra",
+   "class": "reference-resolution",
+   "earliest_causal_failure": "planner takeover of the seed and no age field in the ref",
+   "graded_success_before": false,
+   "graded_success_after": true,
+   "answer_after": "Wave11 Abuja JV: 8 days since its last recorded activity."
+  },
+  {
+   "id": "IQ9A-155",
+   "surface": "office_internal",
+   "previous_turns": [
+    "Tell me about VI Development the project."
+   ],
+   "utterance": "and units sold for that?",
+   "intended_referent": "\"and units sold for that?\" after a development-project question; the development read produced no result set and \"for that\" had no field-follow-up.",
+   "expected": "No units sold figure exists for VI Development; recorded: planning stage, 35% complete.",
+   "actual_before": "Development projects: Wave11 VI Development (planning).\n\nSupporting detail: 1 development project.",
+   "class": "reference-resolution",
+   "earliest_causal_failure": "no result set; no named-field follow-up",
+   "graded_success_before": false,
+   "graded_success_after": true,
+   "answer_after": "The record I listed for Wave11 VI Development doesn't include a \u201cunits sold\u201d figure, so I can't give one. What it shows: status planning; percent complete 35."
+  },
+  {
+   "id": "IQ9A-156",
+   "surface": "office_internal",
+   "previous_turns": [
+    "Show leads needing attention."
+   ],
+   "utterance": "email the first one a reminder",
+   "intended_referent": "\"email the first one a reminder\": the communication parser looks the ordinal up in the staff directory.",
+   "expected": "The first lead listed would be Lead Alpha (new, next action overdue); an email can only be proposed, nothing is sent, and needs governed confirmation.",
+   "actual_before": "I couldn't find \"the first\" in the staff directory or CRM. Give me an explicit email address or phone number instead.",
+   "class": "reference-resolution (communication)",
+   "earliest_causal_failure": "communication recipient resolution does not read the result set",
+   "graded_success_before": false,
+   "graded_success_after": false,
+   "answer_after": "I couldn't find \"the first\" in the staff directory or CRM. Give me an explicit email address or phone number instead."
+  },
+  {
+   "id": "IQ9A-157",
+   "surface": "public_corporate",
+   "previous_turns": [
+    "I have land in Port Harcourt for a joint venture.",
+    "Actually, a different plot: a building in Asaba for lease."
+   ],
+   "utterance": "what do you have on that one so far",
+   "intended_referent": "\"what do you have on that one so far\" after a correction; the corrected kind (building) was read as land and the superseded values were not named.",
+   "expected": "The latest referent is the Asaba building for lease; the Port Harcourt land for joint venture was mentioned earlier; the Asaba details still lacking size, title status, expectations and terms.",
+   "actual_before": "So far you have told me: location: Asaba; opportunity type: land; structure offered: lease.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Asaba; structure offered:",
+   "class": "context correction",
+   "earliest_causal_failure": "property kind chosen by first mention; no provenance for superseded values",
+   "graded_success_before": false,
+   "graded_success_after": true,
+   "answer_after": "So far you have told me: location: Asaba; opportunity type: existing building; structure offered: lease. Earlier you mentioned location Port Harcourt, opportunity type land, structure offered JV; I no"
+  },
+  {
+   "id": "IQ9A-160",
+   "surface": "consumer",
+   "previous_turns": [
+    "Who are my expected visitors?",
+    "And is the Expected Visitor here yet?"
+   ],
+   "utterance": "what about the other one",
+   "intended_referent": "\"what about the other one\" after a question that names one record; the named subject was not treated as the previous subject.",
+   "expected": "The other record is Historical Visitor, inactive; it is a permission record only and says nothing about arrival, presence or departure.",
+   "actual_before": "I found more than one match \u2014 did you mean: Wave11 Expected Visitor; Wave11 Historical Visitor? Please tell me which one.",
+   "class": "reference-resolution",
+   "earliest_causal_failure": "no previous-subject precedence",
+   "graded_success_before": false,
+   "graded_success_after": false,
+   "answer_after": "Wave11 Historical Visitor was recorded as inactive when I listed it; I could not re-check it just now, so treat that as the earlier reading."
+  },
+  {
+   "id": "R3-persistence",
+   "finding": "One multi-part message was stored as N clause rows (clause texts, clause answers) while the user saw one combined answer; the combined answer was never stored. Proven effects: duplicate visible history rows; the stored user text differs from what was typed; a consumer \"short version\" request would shorten only the last clause answer; follow-ups after a no-record clause found no result set for it. Not proven: duplicate workflow or action state (one pending workflow; cancel is terminal), wrong turn ordering, wrong reference ownership.",
+   "fix": "collapseMultipartExchange (canonical persistence): folds the sub-turn message rows into one exchange (typed message, combined answer); an action turn keeps its own rows; result sets and workflow state untouched."
+  }
+ ]
+}

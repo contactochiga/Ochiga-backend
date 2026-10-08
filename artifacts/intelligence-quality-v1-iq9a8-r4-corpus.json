@@ -1,0 +1,183 @@
+{
+ "version": 1,
+ "status": "IQ9A8_R4_SYNTHETIC_DEV_CASES",
+ "note": "New synthetic cases; not copies of sealed IQ-8F requests.",
+ "items": [
+  {
+   "id": "R4-N01",
+   "surface": "consumer",
+   "seeds": [
+    "Who are my expected visitors?",
+    "And is the Expected Visitor still valid?"
+   ],
+   "utterance": "and the other one?",
+   "kind": "other_one_named_subject"
+  },
+  {
+   "id": "R4-N02",
+   "surface": "consumer",
+   "seeds": [
+    "Show me the maintenance requests."
+   ],
+   "utterance": "and the other one?",
+   "kind": "other_one_ambiguous_clarifies"
+  },
+  {
+   "id": "R4-N03",
+   "surface": "consumer",
+   "seeds": [
+    "Show me the maintenance requests."
+   ],
+   "utterance": "And the second one?",
+   "kind": "valid_ordinal"
+  },
+  {
+   "id": "R4-N04",
+   "surface": "office_internal",
+   "seeds": [
+    "Tell me about VI Development the project."
+   ],
+   "utterance": "and units sold for that?",
+   "kind": "named_field_absent"
+  },
+  {
+   "id": "R4-N05",
+   "surface": "consumer",
+   "seeds": [
+    "what about my neighbour's visitors?"
+   ],
+   "utterance": "ok then just mine",
+   "kind": "own_scope_reset"
+  },
+  {
+   "id": "R4-N06",
+   "surface": "consumer",
+   "seeds": [
+    "what's the total wallet balance across all homes on the estate?"
+   ],
+   "utterance": "what about mine instead?",
+   "kind": "own_scope_after_estate_refusal"
+  },
+  {
+   "id": "R4-N07",
+   "surface": "consumer",
+   "seeds": [
+    "Show my maintenance requests."
+   ],
+   "utterance": "What about mine instead?",
+   "kind": "no_reset_when_nothing_refused"
+  },
+  {
+   "id": "R4-N08",
+   "surface": "consumer",
+   "seeds": [
+    "Show me the maintenance requests."
+   ],
+   "utterance": "What is my wallet balance?",
+   "kind": "unrelated_topic_switch"
+  },
+  {
+   "id": "R4-N09",
+   "surface": "consumer",
+   "seeds": [
+    "What is my wallet balance, and what maintenance requests do I have?"
+   ],
+   "utterance": "and the second one?",
+   "kind": "multipart_followup_uses_last_domain_list"
+  },
+  {
+   "id": "R4-N10",
+   "surface": "consumer",
+   "seeds": [
+    "Show my visitors."
+   ],
+   "utterance": "what about the neighbour's visitors?",
+   "kind": "cross_scope_not_inherited"
+  },
+  {
+   "id": "R4-N11",
+   "surface": "public_corporate",
+   "seeds": [
+    "I have land in Port Harcourt for a joint venture.",
+    "Actually, a different plot: a building in Asaba for lease."
+   ],
+   "utterance": "what do you have on that one so far",
+   "kind": "public_correction_provenance"
+  },
+  {
+   "id": "R4-N12",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale. Please call me back."
+   ],
+   "utterance": "What have you got from me so far?",
+   "kind": "public_facts_with_callback"
+  },
+  {
+   "id": "R4-N13",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease.",
+    "Please never contact me by phone."
+   ],
+   "utterance": "Ok now arrange a call with your sales team for Friday.",
+   "kind": "public_contact_preference"
+  },
+  {
+   "id": "R4-N14",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease.",
+    "Please never contact me by phone."
+   ],
+   "utterance": "Please call me back.",
+   "kind": "public_callback_respects_preference"
+  },
+  {
+   "id": "R4-N15",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease.",
+    "Please never contact me by phone."
+   ],
+   "utterance": "What have you got from me so far?",
+   "kind": "public_recall_includes_preference"
+  },
+  {
+   "id": "R4-N16",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale. Please call me back."
+   ],
+   "utterance": "On second thought don't call me. Keep what I told you though.",
+   "kind": "public_withdrawal_keeps_facts"
+  },
+  {
+   "id": "R4-N17",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease."
+   ],
+   "utterance": "Please have someone call me back.",
+   "kind": "public_callback_allowed"
+  },
+  {
+   "id": "R4-N18",
+   "surface": "consumer",
+   "seeds": [
+    "Show my maintenance requests."
+   ],
+   "utterance": "What happened to that request?",
+   "kind": "status_followup"
+  },
+  {
+   "id": "R4-N19",
+   "surface": "consumer",
+   "seeds": [
+    "What is my wallet balance, and what maintenance requests do I have?"
+   ],
+   "utterance": "what about the wallet one?",
+   "kind": "multipart_followup_domain_return"
+  }
+ ]
+}

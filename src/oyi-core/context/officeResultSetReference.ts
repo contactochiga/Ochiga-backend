@@ -22,6 +22,7 @@
 // this just formats an answer directly from data already vouched for,
 // rather than re-fetching it.
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
+import { namedFieldAnswer } from "../interpretation/followUpResolver";
 import type { ResultSetObjectRef } from "./resultSetContext";
 import type { FollowUpIntent } from "../interpretation/followUpResolver";
 
@@ -97,7 +98,7 @@ export function officeFactFromRef(ref: ResultSetObjectRef, domain: string): Inte
 // Generic across every office_* object type today (just "task"), same
 // restrained honesty discipline as officeTasksReadModule's own answer()
 // branches: only ever states a field if the ref actually carries it.
-export function officeFollowUpAnswer(ref: ResultSetObjectRef, intent: FollowUpIntent): string {
+export function officeFollowUpAnswer(ref: ResultSetObjectRef, intent: FollowUpIntent, message = ""): string {
   const label = text(ref.label) || "That item";
   const status = humanizeStatus(ref.status);
   const owner = text(ref.attributes.owner) || null;
@@ -112,6 +113,12 @@ export function officeFollowUpAnswer(ref: ResultSetObjectRef, intent: FollowUpIn
     if (!dueAt) return `${label} doesn't have a due date set.`;
     return `${label} is due ${dueAt}${overdue ? " — it's overdue." : "."}`;
   }
+  // "how long for the second one?": the recorded days since activity, only if the record carries it
+  if (/\bhow\s+long\b/i.test(message) && intent.type !== "why") {
+    const days = text(ref.attributes.days_since_activity);
+    return days ? `${label}: ${days} days since its last recorded activity.` : `${label} has no recorded last-activity time, so I can't say how long.`;
+  }
+  if (intent.type === "named_field") return namedFieldAnswer(label, intent.phrase, ref.attributes, status);
   if (intent.type === "status_check") {
     return `${label} is ${status || "in an unknown status"}${overdue ? ", and it's overdue" : ""}.`;
   }

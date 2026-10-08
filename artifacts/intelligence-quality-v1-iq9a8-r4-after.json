@@ -1,0 +1,724 @@
+{
+ "generated_at": "2026-10-08T09:04:33.462Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a8-r4-corpus.json",
+ "duration_ms": 2739,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R4-N01",
+   "answer": "Wave11 Historical Visitor was recorded as inactive when I listed it; I could not re-check it just now, so treat that as the earlier reading.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unavailable",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Who are my expected visitors?",
+     "answer": "Wave11 Expected Visitor: active, past its recorded expiry; fixture meeting.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    },
+    {
+     "prompt": "And is the Expected Visitor still valid?",
+     "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    },
+    {
+     "prompt": "and the other one?",
+     "answer": "Wave11 Historical Visitor was recorded as inactive when I listed it; I could not re-check it just now, so treat that as the earlier reading.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2",
+     "assessment_context"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R4-N02",
+   "answer": "I found more than one match — did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Show me the maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "and the other one?",
+     "answer": "I found more than one match — did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N03",
+   "answer": "Wave11 resolved light issue is resolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Show me the maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "And the second one?",
+     "answer": "Wave11 resolved light issue is resolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N04",
+   "answer": "The record I listed for Wave11 VI Development doesn't include a “units sold” figure, so I can't give one. What it shows: status planning; percent complete 35.",
+   "capability": "development.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Tell me about VI Development the project.",
+     "answer": "Wave11 VI Development: planning (percent complete 35%).\n\nSupporting detail: 1 development project.",
+     "capability": "development.status.read"
+    },
+    {
+     "prompt": "and units sold for that?",
+     "answer": "The record I listed for Wave11 VI Development doesn't include a “units sold” figure, so I can't give one. What it shows: status planning; percent complete 35.",
+     "capability": "development.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N05",
+   "answer": "Taking “just mine” to mean your own visitors, not anyone else's: Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "what about my neighbour's visitors?",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“what about my neighbour's visitors?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+     "capability": "visitors.pending.read"
+    },
+    {
+     "prompt": "ok then just mine",
+     "answer": "Taking “just mine” to mean your own visitors, not anyone else's: Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N06",
+   "answer": "Taking “just mine” to mean your own wallet balance, not anyone else's: Wallet balance: NGN 12,500.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "what's the total wallet balance across all homes on the estate?",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“what's the total wallet balance across all homes on the estate?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+     "capability": "wallet.balance.read"
+    },
+    {
+     "prompt": "what about mine instead?",
+     "answer": "Taking “just mine” to mean your own wallet balance, not anyone else's: Wallet balance: NGN 12,500.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N07",
+   "answer": "I'm not sure what “What about mine instead?” refers to, so I haven't looked anything up. Tell me what you want to see for your home — for example your visitors, wallet, devices or maintenance requests.",
+   "capability": "answer_target.fallback_clarify_referent",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "Show my maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "What about mine instead?",
+     "answer": "I'm not sure what “What about mine instead?” refers to, so I haven't looked anything up. Tell me what you want to see for your home — for example your visitors, wallet, devices or maintenance requests.",
+     "capability": "answer_target.fallback_clarify_referent"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N08",
+   "answer": "Wallet balance: NGN 12,500.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Show me the maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "What is my wallet balance?",
+     "answer": "Wallet balance: NGN 12,500.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N09",
+   "answer": "Wave11 resolved light issue is resolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "What is my wallet balance, and what maintenance requests do I have?",
+     "answer": "Wallet balance: NGN 12,500.\n\nOn “what maintenance requests do I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "and the second one?",
+     "answer": "Wave11 resolved light issue is resolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N10",
+   "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“what about the neighbour's visitors?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "permission_restricted",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "scope_restricted",
+   "turns": [
+    {
+     "prompt": "Show my visitors.",
+     "answer": "Visitor access records: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history).\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    },
+    {
+     "prompt": "what about the neighbour's visitors?",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“what about the neighbour's visitors?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N11",
+   "answer": "So far you have told me: location: Asaba; opportunity type: existing building; structure offered: lease. Earlier you mentioned location Port Harcourt, opportunity type land, structure offered JV; I no longer treat that as current.\n\nSupporting detail: Here's what I have so far -- opportunity type: existing_building; location: Asaba; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "I have land in Port Harcourt for a joint venture.",
+     "answer": "Thanks for sharing that in Port Harcourt. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Actually, a different plot: a building in Asaba for lease.",
+     "answer": "Got it -- a lease could work. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "what do you have on that one so far",
+     "answer": "So far you have told me: location: Asaba; opportunity type: existing building; structure offered: lease. Earlier you mentioned location Port Harcourt, opportunity type land, structure offered JV; I no longer treat that as current.\n\nSupporting detail: Here's what I have so far -- opportunity type: existing_building; location: Asaba; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N12",
+   "answer": "So far you have told me: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale. Please call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "What have you got from me so far?",
+     "answer": "So far you have told me: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N13",
+   "answer": "You told me earlier not to contact you by phone, so I would not arrange a phone call in any case (that is a note for this conversation only, not a standing rule). I can't arrange or book a call from this chat, and nothing has been booked. If you'd like the team to contact you, say so and I'll pass a callback request on (the team receiving it is not a booked call). I only keep what you tell me in this conversation, so tell me how you'd like to be reached.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please never contact me by phone.",
+     "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Abuja; opportunity type: land; structure offered: lease.",
+     "capability": "answer_target.fallback_public_callback_withdrawn"
+    },
+    {
+     "prompt": "Ok now arrange a call with your sales team for Friday.",
+     "answer": "You told me earlier not to contact you by phone, so I would not arrange a phone call in any case (that is a note for this conversation only, not a standing rule). I can't arrange or book a call from this chat, and nothing has been booked. If you'd like the team to contact you, say so and I'll pass a callback request on (the team receiving it is not a booked call). I only keep what you tell me in this conversation, so tell me how you'd like to be reached.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N14",
+   "answer": "You told me not to contact you by phone, so I haven't passed a callback request to the team. Tell me how you'd like to be reached instead (email or WhatsApp), or say you do want a phone call after all. That preference is a note for this conversation only; I haven't stored it as a standing rule.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "callback",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please never contact me by phone.",
+     "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Abuja; opportunity type: land; structure offered: lease.",
+     "capability": "answer_target.fallback_public_callback_withdrawn"
+    },
+    {
+     "prompt": "Please call me back.",
+     "answer": "You told me not to contact you by phone, so I haven't passed a callback request to the team. Tell me how you'd like to be reached instead (email or WhatsApp), or say you do want a phone call after all. That preference is a note for this conversation only; I haven't stored it as a standing rule.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N15",
+   "answer": "So far you have told me: location: Abuja; opportunity type: land; structure offered: lease. You also asked for: no phone contact (a note for this conversation only).\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease. You've also mentioned: no phone contact. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please never contact me by phone.",
+     "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Abuja; opportunity type: land; structure offered: lease.",
+     "capability": "answer_target.fallback_public_callback_withdrawn"
+    },
+    {
+     "prompt": "What have you got from me so far?",
+     "answer": "So far you have told me: location: Abuja; opportunity type: land; structure offered: lease. You also asked for: no phone contact (a note for this conversation only).\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease. You've also mentioned: no phone contact. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N16",
+   "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale. Please call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "On second thought don't call me. Keep what I told you though.",
+     "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N17",
+   "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unavailable",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please have someone call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N18",
+   "answer": "I found more than one match — did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Show my maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "What happened to that request?",
+     "answer": "I found more than one match — did you mean: Wave11 unresolved water issue; Wave11 resolved light issue? Please tell me which one.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R4-N19",
+   "answer": "Wallet balance: NGN 12,500.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "What is my wallet balance, and what maintenance requests do I have?",
+     "answer": "Wallet balance: NGN 12,500.\n\nOn “what maintenance requests do I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "what about the wallet one?",
+     "answer": "Wallet balance: NGN 12,500.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

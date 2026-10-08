@@ -16,6 +16,7 @@ export type PlannerAdmissionInput = {
   headDomainSupportedOnSurface: boolean;         // some enabled read for the head domain exists on this surface (even if this actor's scope is insufficient)
   headDomain: string | null;                     // head domain of the question's own noun concepts (not a lexical guess)
   conceptDomains: string[];                      // every domain the question's nouns name
+  referencesStoredResultSet: boolean;            // IQ-9A8: the turn points back to a result set this thread already stores for that domain ("what about the incident one?")
   hasPublicObjective: boolean;                   // an established Osa opportunity objective exists in the thread
   specificCapability: { key: string; domain: string } | null; // an allowed, non-global read that supports the frame
 };
@@ -34,6 +35,8 @@ export function plannerAdmission(i: PlannerAdmissionInput): PlannerAdmission {
   // a yes/no about what WOULD happen, or what follows from something, is a cognitive question, not a record lookup
   const yesNoKind = i.target?.yes_no?.kind ?? null;
   const retrievalShape = Boolean(shape && RETRIEVAL_SHAPES.has(shape)) && !(shape === "YES_NO_WITH_REASON" && !["state", "fact", "change"].includes(String(yesNoKind)));
+  // a natural reference to the result set the thread currently holds belongs to that result set, even when an earlier assessment exists (a derived-ranking reference is resolved before admission is asked)
+  if (i.referencesStoredResultSet) return { admit: false, reason: "reference_to_stored_result_set" };
   if (i.continuing) return { admit: true, reason: "continuation_of_existing_assessment" };
   if (i.mutationOrAction || i.target?.confirmation_kind === "action") return { admit: false, reason: "action_request_owned_by_governed_action_path" };
   if (shape && SPECIALISED_SHAPES.has(shape)) return { admit: false, reason: `specialised_answer_shape_${shape.toLowerCase()}` };

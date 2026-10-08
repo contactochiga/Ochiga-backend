@@ -73,7 +73,7 @@ const STATUS_KEYS = ["status", "last_run_status", "account_status"];
 // meaning EVERY automation, regardless of its real state, was reported
 // as "already paused" the instant a batch pause was attempted, and a
 // resume would have silently recorded the wrong previous_state.
-const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "reason", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue", "enabled"];
+const ATTRIBUTE_KEYS = ["status", "priority", "severity", "category", "reason", "last_run_status", "account_status", "is_official", "owner", "due_at", "overdue", "enabled", "days_since_activity", "percent_complete"];
 
 function extractMetric(value: Record<string, unknown>): { metric: string | null; metric_value: number | null } {
   for (const key of NUMERIC_METRIC_KEYS) {

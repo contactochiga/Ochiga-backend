@@ -11,6 +11,7 @@ export type FollowUpIntent =
   | { type: "filter"; keyword: string }
   | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" | "active" | "inactive" | "resolved" }
   | { type: "other" }
+  | { type: "named_field"; phrase: string }
   | { type: "ordinal"; ordinal: "first" | "second" | "third" | "last" | "latest" | "oldest" }
   | { type: "why" }
   | { type: "status_check" }
@@ -172,6 +173,7 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   if (/\bwhy\b/.test(m) && m.split(/\s+/).filter(Boolean).length <= 8) return { type: "why" };
 
   if (/^(is|was|did|does)\s+(it|that|this|they|he|she)\b/.test(m)) return { type: "status_check" };
+  if (/^(?:and\s+)?what\s+happened\s+(?:to|with)\s+(?:that|this|it)(?:\s+\w+)?\s*\??$/.test(m)) return { type: "status_check" };
 
   // "How much electricity have I used?" names its own topic (a utility)
   // and must reach that capability fresh, not be read as "how much did
@@ -186,6 +188,10 @@ export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   if (/^who\b/.test(m)) return { type: "field", field: "who" };
 
   if (/\btell me more\b|\bmore details?\b|\bmore info(rmation)?\b/.test(m)) return { type: "detail" };
+
+  // "and units sold for that?": a named field of the subject just discussed
+  const named = m.match(/^(?:and\s+|what about\s+|how about\s+)?(?:the\s+)?([a-z][a-z ]{2,40}?)\s+for\s+(?:that|this|it|them)\s*\??$/);
+  if (named && !/^(?:how much|how many|who|when|where|why|what)\b/.test(named[1])) return { type: "named_field", phrase: named[1].trim() };
 
   if (/^(that one|this one|that|this|it)\b/.test(m) || /\bthe one you mentioned\b/.test(m)) return { type: "pronoun" };
 
@@ -287,10 +293,26 @@ export function prioritizeResultSet(resultSet: ResultSetContext | null): ResultS
 // "The other one": only meaningful relative to a selected object (or a pair).
 // With more than two candidates and no selection it is genuinely ambiguous and
 // the caller asks, naming the candidates.
+// IQ-9A8 R4 precedence 5 (previous conversational subject): when no object is selected, the ONE record whose name the turn that produced this result set
+// itself named ("is the Expected Visitor here yet?") is the subject. Zero or several named records mean there is no such subject; nothing is inferred.
+const NAME_NOISE = new Set(["wave11", "the", "a", "an", "of", "and", "my", "your", "our", "issue", "request", "requests", "item", "visitor", "visitors", "record", "records"]);
+function subjectNamedInSource(resultSet: ResultSetContext): ResultSetObjectRef | null {
+  const sourceTokens = text(resultSet.source_message).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!sourceTokens.length) return null;
+  const named = resultSet.object_refs.filter((ref) => {
+    const tokens = text(ref.label).toLowerCase().split(/[^a-z0-9]+/).filter((t) => t && !/^wave\d*$/.test(t));
+    if (!tokens.length || tokens.every((t) => NAME_NOISE.has(t))) return false;
+    // the whole name, as a contiguous run of exactly the same words ("expected visitor"; the plural "expected visitors" in a list question does not name one record)
+    for (let i = 0; i + tokens.length <= sourceTokens.length; i++) if (tokens.every((t, k) => sourceTokens[i + k] === t)) return true;
+    return false;
+  });
+  return named.length === 1 ? named[0] : null;
+}
+
 function resolveOther(resultSet: ResultSetContext): FollowUpResolution {
   const refs = resultSet.object_refs;
   if (refs.length < 2) return { status: "unresolved" };
-  const selected = resultSet.selected_object_ref;
+  const selected = resultSet.selected_object_ref ?? subjectNamedInSource(resultSet);
   const rest = selected ? refs.filter((ref) => ref.canonical_id !== selected.canonical_id) : refs;
   if (selected && rest.length === 1) return { status: "resolved", ref: rest[0] };
   if (!selected && refs.length === 2) return { status: "ambiguous", candidates: refs };
@@ -299,6 +321,7 @@ function resolveOther(resultSet: ResultSetContext): FollowUpResolution {
 
 function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {
   if (resultSet.selected_object_ref) return { status: "resolved", ref: resultSet.selected_object_ref };
+  if (resultSet.object_refs.length > 1) { const named = subjectNamedInSource(resultSet); if (named) return { status: "resolved", ref: named }; }
   if (resultSet.object_refs.length === 1) return { status: "resolved", ref: resultSet.object_refs[0] };
   if (resultSet.object_refs.length > 1) return { status: "ambiguous", candidates: resultSet.object_refs };
   return { status: "unresolved" };
@@ -313,7 +336,7 @@ export function resolveFollowUpReference(resultSet: ResultSetContext | null, int
   if (intent.type === "ordinal") return resolveOrdinal(resultSet, intent.ordinal);
   if (intent.type === "other") return resolveOther(resultSet);
   if (intent.type === "attribute") return resolveAttribute(resultSet, intent.attribute);
-  if (intent.type === "pronoun" || intent.type === "detail" || intent.type === "why" || intent.type === "status_check" || intent.type === "field") {
+  if (intent.type === "pronoun" || intent.type === "named_field" || intent.type === "detail" || intent.type === "why" || intent.type === "status_check" || intent.type === "field") {
     return resolvePronoun(resultSet);
   }
   return { status: "unresolved" };
@@ -327,4 +350,13 @@ export function clarificationCandidatesFromRefs(candidates: ResultSetObjectRef[]
     occurred_at: ref.occurred_at,
     status: ref.status,
   }));
+}
+
+/** IQ-9A8 R4: a named field ("units sold") the subject's record does not carry is stated as absent, with what IS recorded; a carried field is read from the record, never invented. */
+export function namedFieldAnswer(label: string, phrase: string, carried: Record<string, string>, status?: string | null): string {
+  const tokens = text(phrase).toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 2 && !["the", "and", "for", "that", "this", "any", "figure", "number"].includes(t));
+  const hit = Object.entries(carried).find(([k, v]) => tokens.some((t) => k.toLowerCase().includes(t) || text(v).toLowerCase().includes(t)));
+  if (hit) return `${label}: ${hit[0].replace(/_/g, " ")} ${hit[1]}${hit[0] === "units_sold" && carried.units_total ? ` of ${carried.units_total} units` : ""}${carried.status ? `; status ${carried.status}` : ""}.`;
+  const recorded = Object.entries(carried).filter(([k, v]) => text(v) && k !== "status").slice(0, 4).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`);
+  return `The record I listed for ${label} doesn't include a “${text(phrase)}” figure, so I can't give one. What it shows: ${[status ? `status ${status}` : "", ...recorded].filter(Boolean).join("; ") || "no further fields"}.`;
 }

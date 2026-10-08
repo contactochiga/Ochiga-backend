@@ -149,7 +149,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   // the concept view (consumption vs spending) decides a utilities operation the lexical regexes could not tell apart
   const operationFinal0: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
   // Office: a question about a named development project belongs to the development records when no other domain was named (public conversations keep their own routing)
-  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\bstatus\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
+  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\b(?:status|tell me about|how is|how's|update on|progress)\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).

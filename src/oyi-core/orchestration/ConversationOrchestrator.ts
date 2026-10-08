@@ -7,10 +7,11 @@ import { loadConversationAssessment, nextConversationAssessment, isAssessmentObj
 import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegration";
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
+import { collapseMultipartExchange } from "../persistence/canonicalConversationPersistence";
 import { responseMove } from "../interpretation/semanticObjective";
 import { targetedFallbackAnswer } from "../response/fallbackTarget";
 import { plannerAdmission } from "./plannerAdmission";
-import { suppliesOpportunityFacts } from "../capabilities/PublicOpportunityCapabilityModule";
+import { suppliesOpportunityFacts, recordContactPreference } from "../capabilities/PublicOpportunityCapabilityModule";
 import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal, splitInformationalClauses } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
@@ -51,7 +52,7 @@ import { assertClaimDoesNotPromoteUnavailable, type CanonicalClaimState, type Ca
 import type { OyiEvidence } from "../contracts/evidence";
 import type { IntelligenceFact } from "../contracts/canonicalConversation";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
-import { parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, prioritizeResultSet, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
+import { namedFieldAnswer, parseFollowUpIntent, resolveFollowUpReference, resolveFilterFollowUp, prioritizeResultSet, parseDomainSwitchIntent, clarificationCandidatesFromRefs, type FollowUpIntent } from "../interpretation/followUpResolver";
 import { loadThreadResultSetContext, loadThreadResultSetsContext, narrowedResultSetContext, filteredResultSetContext, prioritizedResultSetContext, type ResultSetContext } from "../context/resultSetContext";
 import { isOfficeResultSetDomain, officeFactFromRef, officeFollowUpAnswer } from "../context/officeResultSetReference";
 import { hydrateCanonicalTarget } from "../runtime/canonicalTargetHydrationRegistry";
@@ -733,6 +734,8 @@ async function persistTerminalConversationResponse(context: CanonicalConversatio
     object: null,
     contract,
     builderKey: "general_help",
+    // IQ-9A8: a conversation-scoped Osa contact preference carried by a terminal answer is kept in the thread's opportunity objective
+    publicOpportunityObjective: Object.prototype.hasOwnProperty.call(response, "public_opportunity_objective") ? (response as any).public_opportunity_objective : undefined,
   });
   response.thread_id = persistedThreadId || response.thread_id || context.input.thread_id || null;
   response.persistence_saved = Boolean(persistedThreadId);
@@ -2777,6 +2780,7 @@ function followUpDetailAnswer(hydration: Awaited<ReturnType<typeof hydrateCanoni
   if (intent.type === "why") return buildExplainAnswer(fact);
   if (intent.type === "status_check") return buildStatusCheckAnswer(fact);
   if (intent.type === "field") return buildFieldAnswer(fact, intent.field);
+  if (intent.type === "named_field") return namedFieldAnswer(String(fact.object?.label || "That record"), intent.phrase, Object.fromEntries(Object.entries((fact.value && typeof fact.value === "object" ? fact.value : {}) as Record<string, unknown>).filter(([, v]) => typeof v === "string" || typeof v === "number").map(([k, v]) => [k, String(v)])), null);
   return hydration.object ? objectStateLine(hydration.object) : "I could not confirm that item right now.";
 }
 
@@ -2926,7 +2930,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     const fact = officeFactFromRef(ref, resultSet.domain);
     const result: DomainResult = {
       status: "answered",
-      answer: officeFollowUpAnswer(ref, intent),
+      answer: officeFollowUpAnswer(ref, intent, context.input.message),
       presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
     };
     let officeResponse = capabilityDomainResultToConversationResponse({
@@ -3105,6 +3109,11 @@ async function handleDomainSwitchFollowUp(context: CanonicalConversationRequestC
   }
   const targetResultSet = resultSets[switchIntent.domain];
   if (!targetResultSet) return null;
+  // IQ-9A8: "what about the wallet one?" re-reads that domain with the current actor's authority instead of replaying a stored line (an explicit "go back" keeps the stored set)
+  if (!/\bgo back\b|\bback to\b|\bswitch back\b/i.test(context.input.message) && targetResultSet.capability_key && capabilityRegistry.get(targetResultSet.capability_key)) {
+    const fresh = await handleTemporalFollowUp(context, resolvedTurn, targetResultSet, tracer).catch(() => null);
+    if (fresh) return fresh;
+  }
   const resolution = resolveFollowUpReference(targetResultSet, { type: "pronoun" });
   if (resolution.status === "ambiguous") return buildAmbiguousFollowUpResponse(context, resolvedTurn, targetResultSet, "domain_switch", resolution.candidates, tracer);
   if (resolution.status === "unresolved") return null;
@@ -3118,6 +3127,8 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   // read from an unrelated active result set (e.g. wallet after devices).
   // The governed action resolver must decide target and authority instead.
   if (resolvedTurn.semantic_frame.mutationIntent) return null;
+  // IQ-9A8 R4: a reference to another resident's, a neighbour's or the estate's data never resolves against this actor's own result set; normal routing decides (and refuses)
+  if (context.input.surface === "consumer" && resolvedTurn.semantic_frame.answerTarget && resolvedTurn.semantic_frame.answerTarget.subject_scope !== "own") return null;
 
   const switchIntent = parseDomainSwitchIntent(context.input.message);
   if (switchIntent) {
@@ -3329,7 +3340,7 @@ async function targetedFallbackFor(context: CanonicalConversationRequestContext 
   const objective = surface === "public_corporate" && thread ? await loadPublicOpportunityObjective(thread).catch(() => null) : null;
   const held = objective && Object.keys(objective.known_facts || {}).length ? Object.fromEntries(Object.entries(objective.known_facts).map(([k, v]) => [k, String(v)])) : null;
   return targetedFallbackAnswer(frame.answerTarget, {
-    surface, raw: frame.rawText, domain: frame.domain || null, truth: await threadActionTruth(thread),
+    surface, raw: frame.rawText, domain: frame.domain || null, constraints: objective?.constraints || [], truth: await threadActionTruth(thread),
     pending_approval: Boolean(workflow && ["awaiting_approval", "ready_for_review"].includes(String(workflow.status))), held_facts: held,
   });
 }
@@ -3340,7 +3351,9 @@ async function targetedFallbackResponse(context: CanonicalConversationRequestCon
     if (!fb) return null;
     const surface = context.input.surface;
     const capability: CapabilityModule = { key: fb.key, domain: "global", rolloutStatus: "enabled", supported_surfaces: [surface], supports: () => true, resolve: async () => ({ supported: true, reason: null }), collectEvidence: async () => [] };
-    const result: DomainResult = { status: fb.status, answer: fb.answer, presentation_policy: resultPresentation("text"), metadata: { fallback_owner: "answer_target_fallback", legacy_fallback_used: false, answer_target: context.resolvedTurn.semantic_frame.answerTarget?.response_intent } };
+    // IQ-9A8: a contact preference or callback withdrawal stated on Osa is kept (conversation-scoped) in the thread's opportunity objective
+    const keptPreference = surface === "public_corporate" ? recordContactPreference(await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null), context.resolvedTurn.semantic_frame.rawText) : null;
+    const result: DomainResult = { status: fb.status, answer: fb.answer, presentation_policy: resultPresentation("text"), metadata: { fallback_owner: "answer_target_fallback", legacy_fallback_used: false, answer_target: context.resolvedTurn.semantic_frame.answerTarget?.response_intent, ...(keptPreference ? { public_opportunity_objective: keptPreference } : {}) } };
     return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [] });
   } catch { return null; }
 }
@@ -3572,11 +3585,13 @@ export class ConversationOrchestrator {
         const answers = new Map<string, string>();
         let lastRead: any = null, actionTurn: any = null;
         const keys = [...new Set(multipart.fragments.filter(x => !x.mutation).map(x => x.key as string))];
+        const subTurns: any[] = [];
         const runOne = async (text: string) => {
           traceHolder.tracer = null;
           const r = await this.runTurn({ ...context, input: { ...context.input, message: text, thread_id: threadId } }, traceHolder);
           finalize(r, null);
           threadId = (r as any).thread_id || threadId;
+          subTurns.push(r);
           return r;
         };
         for (const key of keys) {
@@ -3603,7 +3618,29 @@ export class ConversationOrchestrator {
         const final = actionTurn ?? lastRead;
         const combined = pieces.join("\n\n");
         (final as any).answer = (final as any).reply = (final as any).message = (final as any).summary = combined;
+        // one user message leaves one exchange in the thread (the message typed and the answer shown); the sub-turns' result sets and workflow state are untouched
+        if (subTurns.length === multipart.fragments.filter((x, i, a) => a.findIndex(y => y.key === x.key) === i).length && subTurns.every(t => t.persistence_saved !== false)) {
+          await collapseMultipartExchange({ threadId: String(threadId || ""), turns: subTurns.length, originalMessage: String(context.input.message), combinedAnswer: combined, keepLastTurn: Boolean(actionTurn) });
+        }
         return final;
+      }
+      // IQ-9A8 R4: "ok then just mine" after a refused request for someone else's (or the estate's) data. The referent is the previous user request; the scope is
+      // the actor's own. It is run as a fresh governed own-scope turn (own authority decision), never as a continuation of the refused scope.
+      if (context.input.surface === "consumer" && context.input.thread_id && /^\s*(?:ok(?:ay)?[,\s]+)?(?:then[,\s]+)?(?:(?:just|only)\s+(?:mine|my\s+own|me|my\s+home)|(?:what|how)\s+about\s+(?:mine|my\s+own)(?:\s+instead)?)\s*[.!?]*\s*$/i.test(String(context.input.message ?? ""))) {
+        const previousUser = await supabaseAdmin.from("oyi_conversation_messages").select("content").eq("thread_id", context.input.thread_id).eq("role", "user").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const previousText = String((previousUser.data as any)?.content ?? "");
+        const pf = previousText ? parseSemanticFrame(previousText, { surface: context.input.surface }) : null;
+        const OWN_NOUN: Record<string, string> = { visitors: "visitors", wallet: "wallet balance", transactions: "wallet transactions", devices: "devices", maintenance: "maintenance requests", utilities: "utility purchases", security: "security incidents" };
+        const noun = pf ? OWN_NOUN[String(pf.concepts?.head_domain ?? pf.domain ?? "")] : undefined;
+        if (pf && noun && pf.answerTarget && pf.answerTarget.subject_scope !== "own") {
+          traceHolder.tracer = null;
+          const r = await this.runTurn({ ...context, input: { ...context.input, message: `Show my ${noun}` } }, traceHolder);
+          finalize(r, null);
+          const combined = `Taking “just mine” to mean your own ${noun}, not anyone else's: ${String((r as any).answer ?? "")}`;
+          (r as any).answer = (r as any).reply = (r as any).message = (r as any).summary = combined;
+          if ((r as any).persistence_saved !== false) await collapseMultipartExchange({ threadId: String((r as any).thread_id || context.input.thread_id), turns: 1, originalMessage: String(context.input.message), combinedAnswer: combined, keepLastTurn: false });
+          return r;
+        }
       }
       response = await this.runTurn(context, traceHolder);
     } catch (error) {
@@ -3825,14 +3862,19 @@ export class ConversationOrchestrator {
     if (!activeWorkflow && (!resolvedTurn.semantic_frame.mutationIntent || actionUnclaimed)) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = sf.answerTarget!;
       let direct: string | null = null, key = "";
+      let publicObjectiveToKeep: Awaited<ReturnType<typeof recordContactPreference>> = null;
       if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.`; key = "answer_target.action_not_executed"; }
-      else if (earlyTarget.confirmation_kind === "constraint") { direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged"; }
+      else if (earlyTarget.confirmation_kind === "constraint") {
+        direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged";
+        // IQ-9A8: a contact preference stated on Osa is kept (conversation-scoped) in the thread's opportunity objective so a later contact request can respect it
+        if (context.input.surface === "public_corporate") { const kept = recordContactPreference(await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null), sf.rawText); if (kept) publicObjectiveToKeep = kept; }
+      }
       else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action. If anyone may be in danger, contact emergency services or estate security directly now.`; key = "answer_target.safety_report"; }
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event)) : actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
       else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
         const capability = syntheticOfficeActionCapability(key, "global");
-        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent } });
+        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent, ...(publicObjectiveToKeep ? { public_opportunity_objective: publicObjectiveToKeep } : {}) } });
         tracer.finish({ thread_id: directResponse.thread_id || null, response_state: directResponse.persistence_saved === false ? "unsaved" : "returned" });
         return directResponse;
       }
@@ -4085,12 +4127,23 @@ export class ConversationOrchestrator {
       const directStateRead = !previousAssessment && frame.answerTarget?.yes_no?.kind === "state" && !frame.answerTarget.safety_relevant
         && ["wallet", "utility"].includes(frame.concepts?.object || "") && declaredRead?.risk_class === "read" && Boolean(selection.authority?.allowed);
       // IQ-9A6 R1: one explicit planner-admission decision; a parsed assessment objective alone does not seize a turn. Trace metadata is structural only.
+      const storedResultSets = await loadThreadResultSetsContext(context.input.thread_id).catch(() => null);
       const publicObjectiveForAdmission = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null) : null;
       const admission = plannerAdmission({
         surface: context.input.surface, target: frame.answerTarget, objective: frame.cognitiveObjective,
         continuing: Boolean(previousAssessment && !previousAssessment.suspended && (assessmentContinuation(frame.rawText) || isAssessmentInformation(frame.rawText) || frame.cognitiveObjective !== "retrieve")),
+        referencesStoredResultSet: (() => {
+          const sw = parseDomainSwitchIntent(frame.rawText);
+          if (sw && sw.type === "switch" && storedResultSets?.resultSets?.[sw.domain]) return true;
+          // a natural reference ("the other one", "the second one", "is that one still open") to the result set this thread currently holds
+          const ref = parseFollowUpIntent(frame.rawText);
+          // a pronoun / status / field reference is a lookup only when the question itself is a state or fact question; "does that prove…", "does that change…" are cognitive follow-ups
+          const kind = frame.answerTarget?.yes_no?.kind;
+          const lookupKind = kind === undefined || kind === "state" || kind === "fact";
+          return Boolean(ref && (["other", "ordinal", "attribute", "named_field"].includes(ref.type) || (["pronoun", "status_check", "field", "detail"].includes(ref.type) && lookupKind)) && usableSet && !previousAssessment?.derived_ranking);
+        })(),
         mutationOrAction: Boolean(frame.mutationIntent), subjectDomains: assessment.subject_domains || [],
-        eligibleReadDomains: [...new Set(eligibleReads.map(m => String(m.domain)))], hasPublicObjective: Boolean(publicObjectiveForAdmission), headDomain: frame.concepts?.head_domain ?? null, headDomainSupportedOnSurface: capabilityRegistry.enabled().some(m => m.risk_class === "read" && String(m.domain) === String(frame.concepts?.head_domain ?? "") && (m.supported_surfaces || []).includes(context.input.surface as never)), conceptDomains: (frame.concepts?.domains || []).map((d: { domain: string }) => d.domain),
+        eligibleReadDomains: [...new Set(eligibleReads.map(m => String(m.domain)))], hasPublicObjective: Boolean(publicObjectiveForAdmission), headDomain: (frame.concepts?.head_domain === "corporate_opportunity" && context.input.surface === "office_internal" ? "crm" : frame.concepts?.head_domain) ?? null, headDomainSupportedOnSurface: capabilityRegistry.enabled().some(m => m.risk_class === "read" && String(m.domain) === String(frame.concepts?.head_domain ?? "") && (m.supported_surfaces || []).includes(context.input.surface as never)), conceptDomains: (frame.concepts?.domains || []).map((d: { domain: string }) => d.domain),
         specificCapability: declaredRead && declaredRead.risk_class === "read" && declaredRead.domain !== "global" && selection.authority?.allowed ? { key: declaredRead.key, domain: String(declaredRead.domain) } : null,
       });
       logger.info("oyi_planner_admission", { request_id: tracer.requestId, surface: context.input.surface, admit: admission.admit, reason: admission.reason, objective: frame.cognitiveObjective || null, shape: frame.answerTarget?.response_intent || null, domains: assessment.subject_domains || [] });

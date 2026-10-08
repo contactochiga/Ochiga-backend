@@ -82,9 +82,28 @@ function extractStructurePreference(message: string): string | null {
 // specifically imply an existing physical structure being offered stay
 // in this list.
 function extractPropertyKind(message: string): "land" | "existing_building" | null {
-  if (/\b(?:land|plots?)\b/i.test(message)) return "land";
-  if (/\b(?:building|property|house|estate)\b/i.test(message)) return "existing_building";
+  const land = message.search(/\b(?:land|plots?)\b/i), building = message.search(/\b(?:building|property|house|estate)\b/i);
+  // IQ-9A8: in a correction ("actually, a different plot: a building in Asaba") the kind named LAST is the corrected one
+  if (land >= 0 && building >= 0 && /\b(?:actually|different|instead|rather|correction|i\s+mean)\b/i.test(message)) return building > land ? "existing_building" : "land";
+  if (land >= 0) return "land";
+  if (building >= 0) return "existing_building";
   return null;
+}
+
+/** Records the caller's stated contact preference into the thread's opportunity objective (conversation-scoped note; no facts are invented). */
+export function recordContactPreference(prior: PublicOpportunityObjective | null, message: string): PublicOpportunityObjective | null {
+  if (contactConstraintsIn(message).length === 0) return null;
+  return mergeObjective(prior, message, new Date().toISOString());
+}
+
+/** Contact-channel preferences stated by the caller (kept as objective constraints; conversation-scoped notes, not enforced rules). */
+export function contactConstraintsIn(message: string): string[] {
+  const out: string[] = [];
+  if (/\b(?:never|don'?t|do\s+not|stop)\b[^.?!,]{0,30}\b(?:call|phone|ring)\b|\bnot\s+by\s+phone\b|\bno\s+phone\s+calls?\b/i.test(message)) out.push("no_phone_contact");
+  if (/\b(?:never|don'?t|do\s+not|stop)\b[^.?!,]{0,30}\b(?:e-?mail)\b/i.test(message)) out.push("no_email_contact");
+  const only = message.match(/\b(?:only|just)\s+(?:contact|reach|message|text|whatsapp|e-?mail)\b[^.?!]{0,20}\b(?:by|via|on|through)?\s*(whatsapp|e-?mail|text|sms)\b/i);
+  if (only) out.push(`only_${only[1].toLowerCase().replace("-", "")}`);
+  return out;
 }
 
 function assertsOwnership(message: string): boolean {
@@ -153,6 +172,7 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
 
   const titleStatus = extractTitleStatus(message); if (titleStatus) knownFacts.title_document_status = titleStatus;
   if (assertsNoSale(message) && !constraints.includes("no_sale")) constraints.push("no_sale");
+  for (const c of contactConstraintsIn(message)) if (!constraints.includes(c)) constraints.push(c);
 
   return {
     objective_type: objectiveType,
@@ -162,6 +182,7 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
     next_move: prior?.next_move || null,
     turns: (prior?.turns || 0) + 1,
     last_changes: prior ? changesBetween(prior, knownFacts) : [],
+    superseded: [...(prior?.superseded || []), ...(prior ? changesBetween(prior, knownFacts).filter(c => c.from).map(c => ({ field: c.field, value: c.from as string })) : [])].slice(-6),
     created_at: prior?.created_at || now,
     updated_at: now,
   };
@@ -301,7 +322,12 @@ function targetedPublicLead(objective: PublicOpportunityObjective, target: Answe
     const jv = objective.objective_type === "development_partnership";
     const assessment = assessJvOpportunity(jvEvidenceFromKnownFacts(objective.known_facts));
     const missing = jv ? assessment.missing_information.filter((field) => !NOT_YET_USEFUL_TO_ASK.has(field)) : null;
-    return projectResponse(target, heldFactsEnvelope({ known: objective.known_facts, missing, constraints: objective.constraints }), { asked: "", raw })?.primary ?? null;
+    const lead = projectResponse(target, heldFactsEnvelope({ known: Object.fromEntries(Object.entries(objective.known_facts).map(([k, v]) => [k, String(v).replace(/_/g, " ")])), missing, constraints: objective.constraints }), { asked: "", raw })?.primary ?? null;
+    // provenance of a correction: what was replaced is named as superseded, never re-presented as current
+    const replaced = (objective.superseded || []).filter(x => objective.known_facts[x.field] !== x.value);
+    const contact = objective.constraints.filter(c => c.endsWith("_contact") || c.startsWith("only_")).map(c => c.replace(/_/g, " "));
+    const notes = [replaced.length && target.ask_facet === "recall" ? `Earlier you mentioned ${replaced.map(x => `${x.field.replace(/_/g, " ")} ${x.value}`).join(", ")}; I no longer treat that as current.` : "", contact.length && target.ask_facet === "recall" ? `You also asked for: ${contact.join(", ")} (a note for this conversation only).` : ""].filter(Boolean);
+    return lead && notes.length ? `${lead} ${notes.join(" ")}` : lead;
   } catch { return null; }
 }
 
@@ -369,17 +395,25 @@ export function publicOpportunityReadModule(): CapabilityModule {
       const sf = context.resolvedTurn.semantic_frame;
       if (!callbackAsk && sf.answerTarget) {
         const held = prior && Object.keys(prior.known_facts).length ? Object.fromEntries(Object.entries(prior.known_facts).map(([k, v]) => [k, String(v)])) : null;
-        const direct = publicFallbackAnswer(sf.answerTarget, { surface: "public_corporate", raw: message, truth: await threadActionTruth(text(context.input.thread_id)), pending_approval: false, held_facts: held });
-        if (direct) return { status: "answered", answer: direct.answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior, answer_target: sf.answerTarget.response_intent, public_direct_answer: direct.key } };
+        const direct = publicFallbackAnswer(sf.answerTarget, { surface: "public_corporate", raw: message, truth: await threadActionTruth(text(context.input.thread_id)), pending_approval: false, held_facts: held, constraints: prior?.constraints || [] });
+        if (direct) return { status: "answered", answer: direct.answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: direct.key.endsWith("public_callback_withdrawn") && prior ? mergeObjective(prior, message, new Date().toISOString()) : prior, answer_target: sf.answerTarget.response_intent, public_direct_answer: direct.key } };
       }
 
       // IQ-9A2: the canonical answer target recognises natural callback wording ("Call me back.") that this module's own regex does not.
       if (callbackAsk || (context.resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback" && /\b(?:call|ring|phone|contact|reach)\b/i.test(message) && !/\b(?:e-?mail|send)\b/i.test(message))) {
-        const { status, answer, metadata } = await composeCallbackAnswer(context, prior);
+        // IQ-9A8: facts and contact preferences stated in the same message are recorded before the request is handled
+        const merged = mergeObjective(prior, message, new Date().toISOString());
+        const stated = Object.keys(merged.known_facts).some(k => merged.known_facts[k] !== prior?.known_facts?.[k]) || merged.constraints.some(c => !(prior?.constraints || []).includes(c));
+        const working = stated ? merged : prior;
+        if (working?.constraints.includes("no_phone_contact") && /\b(?:call|ring|phone)\b/i.test(message)) {
+          // an earlier "do not call me" is respected: no handoff is made until the caller says how they want to be reached
+          return { status: "answered", answer: "You told me not to contact you by phone, so I haven't passed a callback request to the team. Tell me how you'd like to be reached instead (email or WhatsApp), or say you do want a phone call after all. That preference is a note for this conversation only; I haven't stored it as a standing rule.", presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: working, handoff_stage: "not_attempted_contact_preference", contact_completed: false } };
+        }
+        const { status, answer, metadata } = await composeCallbackAnswer(context, working);
         // A callback request doesn't change the objective -- preserve it
         // verbatim rather than letting persistence's undefined-fallback
         // reload path run twice.
-        return { status, answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: prior } };
+        return { status, answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: working } };
       }
 
       // Existing bounded qualification assessment; no company commitment,

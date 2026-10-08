@@ -602,3 +602,39 @@ export async function persistCanonicalConversationTurn(input: {
     return null;
   }
 }
+
+
+/**
+ * IQ-9A8 R4: one user message that was answered as several governed sub-turns (multi-part request, own-scope reset) must leave ONE exchange in the thread: the
+ * message the user typed and the answer the user saw. The sub-turns were persisted through the normal canonical path (their result sets, workflow and action
+ * state are untouched); this only folds their message rows. When the last sub-turn owns an action (a proposal awaiting approval), that turn's own rows are kept,
+ * because the action refers to them. Verifies the rows are exactly the expected alternating run before changing anything; otherwise it changes nothing.
+ */
+export async function collapseMultipartExchange(input: { threadId: string; turns: number; originalMessage: string; combinedAnswer: string; keepLastTurn: boolean }): Promise<{ collapsed: boolean; reason?: string }> {
+  try {
+    if (!isUuid(input.threadId) || input.turns < 1) return { collapsed: false, reason: "not_applicable" };
+    const fetched = await supabaseAdmin.from("oyi_conversation_messages").select("id,role,created_at,metadata").eq("thread_id", input.threadId).order("created_at", { ascending: false }).limit(input.turns * 2);
+    if (fetched.error || !Array.isArray(fetched.data) || fetched.data.length !== input.turns * 2) return { collapsed: false, reason: "rows_unavailable" };
+    const rows = [...fetched.data].reverse() as Array<{ id: string; role: string; metadata: unknown }>;
+    if (!rows.every((r, i) => r.role === (i % 2 === 0 ? "user" : "assistant"))) return { collapsed: false, reason: "unexpected_row_shape" };
+    const userKeep = input.keepLastTurn ? rows[rows.length - 2] : rows[0];
+    const assistantKeep = rows[rows.length - 1];
+    const drop = rows.filter((r) => r.id !== userKeep.id && r.id !== assistantKeep.id).map((r) => r.id);
+    const mark = (row: { metadata: unknown }) => ({ ...recordOf(row.metadata), multipart: { clauses: input.turns, collapsed: true } });
+    const u = await supabaseAdmin.from("oyi_conversation_messages").update({ content: input.originalMessage, metadata: mark(userKeep) } as any).eq("id", userKeep.id);
+    const a = await supabaseAdmin.from("oyi_conversation_messages").update({ content: input.combinedAnswer, metadata: mark(assistantKeep) } as any).eq("id", assistantKeep.id);
+    if (u.error || a.error) return { collapsed: false, reason: "update_failed" };
+    if (drop.length) {
+      const d = await supabaseAdmin.from("oyi_conversation_messages").delete().eq("thread_id", input.threadId).in("id", drop);
+      if (d.error) return { collapsed: false, reason: "delete_failed" };
+    }
+    const th = await supabaseAdmin.from("oyi_conversation_threads").select("metadata").eq("id", input.threadId).maybeSingle();
+    const meta = recordOf((th.data as any)?.metadata);
+    const count = Number(meta.message_count);
+    await supabaseAdmin.from("oyi_conversation_threads").update({ metadata: { ...meta, message_count: Number.isFinite(count) ? Math.max(2, count - drop.length) : undefined, last_user_message_id: userKeep.id, last_assistant_message_id: assistantKeep.id } } as any).eq("id", input.threadId);
+    return { collapsed: true };
+  } catch (error) {
+    logger.warn("conversation_multipart_collapse_failed", { thread_id: input.threadId, ...safePersistenceError(error) });
+    return { collapsed: false, reason: "error" };
+  }
+}
