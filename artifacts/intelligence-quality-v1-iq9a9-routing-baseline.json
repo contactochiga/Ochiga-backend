@@ -1,0 +1,739 @@
+{
+ "generated_at": "2026-10-08T09:27:48.269Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a9-r5-corpus.json",
+ "duration_ms": 2403,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R5-D01",
+   "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "184930b0-34b2-43e9-8a03-0ac846e098af",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the AC",
+     "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R5-D02",
+   "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "cf30ac15-7ce3-41b2-a0f5-56d017a5c7e7",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Could you turn the AC off please?",
+     "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D03",
+   "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "b7e22586-0e78-4ff8-85f4-fb343e976f26",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "turn on the AC",
+     "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D04",
+   "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is the AC on?",
+     "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D05",
+   "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What is the status of the AC?",
+     "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D06",
+   "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "be0d337f-d890-45cc-a9d4-c078e7e78059",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "ACTION_RESULT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the AC",
+     "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Did you switch off the AC?",
+     "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D07",
+   "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "f13d0ceb-f04e-40e7-9a8e-e7c067587743",
+   "action_id": "37921e93-b706-415f-b0b0-890b055a3ab2",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Kitchen Light",
+     "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-D08",
+   "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“Switch off the AC”) — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing has been changed.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "permission_restricted",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "scope_restricted",
+   "turns": [
+    {
+     "prompt": "Switch off the AC",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“Switch off the AC”) — it needs a specific home or room in scope, and this view has no estate-wide control. Nothing has been changed.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-P01",
+   "answer": "Which The Bedroom Light looks stuck, turn it off should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "042bb147-a55e-4925-9586-399b6f759e5f",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "The Bedroom Light looks stuck, turn it off",
+     "answer": "Which The Bedroom Light looks stuck, turn it off should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-P02",
+   "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nI can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "693f30aa-d54a-48ff-a8f6-bcbb9337af11",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "SAFETY_RISK",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "The AC is making a burning smell, switch it off now",
+     "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nI can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-P03",
+   "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "16189c51-ebe7-4cc1-b7c2-92f1751bd09e",
+   "action_id": "b5c751ed-69e9-4982-829d-4bfe263fb001",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Show my maintenance requests.",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    },
+    {
+     "prompt": "Turn off the Kitchen Light and then turn it back on",
+     "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F01",
+   "answer": "Current balance: NGN 12,500.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+   "capability": "financial.summary.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What is our current cash balance?",
+     "answer": "Current balance: NGN 12,500.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+     "capability": "financial.summary.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F02",
+   "answer": "Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+   "capability": "financial.summary.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "How much revenue have we recorded this period?",
+     "answer": "Period revenue: NGN 15,000.\n\nSupporting detail: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+     "capability": "financial.summary.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F03",
+   "answer": "Portfolio entries: Wave11 Test Estate (active).\n\nSupporting detail: 1 portfolio entry.",
+   "capability": "office_portfolio.query.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Give me the portfolio financial position",
+     "answer": "Portfolio entries: Wave11 Test Estate (active).\n\nSupporting detail: 1 portfolio entry.",
+     "capability": "office_portfolio.query.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F04",
+   "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“What is the estate's total balance?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "permission_restricted",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "scope_restricted",
+   "turns": [
+    {
+     "prompt": "What is the estate's total balance?",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“What is the estate's total balance?”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F05",
+   "answer": "Wallet balance: NGN 12,500.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What is my balance?",
+     "answer": "Wallet balance: NGN 12,500.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F06",
+   "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“What is the estate's financial balance?”) — that isn't available from this surface.",
+   "capability": "wallet.balance.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "permission_restricted",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "surface_restricted",
+   "turns": [
+    {
+     "prompt": "What is the estate's financial balance?",
+     "answer": "I can't do that for you here: you are not authorised to use it from this surface or scope (“What is the estate's financial balance?”) — that isn't available from this surface.",
+     "capability": "wallet.balance.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-F07",
+   "answer": "I can't help with that here: this public chat has no access to residents' details, payments, gate or visitor records, or other operational information, and I won't guess. I can tell you about Ochiga and its developments, take the details of your own opportunity, or pass a callback request to the team if you ask.",
+   "capability": "answer_target.fallback_public_no_operational_access",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "surface_restricted",
+   "turns": [
+    {
+     "prompt": "What is the current balance?",
+     "answer": "I can't help with that here: this public chat has no access to residents' details, payments, gate or visitor records, or other operational information, and I won't guess. I can tell you about Ochiga and its developments, take the details of your own opportunity, or pass a callback request to the team if you ask.",
+     "capability": "answer_target.fallback_public_no_operational_access"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-M01",
+   "answer": "I don't have humidity data: no humidity sensor reading is available to me here, so I can't tell you what it is.",
+   "capability": "canonical.conversation.unsupported",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unsupported",
+   "target_intent": "LIMITATION",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "What's the humidity in the living room?",
+     "answer": "I don't have humidity data: no humidity sensor reading is available to me here, so I can't tell you what it is.",
+     "capability": "canonical.conversation.unsupported"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-M02",
+   "answer": "I don't have temperature data: no temperature sensor reading is available to me here, so I can't tell you what it is.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIMITATION",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What temperature is the AC set to?",
+     "answer": "I don't have temperature data: no temperature sensor reading is available to me here, so I can't tell you what it is.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-M03",
+   "answer": "Wallet transactions: Electricity purchase -₦2,500 (completed), Wallet funding +₦15,000 (completed).\n\nSupporting detail: 2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+   "capability": "wallet.transactions.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What are my wallet transactions?",
+     "answer": "Wallet transactions: Electricity purchase -₦2,500 (completed), Wallet funding +₦15,000 (completed).\n\nSupporting detail: 2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+     "capability": "wallet.transactions.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-O01",
+   "answer": "Land size: 5 acres.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "EXPLANATION",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale.",
+     "answer": "Thanks for sharing that in Kano, 5 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "How big is the plot I mentioned?",
+     "answer": "Land size: 5 acres.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R5-O02",
+   "answer": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale.",
+     "answer": "Thanks for sharing that in Kano, 5 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Where is it?",
+     "answer": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

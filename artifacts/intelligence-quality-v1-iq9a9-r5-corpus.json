@@ -1,0 +1,199 @@
+{
+ "version": 1,
+ "status": "IQ9A9_R5_SYNTHETIC_DEV_CASES",
+ "note": "New synthetic cases; not copies of sealed IQ-8F requests.",
+ "items": [
+  {
+   "id": "R5-D01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Switch off the AC",
+   "kind": "short_name_command",
+   "expect": "proposal for the AC device, awaiting confirmation"
+  },
+  {
+   "id": "R5-D02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Could you turn the AC off please?",
+   "kind": "short_name_command_paraphrase",
+   "expect": "proposal for the AC device"
+  },
+  {
+   "id": "R5-D03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "turn on the AC",
+   "kind": "short_name_command_flip",
+   "expect": "proposal turn on AC"
+  },
+  {
+   "id": "R5-D04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is the AC on?",
+   "kind": "state_question_not_command",
+   "expect": "state/limitation answer, no proposal"
+  },
+  {
+   "id": "R5-D05",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What is the status of the AC?",
+   "kind": "state_question_not_command",
+   "expect": "state/limitation answer, no proposal"
+  },
+  {
+   "id": "R5-D06",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the AC"
+   ],
+   "utterance": "Did you switch off the AC?",
+   "kind": "historical_action_result",
+   "expect": "action truth: nothing executed"
+  },
+  {
+   "id": "R5-D07",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Switch off the Kitchen Light",
+   "kind": "positive_long_name",
+   "expect": "proposal Kitchen Light"
+  },
+  {
+   "id": "R5-D08",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Switch off the AC",
+   "kind": "facility_home_scope_denied",
+   "expect": "authority denial / home scope"
+  },
+  {
+   "id": "R5-P01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "The Bedroom Light looks stuck, turn it off",
+   "kind": "named_subject_then_pronoun",
+   "expect": "proposal Bedroom Light"
+  },
+  {
+   "id": "R5-P02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "The AC is making a burning smell, switch it off now",
+   "kind": "hazard_named_subject_pronoun",
+   "expect": "precaution + proposal AC"
+  },
+  {
+   "id": "R5-P03",
+   "surface": "consumer",
+   "seeds": [
+    "Show my maintenance requests."
+   ],
+   "utterance": "Turn off the Kitchen Light and then turn it back on",
+   "kind": "pronoun_in_turn_not_earlier_list",
+   "expect": "no binding to the maintenance list"
+  },
+  {
+   "id": "R5-F01",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "What is our current cash balance?",
+   "kind": "office_finance_synonym",
+   "expect": "financial.summary.read NGN 12,500"
+  },
+  {
+   "id": "R5-F02",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "How much revenue have we recorded this period?",
+   "kind": "office_finance_synonym",
+   "expect": "financial.summary revenue"
+  },
+  {
+   "id": "R5-F03",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Give me the portfolio financial position",
+   "kind": "office_finance",
+   "expect": "financial summary"
+  },
+  {
+   "id": "R5-F04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What is the estate's total balance?",
+   "kind": "consumer_estate_finance_refused",
+   "expect": "refusal, never own wallet"
+  },
+  {
+   "id": "R5-F05",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What is my balance?",
+   "kind": "consumer_wallet_positive",
+   "expect": "NGN 12,500 own wallet"
+  },
+  {
+   "id": "R5-F06",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "What is the estate's financial balance?",
+   "kind": "facility_estate_finance",
+   "expect": "authority outcome without resident wallet"
+  },
+  {
+   "id": "R5-F07",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "What is the current balance?",
+   "kind": "public_finance_refused",
+   "expect": "no balance disclosed"
+  },
+  {
+   "id": "R5-M01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What's the humidity in the living room?",
+   "kind": "unsupported_measurement",
+   "expect": "limitation"
+  },
+  {
+   "id": "R5-M02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What temperature is the AC set to?",
+   "kind": "unsupported_measurement",
+   "expect": "limitation, no device command"
+  },
+  {
+   "id": "R5-M03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What are my wallet transactions?",
+   "kind": "positive_supported",
+   "expect": "wallet transactions"
+  },
+  {
+   "id": "R5-O01",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale."
+   ],
+   "utterance": "How big is the plot I mentioned?",
+   "kind": "public_fact_recall",
+   "expect": "5 acres"
+  },
+  {
+   "id": "R5-O02",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale."
+   ],
+   "utterance": "Where is it?",
+   "kind": "public_fact_pronoun",
+   "expect": "Kano"
+  }
+ ]
+}
