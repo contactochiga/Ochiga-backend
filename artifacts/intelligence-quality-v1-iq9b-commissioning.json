@@ -1,0 +1,31 @@
+{
+  "candidate": "872fb7bf264d30865e1aadb5dfa44ae46a9579d6",
+  "protocol_commit": "d386596",
+  "local_initial_worktree_clean": true,
+  "remote_verification": {
+    "method": "gh api repos/contactochiga/Ochiga-backend/git/ref/heads/codex/intelligence-quality-v1 --jq .object.sha",
+    "head": "872fb7bf264d30865e1aadb5dfa44ae46a9579d6",
+    "ssh_attempt": "DNS resolution failed; live authenticated GitHub API verification succeeded"
+  },
+  "coordinator": {
+    "role": "protocol, transport, mechanical validation and aggregation only",
+    "prior_implementation_exposure": true,
+    "may_author_cases_or_grade": false
+  },
+  "authors": [
+    {"worker":"Oma","agent":"/root/iq9b_author_oma","fork_turns":"none"},
+    {"worker":"Osa","agent":"/root/iq9b_author_osa","fork_turns":"none"},
+    {"worker":"Facility","agent":"/root/iq9b_author_facility","fork_turns":"none"},
+    {"worker":"Consumer","agent":"/root/iq9b_author_consumer","fork_turns":"none"}
+  ],
+  "author_read_allowlist": [
+    "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+    "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+    "own output for mechanical validation only"
+  ],
+  "blinding_boundary": "Fresh independent agent contexts, no inherited conversation, explicit no-source/no-prior-results read restriction and tool-history audit. Shared tool infrastructure is not an OS filesystem sandbox; no cross-model/human-panel independence claim.",
+  "provider_mode": "No live or scripted judgment provider",
+  "fixture": "Existing approved Wave11 loopback fixture 127.0.0.1:55421; no schema or seed changes",
+  "runtime_changes_allowed": false,
+  "retries_after_first_contact_allowed": false
+}
