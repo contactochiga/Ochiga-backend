@@ -124,14 +124,19 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
   const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
   const support = sup(legacy);
   const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" || (intent === "LIST" && !t.top_n) ? (n.named.length === 1 ? "STATUS" : intent === "LIST" ? "LIST" : "LIST") : intent;
+  // IQ-9A11 R7: a validity/active question about ONE named permission record is answered from that record, not from the other records
+  if (e.hints?.permission_only && n.named.length === 1 && /\b(?:valid|active|current(?:ly)?|usable|in\s+date)\b/i.test(ctx.raw || "") && ["YES_NO_WITH_REASON", "STATUS", "DIRECT_ANSWER"].includes(intent)) {
+    const r = n.named[0];
+    if (/inactive/i.test(r.status || "")) return done("YES_NO", `No — ${r.label} is recorded as inactive, so that permission is not currently active. This is a permission record, not evidence about anyone's arrival or presence.`, ...support);
+  }
   // IQ-9A4: an expiry conflict is never presented as a confirmed active pass, nor as "none active": the conflict is stated.
   const expiryConflicts = (e.records || []).filter(r => /past its recorded expiry/i.test(r.status || ""));
   if (expiryConflicts.length && (n.asked.some(q => /^(?:active|valid|current)$/.test(q)) || (e.hints?.permission_only && /\b(?:valid|active|current(?:ly)?|usable|in\s+date)\b/i.test(ctx.raw || ""))) && ["COUNT", "YES_NO_WITH_REASON", "LIST"].includes(eff)) {
     const confirmed = (e.records || []).filter(r => matches(r, "active") && !/inactive/i.test(r.status || ""));
-    return done(eff === "LIST" ? "LIST" : eff === "COUNT" ? "COUNT" : "YES_NO", `${(e.records || []).length} ${(e.records || []).length === 1 ? one : noun} on record. ${confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? one : noun} ${confirmed.length === 1 ? "is" : "are"} confirmed active (${confirmed.map(r => r.label).join(", ")}). ` : "I can't confirm that any is currently valid. "}${expiryConflicts.length} ${expiryConflicts.length === 1 ? "is" : "are"} recorded as active but ${expiryConflicts.length === 1 ? "its" : "their"} recorded expiry time has passed (${expiryConflicts.map(r => r.label).join(", ")}), so ${expiryConflicts.length === 1 ? "its" : "their"} validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.`, ...support);
+    return done(eff === "LIST" ? "LIST" : eff === "COUNT" ? "COUNT" : "YES_NO", `${(e.records || []).length} ${(e.records || []).length === 1 ? one : noun} on record. ${confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? one : noun} ${confirmed.length === 1 ? "is" : "are"} confirmed active (${confirmed.map(r => r.label).join(", ")}). ` : "I can't confirm that any is currently valid. "}${expiryConflicts.length} ${expiryConflicts.length === 1 ? "is" : "are"} recorded as active but ${expiryConflicts.length === 1 ? "its" : "their"} recorded expiry time has passed (${expiryConflicts.map(r => r.label).join(", ")}), so ${expiryConflicts.length === 1 ? "its" : "their"} validity isn't confirmed from these records.${/\bhow\s+many\b/i.test(ctx.raw || "") ? "" : ` Recorded: ${list(e.records || [], 4)}.`} These are permission records, not proof of anyone's arrival.`, ...support);
   }
   // IQ-9A5: a permission-only record answers permission questions; a presence question about it is answered with that limit, then the records
-  if (e.hints?.permission_only && /\b(?:at\s+the\s+(?:door|gate)|outside|inside|arrived|is\s+here|here\s+(?:now|yet))\b/i.test(ctx.raw || "") && ["STATUS", "DIRECT_ANSWER", "LIST", "SUMMARY"].includes(intent) && e.records?.length) {
+  if (e.hints?.permission_only && /\b(?:at\s+the\s+(?:door|gate)|outside|inside|arrived|is\s+here|here\s+(?:now|yet)|at\s+(?:my\s+)?(?:place|home|house)|on\s+the\s+estate|by\s+now)\b/i.test(ctx.raw || "") && ["STATUS", "DIRECT_ANSWER", "LIST", "SUMMARY", "ADVICE", "YES_NO_WITH_REASON", "ASSESSMENT"].includes(intent) && e.records?.length) {
     return done("YES_NO", `I can't say anyone is at the door or has arrived: visitor access records show permission (active or inactive), not whether anyone has turned up, is here or has left. What is recorded: ${list(e.records, 4)}.`, ...support);
   }
   // IQ-9A5: a comparison of RECORDED days since activity between named records is a field comparison, not a business judgment
@@ -201,6 +206,11 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
       return done("LIMITATION", `I can't give a reason for that from these records: they show each ${one} and its recorded status, but not why.`, ...support);
     }
     case "RANKING": case "COMPARISON": case "ADVICE": case "NEXT_STEP": {
+      // IQ-9A11 R7: ordering permission records is an ordering by their recorded status (active first), not a judgment
+      if (e.hints?.permission_only && intent === "RANKING" && rows.length) {
+        const active = rows.filter(r => !/inactive/i.test(r.status || "") && /active/i.test(r.status || "")), rest = rows.filter(r => !active.includes(r));
+        return done("RANKING", `Ordered by recorded status, active first: ${list([...active, ...rest], 8)}. These are permission records, not proof of anyone's arrival.`, ...support);
+      }
       if (!e.hints?.requires_judgment) return null;
       return done("RANKING", `${rows.length ? `${cap(e.subject.population ? `${noun} ${e.subject.population}` : noun)}: ${list(rows)}.\n\n` : ""}I can't put them in order or pick one: that takes comparative judgment on their recorded notes, which I don't have here.`, ...support);
     }

@@ -284,6 +284,12 @@ export function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]
     const unavailable = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) !== "online").length;
     return `${availabilityFacts.length} authorised device${availabilityFacts.length === 1 ? "" : "s"} are listed for this room.${unavailable ? ` ${unavailable} need attention or clearer evidence.` : " None are currently flagged by the available evidence."}`;
   }
+  // IQ-9A11 R7: "which devices do I have?" asks for the devices themselves; name every one with what its reading supports
+  if (/\b(?:which|what|list|show|name)\b[\s\S]{0,40}\bdevices?\b|\bdevices?\b[\s\S]{0,20}\b(?:do\s+i\s+have|i\s+have)\b/i.test(message) && !/\b(?:offline|online|failing|failed|broken|down|unavailable)\b/i.test(message)) {
+    const names = availabilityFacts.slice(0, 20).map(f => f.object?.label || "Device");
+    const notFresh = availabilityFacts.filter(f => ["stale", "expired", "unknown"].includes(text(recordOf(f.value).availability))).length;
+    return `${availabilityFacts.length} device${availabilityFacts.length === 1 ? "" : "s"} on record: ${names.join(", ")}.${notFresh ? ` ${notFresh === availabilityFacts.length ? "All" : notFresh} ha${notFresh === 1 ? "s" : "ve"} stale or unknown readings, so no current on/off state can be stated.` : ""}`;
+  }
   const confirmedOffline = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "offline");
   const staleOrExpired = availabilityFacts.filter((fact) => ["stale", "expired"].includes(text(recordOf(fact.value).availability)));
   const unknown = availabilityFacts.filter((fact) => text(recordOf(fact.value).availability) === "unknown");

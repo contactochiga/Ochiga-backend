@@ -215,7 +215,13 @@ function composeAcknowledgement(prior: PublicOpportunityObjective | null, update
     if (updated.known_facts.location) bits.push(`in ${updated.known_facts.location}`);
     if (updated.known_facts.land_size) bits.push(updated.known_facts.land_size);
     const detail = bits.length ? ` ${bits.join(", ")}` : "";
-    return `Thanks for sharing that${detail}. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.`;
+    // IQ-9A11 R7: the first acknowledgement keeps every supplied fact and says what is still open; it is not a decision and nothing is submitted
+    const structure = updated.known_facts.structure_offered ? `, as a ${updated.known_facts.structure_offered}` : "";
+    const title = updated.known_facts.title_document_status ? ` Title: ${updated.known_facts.title_document_status}.` : "";
+    const open = openItems(updated.known_facts).map(f => f.replace(/^jv_/, "").replace(/_/g, " "));
+    const stillOpen = open.length ? ` Still to confirm: ${open.join(", ")}.` : "";
+    if (!structure && !title && !open.length) return `Thanks for sharing that${detail}. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.`;
+    return `Thanks for sharing that${detail}${structure}.${title}${stillOpen} A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.`;
   }
   const newlyConstrained = updated.constraints.filter((constraint) => !prior.constraints.includes(constraint));
   if (newlyConstrained.includes("no_sale")) {

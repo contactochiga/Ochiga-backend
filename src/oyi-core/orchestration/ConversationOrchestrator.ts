@@ -3397,7 +3397,7 @@ async function buildBusinessSurfaceFallbackResponse(
     };
     const result: DomainResult = {
       status: "unsupported",
-      answer: `${surface === "office_internal" ? "Office" : "This surface"} doesn't manage ${label} — that's tracked under Facility/Consumer, not here.`,
+      answer: `${surface === "office_internal" ? "Office" : "This surface"} doesn't manage ${label} — that's tracked under Facility/Consumer, not here.${/visitor/i.test(label) && /\b(?:on\s+the\s+estate|arrived|present|at\s+the\s+moment|right\s+now|currently|here)\b/i.test(frame.rawText || "") ? " I also have no presence data: visitor records anywhere show permission (active or inactive), never whether someone is actually on site." : ""}`,
       presentation_policy: resultPresentation("text"),
     };
     const capabilityContext: CapabilityContext = { ...baseContext, legacyFallback: unavailableInsideFallback };

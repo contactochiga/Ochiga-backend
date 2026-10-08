@@ -53,6 +53,8 @@ export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
 // Title status as the caller states it (never verified title evidence).
 export function extractTitleStatus(message: string): string | null {
   if (!/\btitle\b/i.test(message)) return null;
+  // IQ-9A11 R7: "no title papers yet" states that title documents are not available; it is not a statement that title is perfected
+  if (/\bno\s+title\s+(?:papers?|documents?|deeds?)\b|\btitle\s+(?:papers?|documents?|deeds?)\s+(?:are\s+)?(?:not|yet\s+to)\b|\bwithout\s+title\s+(?:papers?|documents?)\b/i.test(message)) return "documents not yet available";
   if (/\bnot\b|\bisn'?t\b|\bnever\b|unperfected|\bno\b/i.test(message) && /perfect|regist|clean|clear|valid|sorted|good|certif/i.test(message)) return "not perfected";
   if (/\b(?:in\s+dispute|disputed|contested|unclear|defect\w*|problem\w*|missing)\b/i.test(message)) return /dispute|contest/i.test(message) ? "disputed" : "not perfected";
   if (/\b(?:perfected|registered|clean|clear|valid|sorted|good|certified)\b/i.test(message)) return "perfected";

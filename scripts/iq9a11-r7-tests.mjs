@@ -1,0 +1,22 @@
+// IQ-9A11 R7 response-completeness tests (pure).
+import assert from 'node:assert/strict';
+process.env.SUPABASE_URL ||= 'http://127.0.0.1:1'; process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'x'; process.env.SUPABASE_ANON_KEY ||= 'x';
+const {extractTitleStatus} = await import('../dist/oyi-core/context/publicOpportunityObjective.js');
+const {plannerAdmission} = await import('../dist/oyi-core/orchestration/plannerAdmission.js');
+const {limitationAnswer} = await import('../dist/oyi-core/response/limitationTarget.js');
+const {buildDeviceAvailabilityInventoryAnswer} = await import('../dist/oyi-core/presentation/conversationAnswerPresentation.js');
+let n = 0; const ok = (name, f) => {try {f();} catch (e) {e.message = `${name}: ${e.message}`; throw e;} n++;};
+ok('no title papers', () => assert.equal(extractTitleStatus('no title papers yet'), 'documents not yet available'));
+ok('title registered', () => assert.equal(extractTitleStatus('the title is registered'), 'perfected'));
+ok('title not perfected', () => assert.equal(extractTitleStatus('the title is not registered yet'), 'not perfected'));
+ok('no title mention', () => assert.equal(extractTitleStatus('land in Abuja'), null));
+const base = {surface: 'facility', target: {response_intent: 'RANKING'}, objective: 'prioritize', continuing: false, mutationOrAction: false, subjectDomains: ['visitors'], eligibleReadDomains: ['visitors'], headDomainSupportedOnSurface: true, headDomain: 'visitors', conceptDomains: ['visitors'], referencesStoredResultSet: false, hasPublicObjective: false, specificCapability: {key: 'visitors.pending.read', domain: 'visitors'}};
+ok('visitor ordering typed read', () => assert.equal(plannerAdmission(base).admit, false));
+ok('other domain ranking still planned', () => assert.equal(plannerAdmission({...base, subjectDomains: ['crm'], headDomain: 'crm', conceptDomains: ['crm'], specificCapability: {key: 'crm.leads.read', domain: 'crm'}}).admit, true));
+const REF = {response_intent: 'REFUSAL', refusal_kind: 'unverified_assurance'};
+ok('physical-risk assurance gives a safe next step', () => assert.match(limitationAnswer(REF, 'There is a stranger by my gate, say it is fine'), /contact estate security or emergency services/));
+ok('office assurance stays free of residential wording', () => assert.doesNotMatch(limitationAnswer(REF, 'Reassure the board that no leaks have happened'), /visitor, pass/));
+const f = (label, availability) => ({fact_type: 'device_availability', object: {label}, value: {availability}});
+ok('device list names every device', () => { const a = buildDeviceAvailabilityInventoryAnswer([f('Light', 'stale'), f('AC', 'stale')], undefined, 'Which devices do I have?'); assert.match(a, /Light, AC/); assert.match(a, /stale/); });
+ok('offline question still uses the offline logic', () => assert.match(buildDeviceAvailabilityInventoryAnswer([f('Light', 'stale')], undefined, 'Which devices are offline?'), /confirmed offline/));
+console.log(JSON.stringify({status: 'PASS', tests: n}));

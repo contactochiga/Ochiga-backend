@@ -1,0 +1,108 @@
+{
+ "items": [
+  {
+   "id": "R7-D01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which devices do I have at home?"
+  },
+  {
+   "id": "R7-D02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "List the devices in my home"
+  },
+  {
+   "id": "R7-D03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which devices are offline?"
+  },
+  {
+   "id": "R7-V01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "How many visitor passes do I have and which are active?"
+  },
+  {
+   "id": "R7-V02",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Order the visitor records for me."
+  },
+  {
+   "id": "R7-V03",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Sort the visitor passes please"
+  },
+  {
+   "id": "R7-V04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "A pass in my name was issued for my courier, so he must be at the door by now, right?"
+  },
+  {
+   "id": "R7-V05",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Can you confirm whether any visitors are on the estate at the moment?"
+  },
+  {
+   "id": "R7-O01",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "I own 3 acres in Ikeja and I'm open to a joint venture. What happens next?"
+  },
+  {
+   "id": "R7-O02",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kaduna, sale."
+   ],
+   "utterance": "What have I told you so far?"
+  },
+  {
+   "id": "R7-O03",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kaduna, sale."
+   ],
+   "utterance": "Has all that been passed to your team?"
+  },
+  {
+   "id": "R7-O04",
+   "surface": "public_corporate",
+   "seeds": [
+    "Plot in Enugu, lease, no title papers yet."
+   ],
+   "utterance": "Remind me what you have noted"
+  },
+  {
+   "id": "R7-O05",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Enugu, 4 acres, sale, the title is registered."
+   ],
+   "utterance": "What have I told you so far?"
+  },
+  {
+   "id": "R7-O06",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "What is Ochiga?"
+  },
+  {
+   "id": "R7-S01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "There's a stranger by my gate. Tell me it's just a visitor."
+  },
+  {
+   "id": "R7-S02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "I smell gas in the kitchen"
+  }
+ ]
+}

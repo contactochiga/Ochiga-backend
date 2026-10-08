@@ -43,6 +43,8 @@ export function plannerAdmission(i: PlannerAdmissionInput): PlannerAdmission {
   if (i.surface === "public_corporate" && !i.hasPublicObjective) return { admit: false, reason: "no_established_public_objective" };
   if (retrievalShape && !JUDGMENT_OBJECTIVES.has(String(i.objective ?? "")) && i.specificCapability
     && i.headDomain === i.specificCapability.domain && new Set(i.conceptDomains).size === 1 && i.subjectDomains.includes(i.specificCapability.domain)) return { admit: false, reason: "specific_governed_capability_owns_retrieval" };
+  // IQ-9A11 R7: ordering or reasoning about permission records (visitor passes) is answered from the typed record with its permission-not-presence limit; there is no judgment evidence to plan
+  if (shape && ["RANKING", "ADVICE", "ASSESSMENT"].includes(shape) && i.specificCapability?.domain === "visitors" && i.headDomain === "visitors" && new Set(i.conceptDomains).size === 1) return { admit: false, reason: "specific_governed_capability_owns_permission_records" };
   // the question's head noun names a domain whose records belong to other surfaces and are not readable here: the planner has no class for it
   if (i.headDomain !== null && OTHER_SURFACE_DOMAINS.has(i.headDomain) && !i.eligibleReadDomains.includes(i.headDomain) && !i.headDomainSupportedOnSurface && i.specificCapability === null) return { admit: false, reason: "subject_not_available_on_surface" };
   if (i.subjectDomains.length > 0 && i.subjectDomains.every(d => NO_PLANNER_CLASS_DOMAINS.has(d)) && i.headDomain !== null) return { admit: false, reason: "no_applicable_evidence_class" };
