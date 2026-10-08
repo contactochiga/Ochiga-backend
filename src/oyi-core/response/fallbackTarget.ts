@@ -11,6 +11,7 @@ export type FallbackFacts = {
   raw: string;
   truth: ActionTruth;
   pending_approval: boolean;       // a governed proposal in this thread is waiting for the user's approval
+  domain?: string | null;          // parsed domain of the turn (structural)
   held_facts: Record<string, string> | null; // public opportunity facts the visitor shared in this conversation (null = none)
 };
 export type FallbackAnswer = { key: string; status: "answered" | "permission_restricted"; answer: string };
@@ -28,6 +29,7 @@ const RE = {
   arrangeCall: /\b(?:arrange|book|schedule|set\s+up|fix|organi[sz]e|line\s+up)\b[^.?!]{0,40}\b(?:call|meeting|appointment|visit|chat)\b/i,
   contactInquiry: /\b(?:what|how)\b[^.?!]{0,30}\b(?:can|could|do)\s+you\b[^.?!]{0,60}\b(?:talk|speak|call|contact|reach|connect|put\s+me\s+(?:in\s+touch|through)|get\s+(?:someone|somebody))\b|\b(?:can|could)\s+you\b[^.?!]{0,40}\b(?:connect|put)\s+me\b/i,
   structureChoice: /\b(?:lease|sale|sell|joint\s+venture|jv)\b[^.?!]{0,60}\b(?:best|better|which|should\s+i|recommend|right\s+(?:one|choice|structure))\b|\b(?:best|better|which|recommend)\b[^.?!]{0,60}\b(?:lease|sale|joint\s+venture|jv)\b/i,
+  lockIn: /\b(?:lock\s+in|reserve|secure|finali[sz]e|sign\s+off|commit|close)\b[^.?!]{0,40}\b(?:plot|deal|land|jv|agreement|offer|sale|lease)\b|\b(?:plot|deal|land|jv|agreement)\b[^.?!]{0,40}\b(?:locked\s+in|reserved|secured|finali[sz]ed)\b/i,
   presence: /\b(?:at\s+the\s+(?:door|gate)|outside|here\s+(?:now|yet)|arrived|inside|in\s+the\s+(?:house|compound|estate))\b/i,
   elliptical: /^\s*(?:ok(?:ay)?|then|and|so|just|also|what\s+about|how\s+about|same)\b|\b(?:just\s+mine|the\s+other\s+one|that\s+one|those|them)\b/i,
 };
@@ -68,6 +70,8 @@ const outKey = (key: string, answer: string, status: FallbackAnswer["status"] = 
 /** The public (Osa) share of the fallback: also used by the public opportunity module for turns it owns but that are not opportunity statements (email, booking, withdrawal, contact options, structure choice, submission state). */
 export function publicFallbackAnswer(t: AnswerTarget, f: FallbackFacts): FallbackAnswer | null {
   const out = outKey;
+  const operational = ["wallet", "transactions", "visitors", "access", "devices", "security"].includes(String(f.domain || ""));
+  if (RE.lockIn.test(f.raw) && /\b(?:done|confirm(?:ed)?|today|now)\b/i.test(f.raw)) return out("public_no_commitment", "Nothing has been locked in, reserved or committed: I can't commit Ochiga or confirm a deal from this chat, and any commitment comes from Ochiga's team after a proper review. I can note your details here and pass a callback request to the team if you ask.");
   if (t.response_intent === "REFUSAL") return out("refusal", limitationAnswer(t, f.raw));
   if (RE.contactInquiry.test(f.raw)) return out("public_contact_options", "Here is what I can do toward getting someone from Ochiga to talk to you: tell you about Ochiga and its developments, take the details of your opportunity in this conversation, and — if you ask me to — pass a callback request to the team. Passing it on is not the same as a call being booked: I only report that the team received it if I get a receipt, and I can't promise a time. Nothing is sent unless you ask for it.");
     if (RE.withdrawCall.test(f.raw)) return out("public_callback_withdrawn", `Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show${f.truth.known && f.truth.attempted > 0 ? "; if a request was passed on earlier I can't recall it from here, so contact the team at ochiga.com.ng/contact" : ""}. ${recap(f.held_facts)}`);
@@ -75,6 +79,10 @@ export function publicFallbackAnswer(t: AnswerTarget, f: FallbackFacts): Fallbac
     if (t.ask_facet === "submission" || t.yes_no?.kind === "submission" || (RE.handedOver.test(f.raw) && (t.response_intent === "YES_NO_WITH_REASON" || /\?/.test(f.raw)))) return out("public_submission_state", `${f.truth.known && f.truth.attempted === 0 ? "No — nothing has been handed to the team: I have no handoff receipt for this conversation." : communicationTruthLead(f.truth)} ${recap(f.held_facts)} A callback request goes to the team only if you ask me to send one.`);
     if (RE.arrangeCall.test(f.raw)) return out("public_cannot_book", "I can't arrange or book a call from this chat, and nothing has been booked. If you'd like the team to contact you, say so and I'll pass a callback request on (the team receiving it is not a booked call). I only keep what you tell me in this conversation, so tell me how you'd like to be reached.");
     if (!f.held_facts && RE.structureChoice.test(f.raw)) return out("public_no_recommendation", "I can't tell you which structure is best for your land: that depends on details such as title, size, location and what you want from the deal, and any recommendation or terms come from Ochiga's team after a proper review. I can note what you tell me here and pass a callback request to the team if you ask.");
+    // Osa has no access to resident, payment, gate or incident records: these asks are limitations, never a menu and never a guess
+    if (operational || /\b(?:residents?|tenants?|payments?|arrears|the\s+gate)\b/i.test(f.raw) && /\b(?:behind|owe|owing|paid|unpaid|arrived|confirmed|names?)\b/i.test(f.raw)) return out("public_no_operational_access", "I can't help with that here: this public chat has no access to residents' details, payments, gate or visitor records, or other operational information, and I won't guess. I can tell you about Ochiga and its developments, take the details of your own opportunity, or pass a callback request to the team if you ask.");
+    if (t.response_intent === "SAFETY_RISK") return out("public_no_incident_data", "I can't confirm or deny that: this chat has no access to estate incident or security records, so I can't speak to break-ins or safety there. I can tell you about Ochiga and its developments, and the team can answer questions like this directly if you ask me to pass a callback request.");
+    if (["RANKING", "COMPARISON", "ADVICE", "NEXT_STEP", "ASSESSMENT"].includes(t.response_intent) && !f.held_facts && (t.is_question || /\?/.test(f.raw)) && /\b(?:best|better|rank|ranked|ranking|most\s+valuable|highest|score|scored|recommend|worth|valuation|value)\b/i.test(f.raw)) return out("public_no_ranking_or_score", "I can't rank Ochiga's developments, score your land or recommend an option from this chat: any assessment, valuation or ranking comes from Ochiga's team after a proper review, and I don't disclose how Ochiga assesses opportunities. I can describe the developments or take your opportunity details.");
     return null;
   
 }

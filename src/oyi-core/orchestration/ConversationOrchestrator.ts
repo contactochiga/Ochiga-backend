@@ -9,6 +9,8 @@ import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } 
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
 import { responseMove } from "../interpretation/semanticObjective";
 import { targetedFallbackAnswer } from "../response/fallbackTarget";
+import { plannerAdmission } from "./plannerAdmission";
+import { suppliesOpportunityFacts } from "../capabilities/PublicOpportunityCapabilityModule";
 import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
@@ -3318,22 +3320,27 @@ const OUT_OF_SCOPE_DOMAIN_LABELS: Record<string, string> = {
 // IQ-9A5 R2: fallback ownership. Before a terminal fallback shows a capability menu or a generic "no evidence source" line, the carried AnswerTarget and the
 // thread's own facts decide whether a specific truthful answer exists (see response/fallbackTarget.ts). Reads nothing beyond the thread's action records, the
 // active workflow and the public objective; executes nothing; a null result leaves the existing fallback untouched.
+async function targetedFallbackFor(context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }) {
+  const frame = context.resolvedTurn.semantic_frame;
+  if (!frame.answerTarget) return null;
+  const thread = context.input.thread_id || null;
+  const surface = context.input.surface;
+  const workflow = thread ? await workflowService.restoreActive({ threadId: thread, actorId: context.actor?.id || null }).catch(() => null) : null;
+  const objective = surface === "public_corporate" && thread ? await loadPublicOpportunityObjective(thread).catch(() => null) : null;
+  const held = objective && Object.keys(objective.known_facts || {}).length ? Object.fromEntries(Object.entries(objective.known_facts).map(([k, v]) => [k, String(v)])) : null;
+  return targetedFallbackAnswer(frame.answerTarget, {
+    surface, raw: frame.rawText, domain: frame.domain || null, truth: await threadActionTruth(thread),
+    pending_approval: Boolean(workflow && ["awaiting_approval", "ready_for_review"].includes(String(workflow.status))), held_facts: held,
+  });
+}
+
 async function targetedFallbackResponse(context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }): Promise<ConversationRunResult | null> {
   try {
-    const frame = context.resolvedTurn.semantic_frame;
-    if (!frame.answerTarget) return null;
-    const thread = context.input.thread_id || null;
-    const surface = context.input.surface;
-    const workflow = thread ? await workflowService.restoreActive({ threadId: thread, actorId: context.actor?.id || null }).catch(() => null) : null;
-    const objective = surface === "public_corporate" && thread ? await loadPublicOpportunityObjective(thread).catch(() => null) : null;
-    const held = objective && Object.keys(objective.known_facts || {}).length ? Object.fromEntries(Object.entries(objective.known_facts).map(([k, v]) => [k, String(v)])) : null;
-    const fb = targetedFallbackAnswer(frame.answerTarget, {
-      surface, raw: frame.rawText, truth: await threadActionTruth(thread),
-      pending_approval: Boolean(workflow && ["awaiting_approval", "ready_for_review"].includes(String(workflow.status))), held_facts: held,
-    });
+    const fb = await targetedFallbackFor(context);
     if (!fb) return null;
+    const surface = context.input.surface;
     const capability: CapabilityModule = { key: fb.key, domain: "global", rolloutStatus: "enabled", supported_surfaces: [surface], supports: () => true, resolve: async () => ({ supported: true, reason: null }), collectEvidence: async () => [] };
-    const result: DomainResult = { status: fb.status, answer: fb.answer, presentation_policy: resultPresentation("text"), metadata: { fallback_owner: "answer_target_fallback", legacy_fallback_used: false, answer_target: frame.answerTarget.response_intent } };
+    const result: DomainResult = { status: fb.status, answer: fb.answer, presentation_policy: resultPresentation("text"), metadata: { fallback_owner: "answer_target_fallback", legacy_fallback_used: false, answer_target: context.resolvedTurn.semantic_frame.answerTarget?.response_intent } };
     return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [] });
   } catch { return null; }
 }
@@ -3981,7 +3988,31 @@ export class ConversationOrchestrator {
       // for these sources, so planning it would only report them as "not available" although an eligible read exists.
       const directStateRead = !previousAssessment && frame.answerTarget?.yes_no?.kind === "state" && !frame.answerTarget.safety_relevant
         && ["wallet", "utility"].includes(frame.concepts?.object || "") && declaredRead?.risk_class === "read" && Boolean(selection.authority?.allowed);
-      if (!publicAssessment && !directStateRead && !existingDomainReturn && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
+      // IQ-9A6 R1: one explicit planner-admission decision; a parsed assessment objective alone does not seize a turn. Trace metadata is structural only.
+      const publicObjectiveForAdmission = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null) : null;
+      const admission = plannerAdmission({
+        surface: context.input.surface, target: frame.answerTarget, objective: frame.cognitiveObjective,
+        continuing: Boolean(previousAssessment && !previousAssessment.suspended && (assessmentContinuation(frame.rawText) || isAssessmentInformation(frame.rawText) || frame.cognitiveObjective !== "retrieve")),
+        mutationOrAction: Boolean(frame.mutationIntent), subjectDomains: assessment.subject_domains || [],
+        eligibleReadDomains: [...new Set(eligibleReads.map(m => String(m.domain)))], hasPublicObjective: Boolean(publicObjectiveForAdmission), headDomain: frame.concepts?.head_domain ?? null, headDomainSupportedOnSurface: capabilityRegistry.enabled().some(m => m.risk_class === "read" && String(m.domain) === String(frame.concepts?.head_domain ?? "") && (m.supported_surfaces || []).includes(context.input.surface as never)), conceptDomains: (frame.concepts?.domains || []).map((d: { domain: string }) => d.domain),
+        specificCapability: declaredRead && declaredRead.risk_class === "read" && declaredRead.domain !== "global" && selection.authority?.allowed ? { key: declaredRead.key, domain: String(declaredRead.domain) } : null,
+      });
+      logger.info("oyi_planner_admission", { request_id: tracer.requestId, surface: context.input.surface, admit: admission.admit, reason: admission.reason, objective: frame.cognitiveObjective || null, shape: frame.answerTarget?.response_intent || null, domains: assessment.subject_domains || [] });
+      tracer.stage("planner_admission", { admit: admission.admit, reason: admission.reason, objective: frame.cognitiveObjective || null, shape: frame.answerTarget?.response_intent || null });
+      let admissionDeclined = !admission.admit;
+      if (!admission.admit && admission.reason === "no_established_public_objective") {
+        // Osa has no evidence class for this subject: a specific limitation or refusal, never planner boilerplate and never a capability menu
+        const declined = await targetedFallbackFor({ ...context, resolvedTurn }).catch(() => null);
+        if (declined) {
+          const declinedCapability = syntheticOfficeActionCapability(declined.key, "global");
+          const declinedResponse = await respondFromOfficeActionResult(context, resolvedTurn, declinedCapability, { status: declined.status === "permission_restricted" ? "permission_restricted" : "answered", answer: declined.answer, presentation_policy: resultPresentation("text"), metadata: { planner_declined: true } });
+          tracer.finish({ thread_id: declinedResponse.thread_id || null, response_state: declinedResponse.persistence_saved === false ? "unsaved" : "returned" });
+          return declinedResponse;
+        }
+        // a turn that states opportunity facts belongs to the public opportunity module; any other turn keeps the planner's evidence-limit statement rather than a menu
+        admissionDeclined = suppliesOpportunityFacts(frame.rawText);
+      }
+      if (!admissionDeclined && !publicAssessment && !directStateRead && !existingDomainReturn && !existingOfficeOverview && !sameDerivedResult && !existingObjectExplanation && !boundedDomainAssessment && !existingBoundedAnalysis && !existingRelativePrioritization) {
         // Acknowledging an objective grants no evidence access. Do not turn a
         // lexical match to an unrelated restricted capability into a claim
         // that the user's assessment question itself is forbidden.

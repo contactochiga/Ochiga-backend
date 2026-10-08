@@ -52,4 +52,5 @@ ok('named-record-comparison-is-a-recorded-field-comparison', () => {
   assert.match(p.primary, /VI Development has gone longer[\s\S]*21 days[\s\S]*8 days[\s\S]*not a judgment/);
   const none = projectResponse(T('office_internal', q), mk([{label: 'Wave11 VI Development'}, {label: 'Wave11 Abuja JV'}]), {asked: q, raw: q}); assert.doesNotMatch(none?.primary || '', /gone longer without recorded activity/); // no recorded ages: nothing is invented
 });
+ok('opportunity-offer-question-is-not-a-ranking-limitation', () => { assert.equal(F('public_corporate', 'What can you do for my plot?'), null); }); // IQ-9A6: an offer/discovery question about the visitor's own plot is not intercepted
 console.log(JSON.stringify({status: 'PASS', tests: n}));

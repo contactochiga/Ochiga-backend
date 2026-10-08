@@ -1,0 +1,157 @@
+{
+ "version": 1,
+ "status": "IQ9A6_R1_SYNTHETIC_DEV_CASES",
+ "note": "New synthetic cases; not copies of sealed IQ-8F requests.",
+ "items": [
+  {
+   "id": "R1-N01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which of my maintenance requests are still open?",
+   "kind": "ordinary_retrieval"
+  },
+  {
+   "id": "R1-N02",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Is the overdue follow-up task still open?",
+   "kind": "status"
+  },
+  {
+   "id": "R1-N03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is my visitor's pass still valid?",
+   "kind": "status"
+  },
+  {
+   "id": "R1-N04",
+   "surface": "consumer",
+   "seeds": [
+    "Turn off the Bedroom Light."
+   ],
+   "utterance": "Did the bedroom light get turned off?",
+   "kind": "action_result"
+  },
+  {
+   "id": "R1-N05",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease."
+   ],
+   "utterance": "Has the team received my details?",
+   "kind": "submission_state"
+  },
+  {
+   "id": "R1-N06",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "Is it safe to buy into your estates? I heard about break-ins.",
+   "kind": "public_limitation"
+  },
+  {
+   "id": "R1-N07",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "I own land in Abuja, about 3 acres, and want to lease it. What have you got from me and what's missing?",
+   "kind": "public_statement_plus_question"
+  },
+  {
+   "id": "R1-N08",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which devices do I have at home?",
+   "kind": "retrieval"
+  },
+  {
+   "id": "R1-N09",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Did the Abuja JV owner get my message about the stale opportunity? Check delivery.",
+   "kind": "communication_result"
+  },
+  {
+   "id": "R1-N10",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Can you confirm whether any visitors are on the estate at the moment?",
+   "kind": "subject_not_on_surface"
+  },
+  {
+   "id": "R1-N11",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Can you check if my front door camera caught anyone?",
+   "kind": "subject_not_on_surface"
+  },
+  {
+   "id": "R1-N12",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "Which residents are behind on their payments?",
+   "kind": "public_privacy"
+  },
+  {
+   "id": "R1-P01",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Between the water issue and the light issue which one do I deal with first?",
+   "kind": "genuine_prioritization"
+  },
+  {
+   "id": "R1-P02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "rank my maintenance requests by what needs doing",
+   "kind": "genuine_ranking"
+  },
+  {
+   "id": "R1-P03",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Which task is the priority on my list?",
+   "kind": "genuine_prioritization"
+  },
+  {
+   "id": "R1-P04",
+   "surface": "office_internal",
+   "seeds": [
+    "Which task is the priority on my list?"
+   ],
+   "utterance": "Why did you rank that first?",
+   "kind": "ranking_explanation"
+  },
+  {
+   "id": "R1-P05",
+   "surface": "office_internal",
+   "seeds": [
+    "Which task is the priority on my list?"
+   ],
+   "utterance": "The owner says the follow-up is already done.",
+   "kind": "material_reassessment"
+  },
+  {
+   "id": "R1-P06",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Is the unknown camera state more serious than the water leak?",
+   "kind": "genuine_comparison_limitation"
+  },
+  {
+   "id": "R1-P07",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Which is the better deal, VI Development or Abuja JV? Pick one for me.",
+   "kind": "provider_off_limitation"
+  },
+  {
+   "id": "R1-P08",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Abuja, lease, no title papers yet."
+   ],
+   "utterance": "Given what I've told you, how strong is my opportunity?",
+   "kind": "public_qualification"
+  }
+ ]
+}

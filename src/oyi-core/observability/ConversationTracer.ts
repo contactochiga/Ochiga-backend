@@ -10,6 +10,7 @@ export type ConversationTraceStage =
   | "workflow_restored"
   | "turn_resolved"
   | "capability_selected"
+  | "planner_admission"
   | "authority_decided"
   | "evidence_planned"
   | "evidence_loaded"

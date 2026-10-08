@@ -1,0 +1,658 @@
+{
+ "generated_at": "2026-10-08T00:48:56.612Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a6-r1-corpus.json",
+ "duration_ms": 1239,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R1-N01",
+   "answer": "Maintenance requests (open): Wave11 unresolved water issue (open; high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Which of my maintenance requests are still open?",
+     "answer": "Maintenance requests (open): Wave11 unresolved water issue (open; high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2",
+     "assessment_context"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R1-N02",
+   "answer": "Yes — 1 task open: Wave11 overdue follow-up (open; Wave11 Office Admin).\n\nSupporting detail: 1 overdue task.",
+   "capability": "office_tasks.query.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is the overdue follow-up task still open?",
+     "answer": "Yes — 1 task open: Wave11 overdue follow-up (open; Wave11 Office Admin).\n\nSupporting detail: 1 overdue task.",
+     "capability": "office_tasks.query.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N03",
+   "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is my visitor's pass still valid?",
+     "answer": "2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N04",
+   "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "ACTION_RESULT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Turn off the Bedroom Light.",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Did the bedroom light get turned off?",
+     "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N05",
+   "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Has the team received my details?",
+     "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N06",
+   "answer": "I can't confirm or deny that: this chat has no access to estate incident or security records, so I can't speak to break-ins or safety there. I can tell you about Ochiga and its developments, and the team can answer questions like this directly if you ask me to pass a callback request.",
+   "capability": "answer_target.fallback_public_no_incident_data",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Is it safe to buy into your estates? I heard about break-ins.",
+     "answer": "I can't confirm or deny that: this chat has no access to estate incident or security records, so I can't speak to break-ins or safety there. I can tell you about Ochiga and its developments, and the team can answer questions like this directly if you ask me to pass a callback request.",
+     "capability": "answer_target.fallback_public_no_incident_data"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N07",
+   "answer": "Thanks for sharing that in Abuja, 3 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.\n\nWhat I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 3 acres; structure offered: lease. To move this forward, it would help to know: landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "I own land in Abuja, about 3 acres, and want to lease it. What have you got from me and what's missing?",
+     "answer": "Thanks for sharing that in Abuja, 3 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.\n\nWhat I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 3 acres; structure offered: lease. To move this forward, it would help to know: landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N08",
+   "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Which devices do I have at home?",
+     "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N09",
+   "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Did the Abuja JV owner get my message about the stale opportunity? Check delivery.",
+     "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N10",
+   "answer": "Office doesn't manage visitor requests — that's tracked under Facility/Consumer, not here.",
+   "capability": "business_surface.out_of_scope",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unsupported",
+   "target_intent": "ASSESSMENT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "surface_restricted",
+   "turns": [
+    {
+     "prompt": "Can you confirm whether any visitors are on the estate at the moment?",
+     "answer": "Office doesn't manage visitor requests — that's tracked under Facility/Consumer, not here.",
+     "capability": "business_surface.out_of_scope"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N11",
+   "answer": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. Not available in Oyi yet: device observed values (lock position, temperature, power) (no read capability exposes a device's observed physical value; only availability and freshness). Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "ASSESSMENT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Can you check if my front door camera caught anyone?",
+     "answer": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. Not available in Oyi yet: device observed values (lock position, temperature, power) (no read capability exposes a device's observed physical value; only availability and freshness). Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-N12",
+   "answer": "I can't help with that here: this public chat has no access to residents' details, payments, gate or visitor records, or other operational information, and I won't guess. I can tell you about Ochiga and its developments, take the details of your own opportunity, or pass a callback request to the team if you ask.",
+   "capability": "answer_target.fallback_public_no_operational_access",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Which residents are behind on their payments?",
+     "answer": "I can't help with that here: this public chat has no access to residents' details, payments, gate or visitor records, or other operational information, and I won't guess. I can tell you about Ochiga and its developments, take the details of your own opportunity, or pass a callback request to the team if you ask.",
+     "capability": "answer_target.fallback_public_no_operational_access"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P01",
+   "answer": "Wave11 unresolved water issue comes ahead of Wave11 resolved light issue on recorded status and priority: it is open/active, recorded priority high, while Wave11 resolved light issue is resolved or past, recorded priority low. That orders what is recorded; it is not a judgment of which is worse or matters more.\n\nSupporting evidence: In order: 1. Wave11 unresolved water issue: open/active, recorded priority high This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Can wait or needs no action: Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COMPARISON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Between the water issue and the light issue which one do I deal with first?",
+     "answer": "Wave11 unresolved water issue comes ahead of Wave11 resolved light issue on recorded status and priority: it is open/active, recorded priority high, while Wave11 resolved light issue is resolved or past, recorded priority low. That orders what is recorded; it is not a judgment of which is worse or matters more.\n\nSupporting evidence: In order: 1. Wave11 unresolved water issue: open/active, recorded priority high This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Can wait or needs no action: Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P02",
+   "answer": "Based on the evidence available, Wave11 unresolved water issue comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 unresolved water issue: open/active, recorded priority high This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Can wait or needs no action: Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "RANKING",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "rank my maintenance requests by what needs doing",
+     "answer": "Based on the evidence available, Wave11 unresolved water issue comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 unresolved water issue: open/active, recorded priority high This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Can wait or needs no action: Wave11 resolved light issue (resolved or past, recorded priority low). Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P03",
+   "answer": "Based on the evidence available, Wave11 overdue follow-up comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 overdue follow-up: open/active, recorded priority high, overdue This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Office evidence is a bounded, supplied view, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "RANKING",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Which task is the priority on my list?",
+     "answer": "Based on the evidence available, Wave11 overdue follow-up comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 overdue follow-up: open/active, recorded priority high, overdue This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Office evidence is a bounded, supplied view, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P04",
+   "answer": "Wave11 overdue follow-up was number 1 in the order I gave: open/active, recorded priority high, overdue. It was the only item in that ordering. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "derived_reference",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "EXPLANATION",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "derived_assessment_reference",
+   "turns": [
+    {
+     "prompt": "Which task is the priority on my list?",
+     "answer": "Based on the evidence available, Wave11 overdue follow-up comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 overdue follow-up: open/active, recorded priority high, overdue This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Office evidence is a bounded, supplied view, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    },
+    {
+     "prompt": "Why did you rank that first?",
+     "answer": "Wave11 overdue follow-up was number 1 in the order I gave: open/active, recorded priority high, overdue. It was the only item in that ordering. This rests only on the evidence recorded when I produced it, which was partial or not fully current; I have not looked at the records again.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P05",
+   "answer": "I have noted that as your own statement “The owner says the follow-up is already done”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 overdue follow-up. It does not change any record by itself: Wave11 overdue follow-up keeps the status it is recorded with until the record itself is updated. The ordering I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ordering as current. Asking whether it changes the ordering reassesses only the evidence it could affect.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "derived_reference",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "derived_assessment_reference",
+   "turns": [
+    {
+     "prompt": "Which task is the priority on my list?",
+     "answer": "Based on the evidence available, Wave11 overdue follow-up comes first. This orders recorded status and priority only; it is not a judgment of how serious anything is. In order: 1. Wave11 overdue follow-up: open/active, recorded priority high, overdue This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Office evidence is a bounded, supplied view, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    },
+    {
+     "prompt": "The owner says the follow-up is already done.",
+     "answer": "I have noted that as your own statement “The owner says the follow-up is already done”; I have not verified it and it is not confirmed evidence. I am treating it as being about Wave11 overdue follow-up. It does not change any record by itself: Wave11 overdue follow-up keeps the status it is recorded with until the record itself is updated. The ordering I gave earlier was made before it and may change; I have not reassessed it, so I will not treat the earlier ordering as current. Asking whether it changes the ordering reassesses only the evidence it could affect.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P06",
+   "answer": "The evidence I could read contains nothing to compare. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: Camera state is unobservable for 1 camera: that is neither an outage nor normal operation. Evidence basis: 1 source read, 1 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COMPARISON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Is the unknown camera state more serious than the water leak?",
+     "answer": "The evidence I could read contains nothing to compare. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: Camera state is unobservable for 1 camera: that is neither an outage nor normal operation. Evidence basis: 1 source read, 1 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P07",
+   "answer": "I can't judge which of Wave11 VI Development and Wave11 Abuja JV is stronger: that takes comparative judgment on their recorded notes, which is not available right now. What is recorded — Wave11 VI Development: open/active, no priority or severity recorded (review); Wave11 Abuja JV: open/active, no priority or severity recorded (qualification).\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new). Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 2 sources read, 2 of them partial or not current.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COMPARISON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Which is the better deal, VI Development or Abuja JV? Pick one for me.",
+     "answer": "I can't judge which of Wave11 VI Development and Wave11 Abuja JV is stronger: that takes comparative judgment on their recorded notes, which is not available right now. What is recorded — Wave11 VI Development: open/active, no priority or severity recorded (review); Wave11 Abuja JV: open/active, no priority or severity recorded (qualification).\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 2 leads read (1 recorded as qualified, 1 as new); 2 opportunities read (1 recorded as qualified, 0 as new). Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 2 sources read, 2 of them partial or not current.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R1-P08",
+   "answer": "No: nothing you have told me has changed since I last summarised it, so the first-look picture stands. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "ASSESSMENT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease, no title papers yet.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Given what I've told you, how strong is my opportunity?",
+     "answer": "No: nothing you have told me has changed since I last summarised it, so the first-look picture stands. Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

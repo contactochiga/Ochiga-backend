@@ -124,6 +124,11 @@ function hasLandSignal(message: string, prior: PublicOpportunityObjective | null
 // Merge -- additive only. A fact already known is never overwritten with
 // nothing, and a turn that supplies nothing new leaves known_facts alone.
 // ---------------------------------------------------------------------
+/** True when a message states opportunity facts (land, location, size, structure, title...): the public opportunity module owns such a turn, not the assessment planner. */
+export function suppliesOpportunityFacts(message: string): boolean {
+  try { return Object.keys(mergeObjective(null, message, new Date().toISOString()).known_facts).filter((k) => k !== "opportunity_type").length > 0; } catch { return false; }
+}
+
 function mergeObjective(prior: PublicOpportunityObjective | null, message: string, now: string): PublicOpportunityObjective {
   const landSignal = hasLandSignal(message, prior);
   const objectiveType: PublicOpportunityType = prior?.objective_type || (landSignal ? "development_partnership" : "technology_inquiry");
@@ -422,6 +427,12 @@ export function publicOpportunityReadModule(): CapabilityModule {
       // Otherwise: this turn supplies or updates a fact. Merge and
       // acknowledge without re-asking for anything already known.
       const updated = mergeObjective(prior, message, new Date().toISOString());
+      // IQ-9A6: a turn that both supplies facts and asks what is held / missing gets the facts recorded AND the question answered from what is now held
+      const askedNow = /\?/.test(message) ? targetedPublicLead(updated, context.resolvedTurn.semantic_frame.answerTarget, message) : null;
+      if (askedNow) {
+        const supportingNow = updated.objective_type === "development_partnership" ? composeJvRequirementsAnswer(updated) : composeGenericRequirementsAnswer(updated);
+        return { status: "answered", answer: `${composeAcknowledgement(prior, updated)}\n\n${askedNow}\n\nSupporting detail: ${supportingNow}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: updated } };
+      }
       return {
         status: "answered",
         answer: composeAcknowledgement(prior, updated),

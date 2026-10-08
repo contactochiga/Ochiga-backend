@@ -39,6 +39,7 @@ export const OBSERVED_TRACE_STAGES = [
   "turn_resolved",
   "authority_decided",
   "capability_selected",
+  "planner_admission",
   "canonical_terminal_response",
   "evidence_planned",
   "evidence_loaded",
@@ -69,6 +70,7 @@ export const TRACE_TERMINAL_OUTCOMES = [
   "authority_denied",
   "runtime_error",
 ] as const;
+export const TRACE_PLANNER_ADMISSION_REASONS = ["continuation_of_existing_assessment", "action_request_owned_by_governed_action_path", "specialised_answer_shape_action_result", "specialised_answer_shape_confirmation_state", "specialised_answer_shape_clarification", "specialised_answer_shape_refusal", "specialised_answer_shape_capability_discovery", "specialised_answer_shape_limitation", "no_established_public_objective", "specific_governed_capability_owns_retrieval", "no_applicable_evidence_class", "subject_not_available_on_surface", "assessment_shape_with_evidence", "assessment_objective_no_more_specific_owner"] as const;
 export const TRACE_ROLLOUT_STATUSES = ["declared", "implemented", "adapter_ready", "integration_tested", "shadow", "enabled", "disabled"] as const;
 export const TRACE_TARGET_SOURCES = ["active_workflow", "current_turn", "current_scope", "valid_reference", "page_context", "thread_memory", "none"] as const;
 export const TRACE_RESPONSE_STATUSES = ["returned", "returned_unsaved", "failed"] as const;
@@ -96,6 +98,8 @@ export const TRACE_FIELD_CLASSIFICATION = {
   authority_tier: "AVAILABLE_NOW",
   authority_denial_reason: "AVAILABLE_NOW",
   evidence_planned: "DERIVED_SAFELY", // stage observed
+  planner_admitted: "AVAILABLE_NOW", // IQ-9A6: structural admission decision only
+  planner_admission_reason: "AVAILABLE_NOW", // closed reason code, never prompt or evidence content
   evidence_count: "AVAILABLE_NOW",
   workflow_restored: "DERIVED_SAFELY", // restore stage status != not_restored
   workflow_state: "AVAILABLE_NOW",
@@ -154,6 +158,8 @@ export type ConversationTraceRecord = {
   authority_tier: number | null;
   authority_denial_reason: string | null;
   evidence_planned: boolean;
+  planner_admitted: boolean | null;
+  planner_admission_reason: string | null;
   evidence_count: number | null;
   workflow_restored: boolean;
   workflow_state: string | null;
@@ -383,6 +389,8 @@ export function projectConversationTrace(input: TraceProjectionInput): Conversat
     authority_tier: authorityTier,
     authority_denial_reason: denialReason,
     evidence_planned: hasStage(ev, "evidence_planned"),
+    planner_admitted: typeof lastField(ev, "planner_admission", "admit") === "boolean" ? (lastField(ev, "planner_admission", "admit") as boolean) : null,
+    planner_admission_reason: oneOf(lastField(ev, "planner_admission", "reason"), TRACE_PLANNER_ADMISSION_REASONS),
     evidence_count: typeof evidenceCountRaw === "number" && Number.isInteger(evidenceCountRaw) && evidenceCountRaw >= 0 ? evidenceCountRaw : null,
     workflow_restored: typeof workflowStatus === "string" && workflowStatus !== "not_restored",
     workflow_state: safeToken((executionWorkflow as any).status) || (typeof workflowStatus === "string" && workflowStatus !== "not_restored" ? safeToken(workflowStatus) : null),
