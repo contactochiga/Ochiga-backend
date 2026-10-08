@@ -97,7 +97,7 @@ export function splitCompoundWithdrawal(text: string): { withdrawal: string; rem
     lead = core.replace(/^(?:actually|well|ok(?:ay)?|no wait|wait)\s+/i, ""); rem = r; break;
   }
   if (!lead) return null;
-  const statement = /^(?:i(?:'ll|\s+will|\s+am|'m)|i\s+(?:can|shall|prefer)|we(?:'ll|\s+will)|let\s+me|ill)\b/i.test(rem) || /\b(?:later|tomorrow|tonight|next\s+\w+|myself)\b/i.test(rem) || isHoldDirective(rem);
+  const statement = /^(?:i(?:'ll|\s+will|\s+am|'m)|i\s+(?:can|shall|prefer)|we(?:'ll|\s+will)|let\s+me|ill|keep|save|remember|retain|hold)\b/i.test(rem) || /\b(?:later|tomorrow|tonight|next\s+\w+|myself)\b/i.test(rem) || isHoldDirective(rem);
   return { withdrawal: lead.replace(/[,;]$/, ""), remainder: rem, remainder_kind: statement ? "statement" : "request" };
 }
 
@@ -119,7 +119,10 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
   if (cond) return deriveAnswerTarget(cond[1], opts);
   const sents = sentencesOf(text);
-  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); const refused = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "REFUSAL"); return { ...(refused ?? inner), safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
+  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); const refused = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "REFUSAL"); // IQ-9A5: "they\'ve been told right? how long til they call" is ONE question about whether it happened and when; the earlier outcome question owns it
+    const earlier = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "ACTION_RESULT");
+    if (earlier && !refused && inner.response_intent !== "ACTION_RESULT" && /^\s*(?:how\s+long|when|how\s+soon|what\s+time)\b/i.test(sents[sents.length - 1])) return { ...earlier, future_event: true };
+    return { ...(refused ?? inner), safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
   const u: Utterance = analyse(text), T = u.tokens, lead = T[0] ?? "";
   const objective = opts.objective !== undefined ? opts.objective : objectiveOf(text, { activeAssessment: opts.activeAssessment });
   const content = contentTokens(T), qualifiers = T.filter(t => STATUS_WORDS.includes(t));
@@ -133,7 +136,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const ask_facet: AnswerTarget["ask_facet"] = futureOutcome ? "outcome" : T.some(t => COMMIT_ASK.includes(t)) && T.some(t => ["approve", "approved", "sale", "buy", "buyer", "price", "decision", "deal", "outcome", "return", "project", "week", "today", "back", "commit", "committing", "committed", "promise", "guarantee", "fetch", "worth", "value", "offer"].includes(t) || COMMIT_ASK.includes(t)) ? "commitment"
     : T.some(t => ["enough", "sufficient", "adequate", "ready", "complete"].includes(t)) ? "sufficiency"
     : T.some(t => ["lack", "lacking", "missing", "need", "still", "else", "further"].includes(t)) || (T.includes("more") && T.some(t => ["know", "need", "want", "tell"].includes(t))) ? "missing"
-    : T.some(t => ["told", "shared", "given", "noted", "recorded", "captured", "supplied", "provided", "mentioned", "stated", "said", "gave", "held", "reflect", "recap", "remind", "summarise", "summarize"].includes(t)) ? "recall" : null;
+    : T.some(t => ["told", "shared", "given", "noted", "recorded", "captured", "supplied", "provided", "mentioned", "stated", "said", "gave", "held", "reflect", "recap", "remind", "summarise", "summarize"].includes(t)) || (T.includes("so") && T.includes("far") && T.some(t => ["you", "your"].includes(t))) || (T.includes("from") && T.includes("me") && T.some(t => ["got", "have", "hold", "captured"].includes(t))) ? "recall" : null;
   const past_reference = cpt.facet === "history" || (T.includes("last") && T.some(t => ["week", "month", "year", "night", "quarter"].includes(t))) || T.includes("ago") || T.includes("previously");
   const stateTok = (t: string) => STATUS_WORDS.includes(t) || ["open", "resolved", "stale", "overdue"].includes(conceptOf(t) ?? "");
   const qualifiersAll = T.filter(stateTok);
@@ -145,7 +148,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   const moneyish = T.some(t => MONEY.includes(t)) || ["transactions", "spending", "balance"].includes(cpt.facet as string);
   const submitAsk = (u.auxLead || u.wh || u.q) && T.some(t => ["submitted", "submit", "forwarded", "forward", "escalated", "handed", "passed", "sent"].includes(t)) && (T.includes("you") || T.some(t => ["team", "ochiga", "office", "staff"].includes(t))) && T.some(t => ["details", "information", "info", "enquiry", "inquiry", "application", "request", "proposal", "opportunity", "it", "them"].includes(t));
   // IQ-9A: whose data is being asked for, from structure (possessives / quantifiers over people and homes), never from a role claim
-  const OTHER_PERSON = ["neighbour", "neighbours", "neighbor", "neighbors", "tenant", "tenants", "flatmate", "housemate", "roommate", "landlord", "upstairs", "downstairs", "partner", "wife", "husband", "spouse", "friend", "brother", "sister", "mother", "father", "parent", "parents", "child", "son", "daughter", "colleague", "boss"];
+  const OTHER_PERSON = ["theirs", "hers", "neighbour", "neighbours", "neighbor", "neighbors", "tenant", "tenants", "flatmate", "housemate", "roommate", "landlord", "upstairs", "downstairs", "partner", "wife", "husband", "spouse", "friend", "brother", "sister", "mother", "father", "parent", "parents", "child", "son", "daughter", "colleague", "boss"];
   const ESTATE_WIDE = new Set(["everyone", "everybody", "residents", "everyone's", "estate", "estatewide", "whole", "entire", "across"]);
   const nextDoor = T.some((t, i) => t === "next" && T[i + 1] === "door") || T.includes("nextdoor") || T.some((t, i) => ["someone", "somebody"].includes(t) && T[i + 1] === "else");
   const otherHome = T.some((t, i) => ["other", "another", "different"].includes(t) && ["home", "homes", "flat", "flats", "unit", "units", "house", "houses", "apartment", "apartments", "resident", "residents", "person", "people"].includes(T[i + 1] ?? ""));
@@ -239,7 +242,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
 
   // IQ-8E: governed refusals and action requests, from speech-act structure
   const publicSurface = opts.surface === "public_corporate";
-  const internalAsk = T.includes("internal") || (T.some(t => ["criteria", "scoring", "score", "scores", "thresholds", "algorithm", "formula", "weights"].includes(t)) && T.some(t => ["your", "you"].includes(t)));
+  const internalAsk = T.includes("internal") || (T.some(t => ["criteria", "scoring", "score", "scores", "thresholds", "algorithm", "formula", "weights"].includes(t)) && (T.some(t => ["your", "you"].includes(t)) || T.some(t => ["weights", "weighting", "thresholds", "algorithm", "formula", "rubric"].includes(t))));
   if (publicSurface && internalAsk) return base("REFUSAL", { refusal_kind: "internal", must_answer: "decline to disclose internal assessment criteria, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   const valuationAsk = T.some(t => ["pay", "paying", "offer", "offering", "buy", "buying", "purchase"].includes(t)) && T.some(t => ["you", "your", "d"].includes(t)) && T.some(t => ["figure", "price", "number", "amount", "much", "valuation", "quote"].includes(t));
   if (publicSurface && valuationAsk) return base("REFUSAL", { refusal_kind: "commitment", must_answer: "decline to name a price or commit to an offer", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });

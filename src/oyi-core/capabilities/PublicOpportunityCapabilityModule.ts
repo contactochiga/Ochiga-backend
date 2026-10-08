@@ -37,6 +37,8 @@ import {
   type PublicOpportunityType,
 } from "../context/publicOpportunityObjective";
 import { assessJvOpportunity, type JvEvidence } from "../domains/development/developmentJv";
+import { publicFallbackAnswer } from "../response/fallbackTarget";
+import { threadActionTruth } from "../response/actionTruth";
 import { requestOfficeHandoff, type OfficeHandoffRequestInput, type OfficeHandoffRequestResult } from "../ingress/officeHandoffBridge";
 
 const publicEvidence: OyiEvidence["privacy_class"] = "public";
@@ -356,8 +358,18 @@ export function publicOpportunityReadModule(): CapabilityModule {
         return { status: "answered", answer, presentation_policy: resultPresentation("text") };
       }
 
+      // IQ-9A5: asks that are NOT a callback request (email me a summary, book a call, withdraw a callback, what can you do to connect me, which structure is best,
+      // has it been passed on) are answered from the held facts and the thread's action records; they never trigger a handoff to the team.
+      const callbackAsk = isCallbackRequest(message);
+      const sf = context.resolvedTurn.semantic_frame;
+      if (!callbackAsk && sf.answerTarget) {
+        const held = prior && Object.keys(prior.known_facts).length ? Object.fromEntries(Object.entries(prior.known_facts).map(([k, v]) => [k, String(v)])) : null;
+        const direct = publicFallbackAnswer(sf.answerTarget, { surface: "public_corporate", raw: message, truth: await threadActionTruth(text(context.input.thread_id)), pending_approval: false, held_facts: held });
+        if (direct) return { status: "answered", answer: direct.answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior, answer_target: sf.answerTarget.response_intent, public_direct_answer: direct.key } };
+      }
+
       // IQ-9A2: the canonical answer target recognises natural callback wording ("Call me back.") that this module's own regex does not.
-      if (isCallbackRequest(message) || context.resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback") {
+      if (callbackAsk || (context.resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback" && /\b(?:call|ring|phone|contact|reach)\b/i.test(message) && !/\b(?:e-?mail|send)\b/i.test(message))) {
         const { status, answer, metadata } = await composeCallbackAnswer(context, prior);
         // A callback request doesn't change the objective -- preserve it
         // verbatim rather than letting persistence's undefined-fallback

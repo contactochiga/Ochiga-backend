@@ -8,6 +8,7 @@ import { gatherAssessmentEvidence } from "../evidence/planner/assessmentIntegrat
 import { handleDerivedReferenceTurn, rawSetFacts, informationConcernsArtifact } from "../evidence/reference/derivedReferenceTurn";
 import { isOpportunityContinuation, isPrivateProbe } from "../interpretation/publicOpportunitySignals";
 import { responseMove } from "../interpretation/semanticObjective";
+import { targetedFallbackAnswer } from "../response/fallbackTarget";
 import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
@@ -3314,6 +3315,49 @@ const OUT_OF_SCOPE_DOMAIN_LABELS: Record<string, string> = {
   security: "security/camera records",
 };
 
+// IQ-9A5 R2: fallback ownership. Before a terminal fallback shows a capability menu or a generic "no evidence source" line, the carried AnswerTarget and the
+// thread's own facts decide whether a specific truthful answer exists (see response/fallbackTarget.ts). Reads nothing beyond the thread's action records, the
+// active workflow and the public objective; executes nothing; a null result leaves the existing fallback untouched.
+async function targetedFallbackResponse(context: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }): Promise<ConversationRunResult | null> {
+  try {
+    const frame = context.resolvedTurn.semantic_frame;
+    if (!frame.answerTarget) return null;
+    const thread = context.input.thread_id || null;
+    const surface = context.input.surface;
+    const workflow = thread ? await workflowService.restoreActive({ threadId: thread, actorId: context.actor?.id || null }).catch(() => null) : null;
+    const objective = surface === "public_corporate" && thread ? await loadPublicOpportunityObjective(thread).catch(() => null) : null;
+    const held = objective && Object.keys(objective.known_facts || {}).length ? Object.fromEntries(Object.entries(objective.known_facts).map(([k, v]) => [k, String(v)])) : null;
+    const fb = targetedFallbackAnswer(frame.answerTarget, {
+      surface, raw: frame.rawText, truth: await threadActionTruth(thread),
+      pending_approval: Boolean(workflow && ["awaiting_approval", "ready_for_review"].includes(String(workflow.status))), held_facts: held,
+    });
+    if (!fb) return null;
+    const capability: CapabilityModule = { key: fb.key, domain: "global", rolloutStatus: "enabled", supported_surfaces: [surface], supports: () => true, resolve: async () => ({ supported: true, reason: null }), collectEvidence: async () => [] };
+    const result: DomainResult = { status: fb.status, answer: fb.answer, presentation_policy: resultPresentation("text"), metadata: { fallback_owner: "answer_target_fallback", legacy_fallback_used: false, answer_target: frame.answerTarget.response_intent } };
+    return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [] });
+  } catch { return null; }
+}
+
+// IQ-9A5 R2: an Office question that names a wallet balance or a recorded activity age is answered by the Office capability that holds that fact
+// (financial.summary.read, crm.opportunities.read), not by "Office doesn't manage wallet transactions" or a menu. Authority is checked per capability.
+async function equivalentOfficeRead(baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }): Promise<ConversationRunResult | null> {
+  try {
+    const surface = baseContext.input.surface;
+    if (surface !== "office_internal") return null;
+    const frame = baseContext.resolvedTurn.semantic_frame;
+    const raw = frame.rawText;
+    let key: string | null = null;
+    if (frame.domain === "wallet" && /\bbalance\b/i.test(raw)) key = "financial.summary.read";
+    else if (!frame.domain && /\b(?:without|since|no)\s+(?:any\s+)?(?:recorded\s+)?activity\b|\bgone\s+(?:longer|quiet)\b|\blongest\s+without\b/i.test(raw)) key = "crm.opportunities.read";
+    if (!key) return null;
+    const sections = await collectBusinessOverviewSections(baseContext, [key]);
+    const section = sections[0];
+    const capability = capabilityRegistry.get(key);
+    if (!section || !capability) return null;
+    return capabilityDomainResultToConversationResponse({ context: { ...baseContext, legacyFallback: unavailableInsideFallback }, capability, result: section.result, evidence: section.evidence });
+  } catch { return null; }
+}
+
 async function buildBusinessSurfaceFallbackResponse(
   baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn },
   mismatchedDomain: string | null = null
@@ -3439,7 +3483,9 @@ export class ConversationOrchestrator {
         const first = await this.runTurn({ ...context, input: { ...context.input, message: compound.withdrawal } }, traceHolder);
         finalize(first, null);
         if (compound.remainder_kind === "statement") {
-          const text = `${first.answer} Nothing else has been started from the rest of your message; tell me when you want it handled.`;
+          const text = /^(?:keep|save|remember|retain|hold)\b/i.test(compound.remainder)
+            ? `${first.answer} What you've told me stays in this conversation only; nothing has been submitted or passed on.`
+            : `${first.answer} Nothing else has been started from the rest of your message; tell me when you want it handled.`;
           (first as any).answer = (first as any).reply = (first as any).message = (first as any).summary = text;
           return first;
         }
@@ -4071,6 +4117,10 @@ export class ConversationOrchestrator {
         // An ineligible lexical match does not redefine the user's domain.
         // In particular, a domain-free attention question is not a request
         // for the Consumer-only global recommendations worker.
+        const equivalent = await equivalentOfficeRead({ ...context, resolvedTurn });
+        if (equivalent) return equivalent;
+        const targetedBusiness = await targetedFallbackResponse({ ...context, resolvedTurn });
+        if (targetedBusiness) return targetedBusiness;
         return buildBusinessSurfaceFallbackResponse({ ...context, resolvedTurn }, architecturalMismatch ? frame.domain || null : null);
       }
       const outcome = selection.resolution_outcome === "no_match" ? "capability_no_match" : "canonical_unsupported";
@@ -4089,6 +4139,8 @@ export class ConversationOrchestrator {
         legacy_fallback_reason: reason,
         fallback_owner: "legacy_conversation_adapter",
       });
+      const targetedTerminal = await targetedFallbackResponse({ ...context, resolvedTurn });
+      if (targetedTerminal) return targetedTerminal;
       return canonicalUnavailableFallback({ ...context, resolvedTurn }, reason);
     };
 

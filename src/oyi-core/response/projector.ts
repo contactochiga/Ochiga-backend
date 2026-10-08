@@ -130,6 +130,16 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
     const confirmed = (e.records || []).filter(r => matches(r, "active") && !/inactive/i.test(r.status || ""));
     return done(eff === "LIST" ? "LIST" : eff === "COUNT" ? "COUNT" : "YES_NO", `${(e.records || []).length} ${(e.records || []).length === 1 ? one : noun} on record. ${confirmed.length ? `${confirmed.length} ${confirmed.length === 1 ? one : noun} ${confirmed.length === 1 ? "is" : "are"} confirmed active (${confirmed.map(r => r.label).join(", ")}). ` : "I can't confirm that any is currently valid. "}${expiryConflicts.length} ${expiryConflicts.length === 1 ? "is" : "are"} recorded as active but ${expiryConflicts.length === 1 ? "its" : "their"} recorded expiry time has passed (${expiryConflicts.map(r => r.label).join(", ")}), so ${expiryConflicts.length === 1 ? "its" : "their"} validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.`, ...support);
   }
+  // IQ-9A5: a permission-only record answers permission questions; a presence question about it is answered with that limit, then the records
+  if (e.hints?.permission_only && /\b(?:at\s+the\s+(?:door|gate)|outside|inside|arrived|is\s+here|here\s+(?:now|yet))\b/i.test(ctx.raw || "") && ["STATUS", "DIRECT_ANSWER", "LIST", "SUMMARY"].includes(intent) && e.records?.length) {
+    return done("YES_NO", `I can't say anyone is at the door or has arrived: visitor access records show permission (active or inactive), not whether anyone has turned up, is here or has left. What is recorded: ${list(e.records, 4)}.`, ...support);
+  }
+  // IQ-9A5: a comparison of RECORDED days since activity between named records is a field comparison, not a business judgment
+      if ((eff === "COMPARISON" || eff === "LIST") && n.named.length >= 2 && /\b(?:longer|longest|more\s+recent|less\s+recent|older|newer|which)\b/i.test(ctx.raw || "") && n.named.every(r => r.age_days != null) && /\bactivity\b/i.test(ctx.raw || "")) {
+        const byAge = [...n.named].sort((a, b) => (b.age_days as number) - (a.age_days as number));
+        if (byAge[0].age_days === byAge[1].age_days) return done("COMPARISON", `${byAge.map(r => `${r.label}: ${r.age_days} days since its last recorded activity`).join("; ")}. They are level on that recorded field; this is not a judgment of which matters more.`, ...support);
+        return done("COMPARISON", `${byAge[0].label} has gone longer without recorded activity: ${byAge.map(r => `${r.label} ${r.age_days} days`).join(", ")} since last recorded activity. This compares a recorded field only; it is not a judgment of which matters more.`, ...support);
+      }
   switch (eff) {
     case "COUNT": {
       const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");
