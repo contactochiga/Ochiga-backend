@@ -1,0 +1,170 @@
+{
+ "version": 1,
+ "status": "IQ9A7_R3_MULTIPART_BASELINE_FROZEN_BEFORE_IMPLEMENTATION",
+ "head": "119ab32eadbe17e806f8bb2a4e0ce53da4f43b6f",
+ "items": [
+  {
+   "id": "IQ9A-006",
+   "surface": "consumer",
+   "utterance": "How much have I spent on utilities, and what were my two wallet entries?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "How much have I spent on utilities",
+     "answer_shape": "sum of own utility spending",
+     "capability_owner": "wallet.transactions.read"
+    },
+    {
+     "order": 2,
+     "text": "what were my two wallet entries",
+     "answer_shape": "list of own wallet entries",
+     "capability_owner": "wallet.transactions.read"
+    }
+   ],
+   "mode": "same_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "wallet.transactions.read",
+   "actual_clause_coverage": "clause 1 only (sum), entries not listed",
+   "earliest_causal_failure": "Response targeting: the carried AnswerTarget is the last/first clause only; the projector is applied once",
+   "graded_success_before": false
+  },
+  {
+   "id": "IQ9A-034",
+   "surface": "consumer",
+   "utterance": "How many visitor passes do I have and which are active?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "How many visitor passes do I have",
+     "answer_shape": "count of own visitor records",
+     "capability_owner": "visitors.pending.read"
+    },
+    {
+     "order": 2,
+     "text": "which are active",
+     "answer_shape": "list/qualifier active over the same records",
+     "capability_owner": "visitors.pending.read"
+    }
+   ],
+   "mode": "same_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "visitors.pending.read",
+   "actual_clause_coverage": "clause 1 only (and it counted open, not total)",
+   "earliest_causal_failure": "Response targeting: one target for two asks; the elliptical second clause has no subject of its own",
+   "graded_success_before": false
+  },
+  {
+   "id": "IQ9A-054",
+   "surface": "consumer",
+   "utterance": "What's my wallet history, did the electricity purchase happen?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "What's my wallet history",
+     "answer_shape": "list of own wallet transactions",
+     "capability_owner": "wallet.transactions.read"
+    },
+    {
+     "order": 2,
+     "text": "did the electricity purchase happen",
+     "answer_shape": "status of one named transaction",
+     "capability_owner": "wallet.transactions.read"
+    }
+   ],
+   "mode": "same_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "wallet.transactions.read",
+   "actual_clause_coverage": "clause 2 only (one entry)",
+   "earliest_causal_failure": "Response targeting: the second clause, a past-tense question about a recorded purchase, replaces the first",
+   "graded_success_before": false
+  },
+  {
+   "id": "IQ9A-021",
+   "surface": "facility",
+   "utterance": "Any security incidents logged, and is the camera working?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "Any security incidents logged",
+     "answer_shape": "existence/list of security incidents",
+     "capability_owner": "security.incidents.read"
+    },
+    {
+     "order": 2,
+     "text": "is the camera working",
+     "answer_shape": "camera state",
+     "capability_owner": "facility.cameras.read"
+    }
+   ],
+   "mode": "cross_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "security.incidents.read",
+   "actual_clause_coverage": "clause 1 only; camera state never read",
+   "earliest_causal_failure": "Capability routing: one capability selected for the whole turn (single-capability-per-turn)",
+   "graded_success_before": false
+  },
+  {
+   "id": "IQ9A-028",
+   "surface": "office_internal",
+   "utterance": "Is there a report waiting for sign-off, and what's the status of VI Development?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "Is there a report waiting for sign-off",
+     "answer_shape": "yes/no with the report",
+     "capability_owner": "reports.approvals.read"
+    },
+    {
+     "order": 2,
+     "text": "what's the status of VI Development",
+     "answer_shape": "status of a named development project",
+     "capability_owner": "development.status.read"
+    }
+   ],
+   "mode": "cross_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "reports.approvals.read",
+   "actual_clause_coverage": "clause 1 only",
+   "earliest_causal_failure": "Capability routing: one capability selected for the whole turn",
+   "graded_success_before": false
+  },
+  {
+   "id": "IQ9A-014",
+   "surface": "public_corporate",
+   "utterance": "Hi, can you tell me what Ochiga does and how I'd begin talking to the team about my land?",
+   "positive_control": true,
+   "clauses": [
+    {
+     "order": 1,
+     "text": "tell me what Ochiga does",
+     "answer_shape": "company explanation",
+     "capability_owner": "corporate.company.read"
+    },
+    {
+     "order": 2,
+     "text": "how I'd begin talking to the team about my land",
+     "answer_shape": "how to start a conversation / what a landowner can share",
+     "capability_owner": "corporate.opportunity (public qualification)"
+    }
+   ],
+   "mode": "cross_capability",
+   "evidence_and_scope": "authorized own-scope reads on the stated surface; no cross-person or cross-home element",
+   "includes_mutation": false,
+   "actual_capability": "corporate.company.read",
+   "actual_clause_coverage": "clause 1 only",
+   "earliest_causal_failure": "Capability routing: company read selected; the contact/qualification clause dropped",
+   "graded_success_before": false
+  }
+ ],
+ "note": "Dev-suite multi-part informational requests that fail today. 025 (temperature and humidity) and 063 (statement plus question) pass and are kept as controls. No dev item combines a read with a mutation; the read-plus-action separation is covered by synthetic cases."
+}
