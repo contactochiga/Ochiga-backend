@@ -3787,7 +3787,7 @@ export class ConversationOrchestrator {
         const workflowContext = { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "durable_workflow_continuation") };
         if (isConfirmationText(context.input.message) || isCancellationText(context.input.message)) {
           continuation = await durableWorkflowContinuationResult(context, activeWorkflow, workflowCapability);
-        } else if (activeWorkflow.status === "awaiting_clarification" && !isAssessmentObjective(frame.cognitiveObjective)) {
+        } else if (activeWorkflow.status === "awaiting_clarification" && !isAssessmentObjective(frame.cognitiveObjective) && frame.answerTarget?.response_intent !== "ACTION_RESULT") {
           continuation = await continueDeviceActionWorkflow(workflowContext, activeWorkflow);
         } else if (isContinueText(context.input.message)) {
           continuation = await pendingWorkflowStatusResult(activeWorkflow);
@@ -3859,6 +3859,23 @@ export class ConversationOrchestrator {
     // IQ-8E: an imperative ACTION request that no governed action capability claims is never answered by a read; it is stated plainly as not done.
     const actionUnclaimed = Boolean(resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "action" || (resolvedTurn.semantic_frame.answerTarget?.confirmation_kind === "callback" && context.input.surface !== "public_corporate"))
       && !capabilityRegistry.all().some((m) => m.risk_class && m.risk_class !== "read" && capabilityEnabled(m) && m.supports(resolvedTurn.semantic_frame));
+    // IQ-9A9 R5: a past-tense question about an action ("Did you switch off the AC?") while a proposal is pending is answered from the thread's action records and the
+    // pending state; it neither consumes the pending workflow as clarification input nor starts a command.
+    // a state question about the very device a pending proposal targets ("so the AC is definitely off, yeah?") is the same question: nothing has changed yet
+    const pendingDeviceStateAsk = Boolean(activeWorkflow && activeWorkflow.capability_key === "devices.power.control" && ["awaiting_approval", "ready_for_review"].includes(String(activeWorkflow.status))
+      && resolvedTurn.semantic_frame.domain === "devices" && !resolvedTurn.semantic_frame.mutationIntent && resolvedTurn.semantic_frame.answerTarget?.is_question
+      && /\b(?:off|on)\b/i.test(resolvedTurn.semantic_frame.rawText) && /\b(?:is|are|was|were|definitely|already|now)\b/i.test(resolvedTurn.semantic_frame.rawText));
+    if (activeWorkflow && (resolvedTurn.semantic_frame.answerTarget?.response_intent === "ACTION_RESULT" || pendingDeviceStateAsk) && !resolvedTurn.semantic_frame.mutationIntent) {
+      const waiting = ["awaiting_approval", "ready_for_review"].includes(String(activeWorkflow.status));
+      const truth = await threadActionTruth(context.input.thread_id);
+      const text = waiting
+        ? `No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.${pendingDeviceStateAsk ? " I can't tell you the device is off: its latest reading is not current, and no command has been sent." : ""}`
+        : resolvedTurn.semantic_frame.answerTarget?.action_domain === "communication" ? communicationTruthLead(truth, Boolean(resolvedTurn.semantic_frame.answerTarget?.future_event)) : `${actionTruthLead(truth)} Your earlier request is still being prepared and has not been approved.`;
+      const pendingCapability = syntheticOfficeActionCapability("answer_target.pending_action_result", "global");
+      const pendingResponse = await respondFromOfficeActionResult(context, resolvedTurn, pendingCapability, { status: "answered", answer: text, presentation_policy: resultPresentation("text"), metadata: { answer_target: "ACTION_RESULT" } });
+      tracer.finish({ thread_id: pendingResponse.thread_id || null, response_state: pendingResponse.persistence_saved === false ? "unsaved" : "returned" });
+      return pendingResponse;
+    }
     if (!activeWorkflow && (!resolvedTurn.semantic_frame.mutationIntent || actionUnclaimed)) {
       const sf = resolvedTurn.semantic_frame, earlyTarget = sf.answerTarget!;
       let direct: string | null = null, key = "";

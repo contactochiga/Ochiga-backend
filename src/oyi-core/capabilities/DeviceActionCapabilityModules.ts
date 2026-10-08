@@ -120,7 +120,7 @@ function deviceActionFailureResult(input: {
 }
 
 function isControlRequest(message: string) {
-  return /\b(turn|switch|power|set)\b[\s\S]{0,80}\b(on|off)\b|\b(on|off)\b[\s\S]{0,80}\b(light|switch|socket|plug|device|gang)\b/i.test(message);
+  return /\b(turn|switch|power|set)\b[\s\S]{0,80}\b(on|off)\b|\b(on|off)\b[\s\S]{0,80}\b(light|switch|socket|plug|device|gang)\b|\b(shut|kill|cut)\b[\s\S]{0,60}\b(down|off)\b|\b(?:light|lamp|fan|ac|socket|plug|tv|heater)s?\s+(?:on|off)\s+(?:too|also|as well)\s*[.!]*$/i.test(message);
 }
 
 function channelLabel(code: string | null | undefined) {

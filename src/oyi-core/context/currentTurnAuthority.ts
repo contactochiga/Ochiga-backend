@@ -50,7 +50,7 @@ export function requestedPowerState(message: string) {
 }
 
 export function isControlRequest(message: string) {
-  return /\b(turn|switch|put|power|lock|unlock|open|close|dim|set|run|approve|extend|escalate|assign|pay|buy|fund)\b/i.test(message);
+  return /\b(turn|switch|put|power|lock|unlock|open|close|shut|dim|set|run|approve|extend|escalate|assign|pay|buy|fund)\b/i.test(message);
 }
 
 export function isExplanationRequest(message: string) {

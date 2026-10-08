@@ -194,6 +194,95 @@
    "utterance": "Where is it?",
    "kind": "public_fact_pronoun",
    "expect": "Kano"
+  },
+  {
+   "id": "R5-D09",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Shut the AC down",
+   "kind": "short_name_command_paraphrase",
+   "expect": "proposal AC"
+  },
+  {
+   "id": "R5-D10",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Is the AC off now?",
+   "kind": "state_question_not_command",
+   "expect": "no proposal"
+  },
+  {
+   "id": "R5-D11",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the AC"
+   ],
+   "utterance": "Did you turn the AC off?",
+   "kind": "historical_action_result_with_pending",
+   "expect": "pending/no execution statement"
+  },
+  {
+   "id": "R5-D12",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the AC",
+    "yes confirm please"
+   ],
+   "utterance": "Did the AC get switched off?",
+   "kind": "confirmation_not_executed",
+   "expect": "nothing executed"
+  },
+  {
+   "id": "R5-P04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "My AC keeps tripping, please switch it off",
+   "kind": "named_subject_pronoun_paraphrase",
+   "expect": "proposal AC"
+  },
+  {
+   "id": "R5-P05",
+   "surface": "consumer",
+   "seeds": [
+    "Show my maintenance requests."
+   ],
+   "utterance": "turn it off",
+   "kind": "bare_pronoun_not_bound_to_list",
+   "expect": "no device guessed from the maintenance list"
+  },
+  {
+   "id": "R5-F08",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "What is the finance picture for the portfolio?",
+   "kind": "office_finance_paraphrase",
+   "expect": "financial summary"
+  },
+  {
+   "id": "R5-F09",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Show the portfolio entries",
+   "kind": "office_portfolio_positive",
+   "expect": "portfolio entries list"
+  },
+  {
+   "id": "R5-F10",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What is the total income across the estate?",
+   "kind": "consumer_estate_finance_refused",
+   "expect": "refusal"
+  },
+  {
+   "id": "R5-O03",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale."
+   ],
+   "utterance": "Is it for sale or lease?",
+   "kind": "public_fact_pronoun",
+   "expect": "sale"
   }
  ]
 }

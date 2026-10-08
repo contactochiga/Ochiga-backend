@@ -32,6 +32,9 @@ export function isCancellationUtterance(message: unknown): boolean {
 }
 
 function deviceOperation(text: string): SemanticOperation | null {
+  // an elliptical second command marked as an addition ("Kitchen light off too") is a power command for the named device
+  const additive = text.match(/^\s*(?:and\s+)?(?:the\s+)?[\w' -]{2,30}?\b(?:light|lamp|fan|ac|socket|plug|tv|heater)s?\s+(on|off)\s+(?:too|also|as well)\s*[.!]*$/i);
+  if (additive) return additive[1].toLowerCase() === "on" ? "device.power.on" : "device.power.off";
   if (/\bturn\s+on|switch\s+on\b/i.test(text)) return "device.power.on";
   if (/\bturn\s+off|switch\s+off\b/i.test(text)) return "device.power.off";
   // a leading kill / shut off / cut imperative aimed at a device is a power-off request
@@ -149,7 +152,9 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   // the concept view (consumption vs spending) decides a utilities operation the lexical regexes could not tell apart
   const operationFinal0: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
   // Office: a question about a named development project belongs to the development records when no other domain was named (public conversations keep their own routing)
-  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\b(?:status|tell me about|how is|how's|update on|progress)\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
+  // Office: "portfolio financial position / balance / revenue" asks about the financial summary, not the list of portfolio entries
+  const reconciled = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
+  const domain = (opts.surface === "office_internal" && reconciled === "office_portfolio" && /\b(?:financial|finance|revenue|balance|cash|income|money|funds?)\b/i.test(normalized.normalized_text) ? ("office_financial" as const) : reconciled) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\b(?:status|tell me about|how is|how's|update on|progress)\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).

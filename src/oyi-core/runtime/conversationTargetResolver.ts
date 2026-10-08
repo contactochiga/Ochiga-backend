@@ -136,24 +136,37 @@ export function requestedChannelCode(message: string) {
   return `switch_${number}`;
 }
 
+// IQ-9A9 R5: the device the user NAMED in this turn. A pronoun ("turn it off") binds to a subject named earlier IN THE SAME TURN ("The Bedroom Light looks
+// stuck, turn it off"), never to an earlier turn's object; a bare pronoun with no named subject yields no phrase (the workflow / reference rules decide).
+// Short names ("AC") are legitimate; they are matched as whole words against the authorised device registry, never as substrings.
+const PHRASE_FILLER = new Set(["could", "you", "can", "would", "will", "please", "kindly", "hey", "turn", "switch", "power", "set", "shut", "down", "kill", "cut", "on", "off", "up", "to", "the", "my", "a", "an", "for", "me", "now", "again", "back", "right", "then", "and", "also", "just"]);
+const SUBJECT_BEFORE_VERB = /^\s*(?:hey,?\s*)?(?:the|my)\s+([a-z0-9][a-z0-9 ]{0,30}?)\s+(?:is|are|looks?|seems?|keeps?|has|have|was|appears?|isn't|won't|doesn't|makes?|making|smells?|sounds?|feels?)\b/i;
 export function namedDevicePhraseFromControlMessage(message: string, options: { isControlRequest: (message: string) => boolean }) {
   if (!options.isControlRequest(message)) return null;
-  if (/\b(it|this|that|this channel|that device|same device|same channel)\b/i.test(message)) return null;
-  const withoutChannel = text(message)
+  const raw = text(message);
+  const pronoun = /\b(it|this|that|this channel|that device|same device|same channel)\b/i.test(raw);
+  if (pronoun) {
+    const controlAt = raw.search(/\b(?:turn|switch|power|set|shut|kill|cut)\b[^,.;!?]*\b(?:it|this|that)\b/i);
+    const subject = controlAt > 0 ? SUBJECT_BEFORE_VERB.exec(raw.slice(0, controlAt).replace(/[,;]\s*$/, "")) : null;
+    return subject ? normalizeSubjectPhrase(subject[1]) : null;
+  }
+  const withoutChannel = raw
     .replace(CHANNEL_REFERENCE_GLOBAL_PATTERN, " ")
     .replace(CHANNEL_PREFIX_GLOBAL_PATTERN, " ");
   if (requestedChannelCode(message) && !normalizeLookupText(withoutChannel).replace(/\b(turn|switch|power|set|on|off|the|my|a|an|to|please)\b/g, " ").trim()) return null;
-  const phrase = text(message)
-    .replace(/^\s*(please\s+)?(?:turn|switch|power|set)\s+/i, "")
-    .replace(/\b(on|off|up|down)\b/ig, " ")
-    .replace(CHANNEL_REFERENCE_GLOBAL_PATTERN, " ")
-    .replace(CHANNEL_PREFIX_GLOBAL_PATTERN, " ")
-    .replace(/\b(the|my|a|an|to)\b/ig, " ")
+  const phrase = withoutChannel
     .replace(/[.?!]+$/g, " ")
-    .replace(/\s+/g, " ")
+    .split(/[^A-Za-z0-9_-]+/)
+    .filter((word) => word && !PHRASE_FILLER.has(word.toLowerCase()))
+    .join(" ")
     .trim();
   if (!phrase || /^channel\s*\d+$/i.test(phrase)) return null;
-  return phrase.length >= 3 ? phrase : null;
+  return phrase.length >= 2 ? phrase : null;
+}
+
+function normalizeSubjectPhrase(value: string) {
+  const phrase = value.trim().replace(/\s+/g, " ");
+  return phrase.length >= 2 ? phrase : null;
 }
 
 export function roomPhraseFromMessage(message: string) {
@@ -181,6 +194,11 @@ function channelDefinitionsFromRow(row: Record<string, unknown>) {
 
 function scoreDeviceCandidate(phrase: string, row: Record<string, unknown>, roomLabel: string | null, channelCode: string | null) {
   const normalizedPhrase = normalizeLookupText(phrase);
+  if (normalizedPhrase.length <= 3 && !normalizedPhrase.includes(" ")) {
+    // a short name ("ac", "tv") is a whole-word match against the device's own name or alias, never a substring of another word
+    const words = `${normalizeLookupText(row.name || recordOf(row.metadata).display_name || recordOf(row.metadata).label)} ${arrayOfStrings(recordOf(row.metadata).aliases).map(normalizeLookupText).join(" ")}`.split(" ");
+    return words.includes(normalizedPhrase) ? 1 : 0;
+  }
   const name = normalizeLookupText(row.name || recordOf(row.metadata).display_name || recordOf(row.metadata).label);
   const aliases = arrayOfStrings(recordOf(row.metadata).aliases).map(normalizeLookupText);
   const family = normalizeLookupText(deviceFamilyFromRow(row));
