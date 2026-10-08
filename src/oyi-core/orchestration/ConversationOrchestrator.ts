@@ -11,7 +11,7 @@ import { responseMove } from "../interpretation/semanticObjective";
 import { targetedFallbackAnswer } from "../response/fallbackTarget";
 import { plannerAdmission } from "./plannerAdmission";
 import { suppliesOpportunityFacts } from "../capabilities/PublicOpportunityCapabilityModule";
-import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal } from "../response/answerTarget";
+import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal, splitInformationalClauses } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
 import { actionTruthLead, communicationTruthLead, threadActionTruth } from "../response/actionTruth";
@@ -3449,6 +3449,62 @@ async function buildBusinessSurfaceFallbackResponse(
 import { assembleGovernedContext } from "../context/governedContextAssembly";
 import { buildMemoryRecallCapability, isMemoryRecallRequest } from "../capabilities/MemoryRecallCapability";
 
+// IQ-9A7 R3: multi-part informational requests. Clauses come from the one SemanticFrame/AnswerTarget contract (splitInformationalClauses); each clause is parsed by the
+// existing parser; clauses that name the same domain stay in ONE governed read (the projector answers each clause from the single envelope); clauses that name
+// different domains are each run as their own governed turn (own capability, own authority and scope check, own result), never widening one another. Bounded:
+// at most three clauses, one action clause, and a wall-clock budget. A read combined with an action never executes the action here: the action clause is run
+// through the existing governed workflow (a proposal awaiting approval, or a clarification), after the reads.
+const MULTIPART_MAX_CLAUSES = 3;
+const MULTIPART_BUDGET_MS = 25000;
+const MULTIPART_RETRIEVAL_SHAPES = new Set(["LIST", "COUNT", "STATUS", "DIRECT_ANSWER", "YES_NO_WITH_REASON", "SUMMARY", "EXPLANATION"]);
+type MultipartFragment = { text: string; key: string | null; mutation: boolean };
+export function planMultipart(message: string, surface: string): { mode: "info" | "mixed"; fragments: MultipartFragment[] } | null {
+  const raw = String(message ?? "").replace(/\s+/g, " ").trim();
+  if (!raw || raw.length > 400) return null;
+  const parse = (text: string) => parseSemanticFrame(text, { surface });
+  // a turn whose whole meaning is a specialised answer (refusal, action/communication result, confirmation, clarification, safety report) is never split
+  const whole = parse(raw).answerTarget;
+  if (whole && (["REFUSAL", "ACTION_RESULT", "CONFIRMATION_STATE", "CLARIFICATION", "CAPABILITY_DISCOVERY", "LIMITATION", "SAFETY_RISK"].includes(whole.response_intent) || whole.safety_relevant || whole.refusal_kind || whole.confirmation_kind)) return null;
+  const infoParts = splitInformationalClauses(raw);
+  let texts = infoParts;
+  let mixed = false;
+  if (infoParts.length < 2) {
+    // read plus action: "<action>, and <question>" / "<question> and <action>"
+    const loose = raw.split(/\s*(?:,|;|\band\b|\bthen\b|\balso\b)\s+/i).map(x => x.trim()).filter(x => x.length > 2);
+    if (loose.length < 2 || loose.length > MULTIPART_MAX_CLAUSES) return null;
+    const frames = loose.map(parse);
+    const actions = frames.filter(f => f.mutationIntent);
+    const infos = loose.filter((_, i) => !frames[i].mutationIntent && (frames[i].answerTarget?.is_question || /^(?:tell|show|list|give)\b/i.test(loose[i])));
+    if (actions.length !== 1 || infos.length < 1 || actions.length + infos.length !== loose.length) return null;
+    texts = loose; mixed = true;
+  }
+  if (texts.length < 2 || texts.length > MULTIPART_MAX_CLAUSES + 1) return null;
+  // every clause must be a substantive request of its own: a bare "yes", "confirm" or "cancel" is a reply to something pending, not a clause
+  if (texts.some(t => t.split(/\s+/).filter(Boolean).length < 3 || responseMove(t) !== null)) return null;
+  const frames = texts.map(parse);
+  if (!mixed && frames.some(f => f.mutationIntent)) return null;
+  if (!mixed) {
+    if (frames.some(f => !f.answerTarget || !MULTIPART_RETRIEVAL_SHAPES.has(f.answerTarget.response_intent) || ["prioritize", "compare", "advise"].includes(String(f.cognitiveObjective ?? "")))) return null;
+  }
+  let previous: string | null = null;
+  const fragments = texts.map((text, i) => {
+    const f = frames[i];
+    let own = (f.concepts?.head_domain ?? f.domain ?? null) as string | null;
+    // an electricity/utility PURCHASE or payment is a wallet record; it is the same governed read as the wallet history it is asked next to
+    if ((own === "utilities" || own === "transactions") && /\b(?:purchase[sd]?|bought|payments?|paid|transactions?|funding|top-?ups?)\b/i.test(text)) own = "wallet";
+    // a clause with no domain of its own is elliptical ("... and which are active?") only when it also names no subject; a clause that names a subject nobody
+    // resolved is its own group, so it is answered or truthfully declined on its own and never silently folded into the previous clause
+    const elliptical = !f.answerTarget?.object && (f.answerTarget?.subject_tokens ?? []).filter(w => !["them", "those", "these", "it", "ones", "one", "of", "that", "this", "many", "much", "number", "count", "total", "tell", "show", "list", "give", "me", "anything", "something", "any", "else", "more", "still", "also", "currently", "right", "now", "there"].includes(w)).length === 0;
+    const key = f.mutationIntent ? `action:${i}` : (own && own !== "global" ? own : elliptical ? previous : `unresolved:${i}`);
+    if (!f.mutationIntent) previous = key;
+    return { text, key, mutation: Boolean(f.mutationIntent) };
+  });
+  const infoKeys = new Set(fragments.filter(x => !x.mutation).map(x => x.key));
+  if (fragments.some(x => !x.mutation && x.key === null)) return null;
+  if (!mixed && infoKeys.size < 2) return null; // a single domain stays one governed read (the projector answers every clause)
+  return { mode: mixed ? "mixed" : "info", fragments };
+}
+
 export class ConversationOrchestrator {
   // Intelligence Visibility, Slice 7 -- the single durable-trace
   // finalization boundary. Every invocation -- ordinary capability
@@ -3508,6 +3564,46 @@ export class ConversationOrchestrator {
         (second as any).answer = (second as any).reply = (second as any).message = (second as any).summary = combined;
         finalize(second, null);
         return second;
+      }
+      const multipart = context.input?.message ? planMultipart(context.input.message, context.input.surface) : null;
+      if (multipart) {
+        const started = Date.now();
+        let threadId = context.input.thread_id;
+        const answers = new Map<string, string>();
+        let lastRead: any = null, actionTurn: any = null;
+        const keys = [...new Set(multipart.fragments.filter(x => !x.mutation).map(x => x.key as string))];
+        const runOne = async (text: string) => {
+          traceHolder.tracer = null;
+          const r = await this.runTurn({ ...context, input: { ...context.input, message: text, thread_id: threadId } }, traceHolder);
+          finalize(r, null);
+          threadId = (r as any).thread_id || threadId;
+          return r;
+        };
+        for (const key of keys) {
+          const text = multipart.fragments.filter(x => !x.mutation && x.key === key).map(x => x.text).join(" ");
+          if (Date.now() - started > MULTIPART_BUDGET_MS) { answers.set(key, "I ran out of time before I could answer this part, so it is unanswered — ask it again on its own."); continue; }
+          const r = await runOne(text);
+          lastRead = r; answers.set(key, String((r as any).answer ?? ""));
+        }
+        for (const f of multipart.fragments.filter(x => x.mutation)) {
+          // the action is never executed through the read path: it goes through the existing governed workflow (proposal awaiting approval, or a clarification)
+          const r = await runOne(f.text);
+          actionTurn = r;
+          answers.set(f.key as string, `${String((r as any).answer ?? "")}${(r as any).requiresConfirmation === true ? "" : " Nothing has been executed."}`);
+        }
+        const emitted = new Set<string>();
+        const pieces: string[] = [];
+        multipart.fragments.forEach((f, i) => {
+          if (emitted.has(f.key as string)) return;
+          emitted.add(f.key as string);
+          const answer = answers.get(f.key as string) ?? "";
+          const short = multipart.fragments.filter(x => x.key === f.key).map(x => x.text).join(" ").replace(/[?.!]+$/, "").slice(0, 90);
+          pieces.push(i === 0 ? answer : f.mutation ? `Separately — ${answer}` : `On “${short}”: ${answer}`);
+        });
+        const final = actionTurn ?? lastRead;
+        const combined = pieces.join("\n\n");
+        (final as any).answer = (final as any).reply = (final as any).message = (final as any).summary = combined;
+        return final;
       }
       response = await this.runTurn(context, traceHolder);
     } catch (error) {

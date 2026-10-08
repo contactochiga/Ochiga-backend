@@ -1,0 +1,643 @@
+{
+ "generated_at": "2026-10-08T08:28:47.897Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a7-r3-corpus.json",
+ "duration_ms": 1815,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R3-M01",
+   "answer": "No — I found no security incidents in what I read.\n\nSupporting detail: I do not see any security incidents for this scope.\n\nOn “is the camera working”: I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.",
+   "capability": "facility.cameras.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Are there any security incidents logged, and is the camera working?",
+     "answer": "No — I found no security incidents in what I read.\n\nSupporting detail: I do not see any security incidents for this scope.\n\nOn “is the camera working”: I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.",
+     "capability": "facility.cameras.read"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2",
+     "assessment_context"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R3-M02",
+   "answer": "Yes — 1 report awaiting approval: Wave11 Portfolio Report.\n\nSupporting detail: 1 report awaiting approval.\n\nOn “what is the status of VI Development”: Wave11 VI Development: planning (percent complete 35%).\n\nSupporting detail: 1 development project.",
+   "capability": "development.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is there a report waiting for approval, and what is the status of VI Development?",
+     "answer": "Yes — 1 report awaiting approval: Wave11 Portfolio Report.\n\nSupporting detail: 1 report awaiting approval.\n\nOn “what is the status of VI Development”: Wave11 VI Development: planning (percent complete 35%).\n\nSupporting detail: 1 development project.",
+     "capability": "development.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M03",
+   "answer": "There are 2 visitor access records.\n\n2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COUNT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "How many visitor passes do I have, and which of them are active?",
+     "answer": "There are 2 visitor access records.\n\n2 visitor access records on record. I can't confirm that any is currently valid. 1 is recorded as active but its recorded expiry time has passed (Wave11 Expected Visitor), so its validity isn't confirmed from these records. These are permission records, not proof of anyone's arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M04",
+   "answer": "NGN 2,500 went out across 1 wallet transaction.\n\nWallet transactions: Electricity purchase -₦2,500 (completed), Wallet funding +₦15,000 (completed).\n\nSupporting detail: 2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+   "capability": "wallet.transactions.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "How much did I spend on utilities, and what were my wallet entries?",
+     "answer": "NGN 2,500 went out across 1 wallet transaction.\n\nWallet transactions: Electricity purchase -₦2,500 (completed), Wallet funding +₦15,000 (completed).\n\nSupporting detail: 2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+     "capability": "wallet.transactions.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M05",
+   "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nThere is 1 open maintenance request.\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COUNT",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Show my maintenance requests and tell me how many are still open",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nThere is 1 open maintenance request.\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M06",
+   "answer": "Wallet balance: NGN 12,500.\n\nOn “what maintenance requests do I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What is my wallet balance, and what maintenance requests do I have?",
+     "answer": "Wallet balance: NGN 12,500.\n\nOn “what maintenance requests do I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M07",
+   "answer": "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. The company works through three connected engines: Ochiga Development (creates the physical asset), Oyi (Ochiga's building operating technology — powers how it operates), and Ochiga Private (connects selected investors, buyers, landowners and strategic partners with opportunity). These are interconnected parts of one Ochiga ecosystem, not three unrelated businesses.\n\nOn “how I would begin talking to the team about my land”: To get started, tell me about your land here — where it is, roughly how big it is, whether you hold title or documents, and what you have in mind (sale, lease or joint venture). If you want the team to follow up, ask me to pass a callback request on (that is not a booked call), or contact them at ochiga.com.ng/contact. Nothing is sent unless you ask for it.",
+   "capability": "answer_target.fallback_public_how_to_begin",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "Can you tell me what Ochiga does and how I would begin talking to the team about my land?",
+     "answer": "Ochiga develops and powers intelligent places, bringing together real estate development, building technology and strategic investment partnerships. The company works through three connected engines: Ochiga Development (creates the physical asset), Oyi (Ochiga's building operating technology — powers how it operates), and Ochiga Private (connects selected investors, buyers, landowners and strategic partners with opportunity). These are interconnected parts of one Ochiga ecosystem, not three unrelated businesses.\n\nOn “how I would begin talking to the team about my land”: To get started, tell me about your land here — where it is, roughly how big it is, whether you hold title or documents, and what you have in mind (sale, lease or joint venture). If you want the team to follow up, ask me to pass a callback request on (that is not a booked call), or contact them at ochiga.com.ng/contact. Nothing is sent unless you ask for it.",
+     "capability": "answer_target.fallback_public_how_to_begin"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M08",
+   "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.\n\nOn “show me the visitors for my neighbour's flat”: I can't do that for you here: you are not authorised to use it from this surface or scope (“show me the visitors for my neighbour's flat”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "permission_restricted",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "scope_restricted",
+   "turns": [
+    {
+     "prompt": "Which devices do I have, and show me the visitors for my neighbour's flat",
+     "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.\n\nOn “show me the visitors for my neighbour's flat”: I can't do that for you here: you are not authorised to use it from this surface or scope (“show me the visitors for my neighbour's flat”) — I can only show information for your own home; another resident's, a neighbour's or estate-wide details aren't available to you here, whatever role is claimed.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M09",
+   "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.\n\nSeparately — Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "835e61f9-1197-45dd-b643-f4e8ddefbac8",
+   "action_id": "23e3bf61-ea54-4aad-a4e8-64fe3545f62b",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Show my maintenance requests, and turn off the Kitchen Light",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.\n\nSeparately — Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M10",
+   "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.\n\nOn “tell me what maintenance requests I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "2b305a7d-8373-4d00-a05c-6c0715f2174c",
+   "action_id": "fe00fcd1-6cc0-47cd-acb6-1fb177496aab",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Turn off the Kitchen Light and tell me what maintenance requests I have",
+     "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.\n\nOn “tell me what maintenance requests I have”: Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M11",
+   "answer": "I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.\n\nOn “is there anything about the generators”: I can't tell: there is no enabled evidence source on this surface that could answer “is there anything about the generators?” yet, so I would only be guessing.",
+   "capability": "canonical.conversation.unsupported",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unsupported",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "Is the camera working, and is there anything about the generators?",
+     "answer": "I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.\n\nOn “is there anything about the generators”: I can't tell: there is no enabled evidence source on this surface that could answer “is there anything about the generators?” yet, so I would only be guessing.",
+     "capability": "canonical.conversation.unsupported"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M12",
+   "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What are my maintenance requests, and which one?",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-S01",
+   "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What maintenance requests do I have?",
+     "answer": "Maintenance requests: Wave11 unresolved water issue (open; high priority), Wave11 resolved light issue (resolved; low priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-S02",
+   "answer": "The evidence I could read contains nothing to compare. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: Not available in Oyi yet: electricity consumption (consumption/meter reads are declared but not enabled; spending is money, not kWh). Evidence basis: no source could be read.",
+   "capability": "oyi.assessment.evidence_plan",
+   "assessment_status": "evidence_gathered",
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unavailable",
+   "target_intent": "COMPARISON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "assessment_evidence_planned",
+   "turns": [
+    {
+     "prompt": "Which was bigger, the electricity purchase or the wallet funding?",
+     "answer": "The evidence I could read contains nothing to compare. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: Not available in Oyi yet: electricity consumption (consumption/meter reads are declared but not enabled; spending is money, not kWh). Evidence basis: no source could be read.",
+     "capability": "oyi.assessment.evidence_plan"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-S03",
+   "answer": "Wave11 VI Development has gone longer without recorded activity: Wave11 VI Development 21 days, Wave11 Abuja JV 8 days since last recorded activity. This compares a recorded field only; it is not a judgment of which matters more.\n\nSupporting detail: 2 opportunities. 1 hasn't had activity in at least two weeks.",
+   "capability": "crm.opportunities.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "COMPARISON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "Between VI Development and Abuja JV, which has gone longer without activity?",
+     "answer": "Wave11 VI Development has gone longer without recorded activity: Wave11 VI Development 21 days, Wave11 Abuja JV 8 days since last recorded activity. This compares a recorded field only; it is not a judgment of which matters more.\n\nSupporting detail: 2 opportunities. 1 hasn't had activity in at least two weeks.",
+     "capability": "crm.opportunities.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-S04",
+   "answer": "I don't have temperature data: no temperature sensor reading is available to me here, so I can't tell you what it is.",
+   "capability": "canonical.conversation.unsupported",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unsupported",
+   "target_intent": "LIMITATION",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "no_match",
+   "turns": [
+    {
+     "prompt": "What's the temperature and humidity in my bedroom?",
+     "answer": "I don't have temperature data: no temperature sensor reading is available to me here, so I can't tell you what it is.",
+     "capability": "canonical.conversation.unsupported"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-S05",
+   "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "5e9f28fa-7fb8-4b27-bf93-5d38342d1145",
+   "action_id": "dba7aef1-245a-47b2-9bd1-7604f8be7eff",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light.",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Scrap that, but switch off the Bedroom Light",
+     "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M13",
+   "answer": "Wave11 VI Development: planning (percent complete 35%).\n\nSupporting detail: 1 development project.\n\nOn “whether any report is awaiting sign-off”: Reports awaiting approval: Wave11 Portfolio Report.\n\nSupporting detail: 1 report awaiting approval.",
+   "capability": "reports.approvals.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "DIRECT_ANSWER",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Tell me the status of VI Development and whether any report is awaiting sign-off.",
+     "answer": "Wave11 VI Development: planning (percent complete 35%).\n\nSupporting detail: 1 development project.\n\nOn “whether any report is awaiting sign-off”: Reports awaiting approval: Wave11 Portfolio Report.\n\nSupporting detail: 1 report awaiting approval.",
+     "capability": "reports.approvals.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M14",
+   "answer": "I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.\n\nOn “are there any security incidents logged”: No — I found no security incidents in what I read.\n\nSupporting detail: I do not see any security incidents for this scope.",
+   "capability": "security.incidents.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "confirmed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is the camera working? Also, are there any security incidents logged?",
+     "answer": "I can't tell — the camera's current video state is unknown, which is neither an outage nor normal operation.\n\nSupporting detail: 1 accessible camera is registered. 0 have a recent failed acquisition; 1 have unknown current video state. Neither status proves physical disconnection. Wave11 Test Camera: Current camera state is unknown; configuration alone does not prove video is working.\n\nOn “are there any security incidents logged”: No — I found no security incidents in what I read.\n\nSupporting detail: I do not see any security incidents for this scope.",
+     "capability": "security.incidents.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R3-M15",
+   "answer": "So far you have told me: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.\n\nWhat I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale.",
+     "answer": "Thanks for sharing that in Kano, 5 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "What have you got from me so far, and what do you still need?",
+     "answer": "So far you have told me: location: Kano; land size: 5 acres; opportunity type: land; structure offered: sale.\n\nWhat I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

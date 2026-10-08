@@ -395,7 +395,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
       if (prior && (isAssessmentObjective(context.resolvedTurn.semantic_frame.cognitiveObjective) || context.resolvedTurn.semantic_frame.cognitiveObjective === "summarize")) {
         const requirements = prior.objective_type === "development_partnership"
           ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
-        const lead = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        const leadOne = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        const leadMany = (context.resolvedTurn.semantic_frame.answerTarget?.clauses || []).map(c => targetedPublicLead(prior, c.target, c.text)).filter((x): x is string => Boolean(x));
+        const lead = leadMany.length >= 2 ? [...new Set(leadMany)].join("\n\n") : leadOne;
         return { status: "answered", answer: `${lead ? `${lead}\n\nSupporting detail: ` : ""}Based on what you've told me, not independent verification: ${requirements} This is preliminary qualification, not a commitment by Ochiga to proceed.`,
           presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
@@ -409,7 +411,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
           };
         }
         const answer0 = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
-        const lead0 = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        const leadSingle = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        const leadsMany = (context.resolvedTurn.semantic_frame.answerTarget?.clauses || []).map(c => targetedPublicLead(prior, c.target, c.text)).filter((x): x is string => Boolean(x));
+        const lead0 = leadsMany.length >= 2 ? [...new Set(leadsMany)].join("\n\n") : leadSingle;
         const answer = lead0 ? `${lead0}\n\nSupporting detail: ${answer0}` : answer0;
         return { status: "answered", answer, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
       }
@@ -418,7 +422,10 @@ export function publicOpportunityReadModule(): CapabilityModule {
       // a turn that SUPPLIES a new fact and does not ask anything ("I want a JV.") is a fact update, never a question about what is held
       const suppliesFact = Boolean(prior) && (() => { const next = mergeObjective(prior, message, new Date().toISOString()).known_facts; return Object.keys(next).some((k) => next[k] !== prior!.known_facts[k]); })() && !/\?/.test(message) && !/^\s*(?:what|which|who|how|do|does|did|can|could|is|are|have|has|tell|show|list)\b/i.test(message);
       if (prior && !suppliesFact) {
-        const asked = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        const askedSingle = targetedPublicLead(prior, context.resolvedTurn.semantic_frame.answerTarget, message);
+        // IQ-9A7: several held-fact questions in one turn ("what have you got from me, and what do you still need?") are each answered, in order
+        const clauseLeads = (context.resolvedTurn.semantic_frame.answerTarget?.clauses || []).map(c => targetedPublicLead(prior, c.target, c.text)).filter((x): x is string => Boolean(x));
+        const asked = clauseLeads.length >= 2 ? [...new Set(clauseLeads)].join("\n\n") : askedSingle;
         if (asked) {
           const supporting = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
           return { status: "answered", answer: `${asked}\n\nSupporting detail: ${supporting}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
@@ -428,7 +435,8 @@ export function publicOpportunityReadModule(): CapabilityModule {
       // acknowledge without re-asking for anything already known.
       const updated = mergeObjective(prior, message, new Date().toISOString());
       // IQ-9A6: a turn that both supplies facts and asks what is held / missing gets the facts recorded AND the question answered from what is now held
-      const askedNow = /\?/.test(message) ? targetedPublicLead(updated, context.resolvedTurn.semantic_frame.answerTarget, message) : null;
+      const nowLeads = (context.resolvedTurn.semantic_frame.answerTarget?.clauses || []).map(c => targetedPublicLead(updated, c.target, c.text)).filter((x): x is string => Boolean(x));
+      const askedNow = /\?/.test(message) ? (nowLeads.length >= 2 ? [...new Set(nowLeads)].join("\n\n") : targetedPublicLead(updated, context.resolvedTurn.semantic_frame.answerTarget, message)) : null;
       if (askedNow) {
         const supportingNow = updated.objective_type === "development_partnership" ? composeJvRequirementsAnswer(updated) : composeGenericRequirementsAnswer(updated);
         return { status: "answered", answer: `${composeAcknowledgement(prior, updated)}\n\n${askedNow}\n\nSupporting detail: ${supportingNow}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: updated } };

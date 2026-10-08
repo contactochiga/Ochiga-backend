@@ -45,7 +45,8 @@ function deviceOperation(text: string): SemanticOperation | null {
   if (/\bshow\b.*\b(failures|failed|faults)\b/i.test(text)) return "device.failures";
   if (/\bdiagnose|why\b/i.test(text)) return "device.diagnosis";
   if (/\brelationships|related\b/i.test(text)) return "device.relationships";
-  if (/\bis\b.*\bon\b|\bstatus\b|\bworking\b/i.test(text)) return "device.status";
+  // a bare "status" names a device only when no other record noun is in the question ("status of VI Development" asks about a project)
+  if (/\bis\b.*\bon\b|\bworking\b/i.test(text) || (/\bstatus\b/i.test(text) && !/\b(?:project|development|opportunit\w*|leads?|reports?|tasks?|meetings?|requests?|incidents?|visitors?|wallet|transactions?|deal)\b/i.test(text))) return "device.status";
   return null;
 }
 
@@ -147,7 +148,8 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   const concepts = resolveConcepts(normalized.normalized_text);
   // the concept view (consumption vs spending) decides a utilities operation the lexical regexes could not tell apart
   const operationFinal0: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
-  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
+  // Office: a question about a named development project belongs to the development records when no other domain was named (public conversations keep their own routing)
+  const domain = reconcileDomain(domainCandidate, concepts, normalized.normalized_text) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\bstatus\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);
   // Safety: an utterance that carries a withdrawal or negation marker never keeps executable intent (ambiguity clarifies, it does not execute).

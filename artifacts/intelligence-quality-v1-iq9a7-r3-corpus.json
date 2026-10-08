@@ -1,0 +1,151 @@
+{
+ "version": 1,
+ "status": "IQ9A7_R3_SYNTHETIC_DEV_CASES",
+ "note": "New synthetic cases; not copies of sealed IQ-8F requests.",
+ "items": [
+  {
+   "id": "R3-M01",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Are there any security incidents logged, and is the camera working?",
+   "kind": "cross_domain_reads"
+  },
+  {
+   "id": "R3-M02",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Is there a report waiting for approval, and what is the status of VI Development?",
+   "kind": "cross_domain_reads"
+  },
+  {
+   "id": "R3-M03",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "How many visitor passes do I have, and which of them are active?",
+   "kind": "count_plus_list"
+  },
+  {
+   "id": "R3-M04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "How much did I spend on utilities, and what were my wallet entries?",
+   "kind": "total_plus_list"
+  },
+  {
+   "id": "R3-M05",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Show my maintenance requests and tell me how many are still open",
+   "kind": "list_plus_count"
+  },
+  {
+   "id": "R3-M06",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What is my wallet balance, and what maintenance requests do I have?",
+   "kind": "two_domains_consumer"
+  },
+  {
+   "id": "R3-M07",
+   "surface": "public_corporate",
+   "seeds": [],
+   "utterance": "Can you tell me what Ochiga does and how I would begin talking to the team about my land?",
+   "kind": "public_two_part"
+  },
+  {
+   "id": "R3-M08",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which devices do I have, and show me the visitors for my neighbour's flat",
+   "kind": "scope_isolation"
+  },
+  {
+   "id": "R3-M09",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Show my maintenance requests, and turn off the Kitchen Light",
+   "kind": "read_plus_action"
+  },
+  {
+   "id": "R3-M10",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Turn off the Kitchen Light and tell me what maintenance requests I have",
+   "kind": "action_plus_read"
+  },
+  {
+   "id": "R3-M11",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Is the camera working, and is there anything about the generators?",
+   "kind": "unavailable_second"
+  },
+  {
+   "id": "R3-M12",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What are my maintenance requests, and which one?",
+   "kind": "ambiguous_second"
+  },
+  {
+   "id": "R3-S01",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What maintenance requests do I have?",
+   "kind": "single_question_preserved"
+  },
+  {
+   "id": "R3-S02",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "Which was bigger, the electricity purchase or the wallet funding?",
+   "kind": "single_question_preserved"
+  },
+  {
+   "id": "R3-S03",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Between VI Development and Abuja JV, which has gone longer without activity?",
+   "kind": "single_question_preserved"
+  },
+  {
+   "id": "R3-S04",
+   "surface": "consumer",
+   "seeds": [],
+   "utterance": "What's the temperature and humidity in my bedroom?",
+   "kind": "single_question_preserved"
+  },
+  {
+   "id": "R3-S05",
+   "surface": "consumer",
+   "seeds": [
+    "Switch off the Living Light."
+   ],
+   "utterance": "Scrap that, but switch off the Bedroom Light",
+   "kind": "compound_withdrawal_preserved"
+  },
+  {
+   "id": "R3-M13",
+   "surface": "office_internal",
+   "seeds": [],
+   "utterance": "Tell me the status of VI Development and whether any report is awaiting sign-off.",
+   "kind": "paraphrase_operation_flip"
+  },
+  {
+   "id": "R3-M14",
+   "surface": "facility",
+   "seeds": [],
+   "utterance": "Is the camera working? Also, are there any security incidents logged?",
+   "kind": "paraphrase_order_flip"
+  },
+  {
+   "id": "R3-M15",
+   "surface": "public_corporate",
+   "seeds": [
+    "Land in Kano, 5 acres, sale."
+   ],
+   "utterance": "What have you got from me so far, and what do you still need?",
+   "kind": "public_qualification_two_part"
+  }
+ ]
+}

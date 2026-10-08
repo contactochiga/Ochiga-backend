@@ -28,6 +28,22 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     }
     if (result.status !== "answered" && result.status !== "empty") return result;
     const envelope = mapResultEnvelope(capabilityKey, result, { capability_status: "enabled" });
+    // IQ-9A7 R3: several informational clauses answered by the SAME read: the one envelope is projected once per clause, in the user's order. A clause
+    // that cannot be projected is stated as unanswered; it is never silently dropped and never filled from another clause.
+    if (envelope && t.clauses && t.clauses.length >= 2) {
+      const parts = t.clauses.map(c => ({ c, p: projectResponse(c.target, envelope, { asked: c.text.slice(0, 120), raw: c.text }) }));
+      if (parts.some(x => x.p)) {
+        const seen = new Set<string>();
+        const lines: string[] = [];
+        for (const { c, p } of parts) {
+          const line = p ? p.primary : `I couldn't answer “${c.text.replace(/[?.!]+$/, "").slice(0, 120)}” from these records.`;
+          if (!seen.has(line)) { seen.add(line); lines.push(line); }
+        }
+        const support = parts.map(x => x.p).filter((x): x is NonNullable<typeof x> => Boolean(x)).flatMap(x => x.supporting).filter((x, i, a) => x && a.indexOf(x) === i);
+        const joined = [lines.join("\n\n"), ...support.slice(0, 2).map(x => `Supporting detail: ${x}`)].join("\n\n");
+        return { ...result, answer: joined, metadata: { ...(result.metadata || {}), answer_target: t.response_intent, projection_shape: "MULTI_CLAUSE", clause_count: t.clauses.length, response_contract: responseContract(envelope) } };
+      }
+    }
     const p = envelope ? projectResponse(t, envelope, { asked: frame.rawText.replace(/\s+/g, " ").trim().slice(0, 120), raw: frame.rawText }) : null;
     // target-application guarantee: a valid target + an envelope that supports it must reach the projector's answer; a miss is recorded, never silent
     if (envelope && !p && projectionRequired(t, envelope)) return { ...result, metadata: { ...(result.metadata || {}), projection_contract_violation: true, response_contract: responseContract(envelope) } };

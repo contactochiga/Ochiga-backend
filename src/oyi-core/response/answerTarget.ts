@@ -45,6 +45,7 @@ export type AnswerTarget = {
   fact_keys: string[];                 // held-fact keys the question names (structure, size, location, terms, title, owner, type)
   past_reference: boolean;             // the question is about an earlier point in time ("last week", "yesterday")
   refinements?: string[];              // typed refinements applied after derivation (never silent)
+  clauses?: Array<{ text: string; target: AnswerTarget }>; // IQ-9A7: independent informational clauses of one turn, in the user's order (only when there are two or more)
 };
 
 /** The only way a downstream layer may change a carried target: an explicit, recorded refinement. */
@@ -113,14 +114,14 @@ const splitSides = (tokens: string[]): string[][] => {
   return a.length && b.length ? [a, b] : [];
 };
 
-export function deriveAnswerTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean; ambiguity?: { required: boolean; reason: string | null }; pronounRef?: boolean; surface?: string } = {}): AnswerTarget {
+function deriveOneTarget(text: string, opts: { objective?: string | null; activeAssessment?: boolean; ambiguity?: { required: boolean; reason: string | null }; pronounRef?: boolean; surface?: string } = {}): AnswerTarget {
   // a turn that opens with context ("I just got into the office. What needs my attention?") is shaped by its last question or directive
   // a leading condition ("if nothing was logged, does that ...?") frames the question that follows it
   const cond = /^\s*(?:if|when|once|assuming|given|because|since|as)\b[^,]{3,80},\s*(.+\?\s*)$/i.exec(text);
-  if (cond) return deriveAnswerTarget(cond[1], opts);
+  if (cond) return deriveOneTarget(cond[1], opts);
   const sents = sentencesOf(text);
-  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveAnswerTarget(sents[sents.length - 1], opts); const refused = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "REFUSAL"); // IQ-9A5: "they\'ve been told right? how long til they call" is ONE question about whether it happened and when; the earlier outcome question owns it
-    const earlier = sents.slice(0, -1).map(x => deriveAnswerTarget(x, opts)).find(x => x.response_intent === "ACTION_RESULT");
+  if (sents.length > 1) { const last = analyse(sents[sents.length - 1]); if (last.q || last.wh || last.auxLead || last.imperative) { const inner = deriveOneTarget(sents[sents.length - 1], opts); const refused = sents.slice(0, -1).map(x => deriveOneTarget(x, opts)).find(x => x.response_intent === "REFUSAL"); // IQ-9A5: "they\'ve been told right? how long til they call" is ONE question about whether it happened and when; the earlier outcome question owns it
+    const earlier = sents.slice(0, -1).map(x => deriveOneTarget(x, opts)).find(x => x.response_intent === "ACTION_RESULT");
     if (earlier && !refused && inner.response_intent !== "ACTION_RESULT" && /^\s*(?:how\s+long|when|how\s+soon|what\s+time)\b/i.test(sents[sents.length - 1])) return { ...earlier, future_event: true };
     if (earlier && !refused && inner.response_intent !== "ACTION_RESULT" && /^\s*(?:check|confirm|verify|see|tell\s+me)\b[^.?!]{0,30}\b(?:deliver\w*|receipt|received|sent|status)\b/i.test(sents[sents.length - 1])) return earlier;
     return { ...(refused ?? inner), safety_relevant: inner.safety_relevant || isHazardText(text) }; } }
@@ -233,7 +234,7 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
     return base("REFUSAL", { refusal_kind: "authority", must_answer: "decline to bypass a privacy/permission boundary, whatever role is claimed", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // attributing a problem to a named kind of person is not something the evidence supports (and is private by default)
   const person = T.some(t => ["resident", "tenant", "neighbour", "neighbor", "person", "someone", "who", "staff", "guard", "visitor"].includes(t));
-  if (person && (u.wh || T.some(t => ["which", "who", "whose"].includes(t))) && T.some(t => ["causing", "caused", "responsible", "reported", "blame", "complained", "reporting", "behind", "complaint", "complaints", "made", "raised", "filed", "logged", "lodged", "submitted", "opened"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  if (person && (u.wh || T.some(t => ["which", "who", "whose"].includes(t))) && T.some(t => ["causing", "caused", "responsible", "fault", "offender", "culprit", "guilty", "reported", "blame", "complained", "reporting", "behind", "complaint", "complaints", "made", "raised", "filed", "logged", "lodged", "submitted", "opened"].includes(t))) return base("REFUSAL", { must_answer: "decline to identify or blame an individual, then say what can be said", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of the conversation itself
   if (u.wh && (T.includes("did") || T.includes("have")) && T.includes("i") && T.some(t => ["say", "said", "correct", "corrected", "mention", "mentioned", "ask", "asked", "tell", "told", "mean", "meant", "give", "gave", "given", "provided", "shared"].includes(t))) return base("DIRECT_ANSWER", { must_answer: "what the user said/corrected earlier", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // recall of what the conversation is about ("which room are we discussing?")
@@ -326,4 +327,37 @@ export function deriveAnswerTarget(text: string, opts: { objective?: string | nu
   }
   if (objective === "assess" || objective === "reassess") return base("ASSESSMENT", { must_answer: "the judgment first, then the support", must_not_substitute: ["capability_menu", "state_for_answer"] });
   return base("DIRECT_ANSWER", { must_answer: "the requested information", must_not_substitute: ["capability_menu"] });
+}
+
+/** IQ-9A7: the informational clauses of a turn ("how many passes do I have and which are active?"), in order. Fewer than two independent questions means a single-question turn (empty result). Bounded to three. */
+export function splitInformationalClauses(text: string): string[] {
+  const raw = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!raw || raw.length > 400 || /^\s*(?:if|when|once|assuming|given)\b/i.test(raw)) return [];
+  const fragments: string[] = [];
+  for (const sentence of sentencesOf(raw)) {
+    const parts = sentence.split(/(?:,\s*(?:and\s+)?|\s+and\s+)(?=(?:what|which|how|who|whom|when|where|why|is|are|was|were|do|does|did|can|could|has|have|will|any|tell\s+me|show|list|give|whether|if)\b)/i).map(x => x.trim()).filter(Boolean);
+    fragments.push(...parts);
+  }
+  const informational = (f: string) => { const u = analyse(f); return u.q || u.wh || u.auxLead || /^(?:any|tell|show|list|give|explain|describe|whether|if)\b/.test(u.tokens.join(" ")); };
+  const qualifying = fragments.filter(informational);
+  if (qualifying.length < 2 || qualifying.length !== fragments.filter(f => analyse(f).tokens.length > 0 && !/^(?:hi|hello|hey|thanks|thank you|please|ok|okay|also|and|then)$/i.test(f)).length) return [];
+  // a clause cut out of a question carries the question mark of the sentence it came from
+  const asks = raw.includes("?");
+  return qualifying.slice(0, 3).map(f => (asks && !/[?.!]$/.test(f) ? `${f}?` : f));
+}
+
+export function deriveAnswerTarget(text: string, opts: Parameters<typeof deriveOneTarget>[1] = {}): AnswerTarget {
+  const target = deriveOneTarget(text, opts);
+  // a turn whose whole meaning is a refusal, a result/confirmation question, a clarification, a capability question or a safety report is one request, not a list of reads
+  if (["REFUSAL", "ACTION_RESULT", "CONFIRMATION_STATE", "CLARIFICATION", "CAPABILITY_DISCOVERY", "LIMITATION", "SAFETY_RISK"].includes(target.response_intent) || target.refusal_kind || target.safety_relevant) return target;
+  const parts = splitInformationalClauses(text);
+  if (parts.length < 2) return target;
+  const targets = parts.map(c => deriveOneTarget(c, opts));
+  // an elliptical later clause ("... and which are active?") shares the subject of the first clause; it is never given a subject from another turn
+  const first = targets[0];
+  const clauses = parts.map((c, i) => {
+    const t = targets[i];
+    return { text: c, target: i > 0 && !t.object && t.subject_tokens.length === 0 ? { ...t, object: first.object, facet: t.facet ?? first.facet, subject_tokens: first.subject_tokens } : t };
+  });
+  return { ...target, clauses };
 }
