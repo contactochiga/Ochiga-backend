@@ -12,7 +12,7 @@ import { responseMove } from "../interpretation/semanticObjective";
 import { targetedFallbackAnswer } from "../response/fallbackTarget";
 import { plannerAdmission } from "./plannerAdmission";
 import { suppliesOpportunityFacts, recordContactPreference } from "../capabilities/PublicOpportunityCapabilityModule";
-import { hasWithdrawalVerb, hazardReportIn, isHazardText, splitCompoundWithdrawal, splitInformationalClauses } from "../response/answerTarget";
+import { hasWithdrawalVerb, hazardReportIn, isHazardText, normalizeIndirectCommand, splitCompoundWithdrawal, splitInformationalClauses } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
 import { actionTruthLead, communicationTruthLead, threadActionTruth } from "../response/actionTruth";
@@ -3551,6 +3551,8 @@ export class ConversationOrchestrator {
     };
     let response: ConversationRunResult;
     try {
+      // IQ-9A10 R6: an indirect device request is the same request as its imperative form; it still goes through target resolution and confirmation.
+      if (context.input?.message) { const direct = normalizeIndirectCommand(context.input.message); if (direct !== context.input.message) context = { ...context, input: { ...context.input, message: direct } }; }
       // IQ-9A2: "Scrap the email, I'll phone them myself" / "forget the AC but do the kitchen one" are TWO intents. The withdrawal is
       // processed first as its own governed turn (it terminally cancels any pending proposal); a remaining request is then a separate,
       // fresh governed turn with its own target resolution, authorization and confirmation. Nothing is inherited from the cancelled action.
@@ -3887,7 +3889,7 @@ export class ConversationOrchestrator {
         if (context.input.surface === "public_corporate") { const kept = recordContactPreference(await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null), sf.rawText); if (kept) publicObjectiveToKeep = kept; }
       }
       else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action. If anyone may be in danger, contact emergency services or estate security directly now.`; key = "answer_target.safety_report"; }
-      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event)) : actionTruthLead(await threadActionTruth(context.input.thread_id)); key = "answer_target.action_result"; }
+      else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event)) : `${actionTruthLead(await threadActionTruth(context.input.thread_id))}${/\b(?:somebody|someone|anybody|anyone|earlier|else|manually)\b/i.test(sf.rawText) ? " I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier." : ""}`; key = "answer_target.action_result"; }
       else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
         const capability = syntheticOfficeActionCapability(key, "global");
@@ -3908,7 +3910,8 @@ export class ConversationOrchestrator {
     // active, "Turn it off." is a FRESH command that must still reach
     // devices.power.control to create one (see the required continuity
     // journey), not a confirmation of something that doesn't exist yet.
-    if (!activeWorkflow && ["consumer", "facility"].includes(context.input.surface) && (isCancellationText(context.input.message) || (context.input.thread_id && !/^turn it (?:on|off)\W*$/i.test(text(context.input.message)) && isConfirmationText(context.input.message)))) {
+    if (!activeWorkflow && ["consumer", "facility"].includes(context.input.surface) && (isCancellationText(context.input.message) || (context.input.thread_id && !/^turn it (?:on|off)\W*$/i.test(text(context.input.message)) && (isConfirmationText(context.input.message) || /^\W*(?:(?:ok(?:ay)?|yes|yeah|sure|alright|right)[\s,]+)*(?:please\s+)?(?:do\s+it|go\s+ahead|go\s+for\s+it|proceed|make\s+it\s+so|carry\s+on)(?:\s+(?:then|now|please))?\W*$/i.test(text(context.input.message)))))) {
+      // IQ-9A10 R6: an approval paraphrase with no pending workflow approves nothing (a cancelled workflow stays terminal)
       const capability = syntheticOfficeActionCapability("consumer.nothing_pending", "global");
       const result: DomainResult = {
         status: "answered",

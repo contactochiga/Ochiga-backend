@@ -168,8 +168,17 @@ export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked
       const kind = t.yes_no?.kind;
       if (kind === "inference") return done("YES_NO", `No — that does not establish it: what I can read only covers what is recorded, and a record showing nothing is not an all-clear.`, ...support);
       if (kind !== "state" && kind !== "capability") return null;
+      // IQ-9A10 R6: a state question about ONE named device is answered from that device's own record, never from the aggregate of every device
+      if (kind === "state" && e.subject.domain === "devices" && n.named.length === 1 && /\b(?:on|off)\b/i.test(ctx.raw || ctx.asked || "")) {
+        const r = n.named[0], wantOn = /\bon\b/i.test(ctx.raw || ctx.asked || ""), st = String(r.status || "");
+        const stale = Boolean(e.limitations?.some(l => l.kind === "STALE" || l.kind === "UNOBSERVED")) || /stale|expired|unknown|unobserved|offline/i.test(st) || !/\b(?:on|off)\b/i.test(st);
+        if (stale) return done("YES_NO", `I can't tell whether ${r.label} is ${wantOn ? "on" : "off"}: its latest reading is not current, so it shows no confirmed state. Nothing has been sent to it.`, ...support);
+        const isOn = /\bon\b/i.test(st);
+        return done("YES_NO", `${isOn === wantOn ? "Yes" : "No"} — ${r.label} is ${isOn ? "on" : "off"} (${st}).`, ...support);
+      }
       if (n.named.length === 1 && (t.state_concept === "open" || t.state_concept === "resolved")) {
         const r = n.named[0], closed = r.state === "resolved" || /resolved|closed|completed|done/i.test(r.status || ""), yes = t.state_concept === "resolved" ? closed : !closed;
+        if (/\b(?:open|unresolved|pending|still\s+open)\s+or\s+(?:resolved|closed|done|fixed)\b|\b(?:resolved|closed|done|fixed)\s+or\s+(?:still\s+)?(?:open|unresolved|pending)\b/i.test(ctx.raw || "")) return done("YES_NO", `${cap(r.label)} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
         return done("YES_NO", `${yes ? "Yes" : "No"} — ${r.label} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
       }
       if (kind === "capability") return null;
@@ -221,6 +230,15 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
   if (t.ask_facet === "sufficiency" && modelled) return done("YES_NO", missing.length ? `Not yet — for a first look I would still need: ${joinList(missing.map(nice))}.` : "Yes — that is everything we typically need to take a first look.");
   if (t.fact_keys.length && (t.response_intent === "YES_NO_WITH_REASON" || t.response_intent === "STATUS" || t.response_intent === "DIRECT_ANSWER" || t.response_intent === "LIST" || t.response_intent === "EXPLANATION")) {
     const have = t.fact_keys.filter(k => h.known[k]), lack = t.fact_keys.filter(k => !h.known[k]);
+    // IQ-9A10 R6: an "X or Y?" choice question is answered with the recorded alternative, never a bare Yes
+    const chM = t.compare_terms.length !== 2 ? /\b([a-z]{3,})\s+or\s+(?:an?\s+|the\s+)?([a-z]{3,})\b/i.exec(((ctx as { raw?: string }).raw || ctx.asked) || "") : null;
+    const choice = t.compare_terms.length === 2 ? t.compare_terms : chM && (t.yes_no?.kind === "state" || t.yes_no?.kind === "fact") ? [[chM[1].toLowerCase()], [chM[2].toLowerCase()]] : null;
+    if (choice && (t.response_intent === "YES_NO_WITH_REASON" || t.yes_no?.kind === "fact")) {
+      const sides = choice.map(g => g.join(" ")).filter(Boolean), vals = have.map(k => String(h.known[k]).toLowerCase());
+      const hit = choice.map((g, i) => ({ g, i })).filter(({ g }) => g.some(tok => tok.length > 2 && vals.some(v => v.includes(tok.slice(0, Math.max(3, tok.length - 2))))));
+      if (hit.length === 1) return done("YES_NO", `${cap(sides[hit[0].i])}, as you told me (${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}). You haven't said it is ${sides[1 - hit[0].i]}.`);
+      if (have.length) return done("YES_NO", `You haven't told me it is ${sides[0]} or ${sides[1]}. What I have recorded is ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.`);
+    }
     if (t.response_intent === "YES_NO_WITH_REASON" || t.yes_no?.kind === "fact") return done("YES_NO", have.length ? `Yes — you have told me ${have.map(k => `${nice(k)}: ${h.known[k]}`).join("; ")}.` : t.compare_terms.length === 2 ? `You haven't told me ${joinList(lack.map(nice))} yet, so I can't say which of those you meant.` : `No — you haven't told me ${joinList(lack.map(nice))} yet.`);
     return done("RECALL", have.length ? `${have.map(k => `${cap(nice(k))}: ${h.known[k]}`).join("; ")}.` : `You haven't told me ${joinList(lack.map(nice))} yet.`);
   }

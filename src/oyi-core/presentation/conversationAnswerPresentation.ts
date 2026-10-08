@@ -261,6 +261,18 @@ export function buildDeviceAvailabilityInventoryAnswer(facts: IntelligenceFact[]
       ? "I could not load an authorised device inventory for this room. I did not use an old selected device as a fallback."
       : "I could not load a current authorised device inventory for this home. I did not use an old selected device as a fallback.";
   }
+  // IQ-9A10 R6: "Is the Living Light on?" names ONE device: answered from that device's own availability record, never from the aggregate of every device.
+  // Availability (online/stale/offline) is not power state, so an on/off claim is never made from it.
+  const stateAsk = /^\s*(?:is|are)\s+(?:the\s+|my\s+)?(.+?)\s+(on|off)\s*\??\s*$/i.exec(message);
+  if (stateAsk) {
+    const words = stateAsk[1].toLowerCase().split(/\s+/).filter(w => w.length > 1 && !["the", "my", "our"].includes(w));
+    const named = words.length ? availabilityFacts.filter(fact => words.every(w => String(fact.object?.label || "").toLowerCase().includes(w))) : [];
+    if (named.length === 1) {
+      const f = named[0], av = text(recordOf(f.value).availability) || "unknown";
+      const reading = av === "online" ? "it is reporting online" : ["stale", "expired"].includes(av) ? "its latest reading is not current" : av === "offline" ? "it is recorded as offline" : "its availability is unknown";
+      return `I can't confirm whether ${f.object?.label || "that device"} is ${stateAsk[2].toLowerCase()}: ${reading}, and these readings show availability, not whether it is switched on or off. Nothing has been sent to it.`;
+    }
+  }
   const asksForInventory = contract?.scope_mode === "room_scope" && /\b(show|list|view)\b[\s\S]{0,24}\b(devices?|hardware|lights?|switches?|sockets?)\b/i.test(text(message));
   if (/\bonline\b/i.test(message) && !/\boffline\b/i.test(message)) {
     const online = availabilityFacts.filter(fact => recordOf(fact.value).availability === "online");

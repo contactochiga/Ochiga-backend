@@ -1,0 +1,1080 @@
+{
+ "generated_at": "2026-10-08T10:24:17.623Z",
+ "corpus": "artifacts/intelligence-quality-v1-iq9a10-r6-corpus.json",
+ "duration_ms": 4772,
+ "executed_device_commands": 0,
+ "records": [
+  {
+   "id": "R6-A01",
+   "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "afbd3e55-4e40-45ab-9463-176aba7d5e80",
+   "action_id": "b48740ff-5a84-4b93-a9d6-6043f15bd1e5",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0,
+   "debug_keys": {
+    "r": [
+     "id",
+     "thread_id",
+     "intent",
+     "understood",
+     "summary",
+     "answer",
+     "reply",
+     "message",
+     "display_mode",
+     "truth",
+     "operational_object",
+     "context",
+     "execution",
+     "cards",
+     "sources",
+     "suggested_actions",
+     "presentation_policy",
+     "confirmations",
+     "warnings",
+     "persistence_saved",
+     "source",
+     "safe_mode",
+     "approvalRequired",
+     "requiresConfirmation",
+     "facts",
+     "capability_key",
+     "result_set"
+    ],
+    "ex": [
+     "status",
+     "current_turn_execution",
+     "capability_key",
+     "capability_result",
+     "workflow_id",
+     "action_id",
+     "workflow",
+     "failure_stage",
+     "safe_error_code",
+     "orchestrator_v2"
+    ],
+    "md": []
+   }
+  },
+  {
+   "id": "R6-A02",
+   "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "8077d443-2f20-4299-bcdf-37b341974328",
+   "action_id": "9023542a-62b5-4f86-89e2-09a6e538f3ca",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Can you switch off the Living Light?",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A03",
+   "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "97ab4346-3f82-4857-ae8c-e2f6e795d113",
+   "action_id": "7f56f018-9aa2-4464-9c34-af5bbb64acbc",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Would you mind turning the Bedroom Light off?",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A04",
+   "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "e3ac29c8-bd71-43ba-a586-b7b29b1439f7",
+   "action_id": "568089a1-bce4-4f30-a07e-0f5a083826c4",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "I'd like the Kitchen Light off",
+     "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A05",
+   "answer": "I can't confirm whether Wave11 Living Light is on: its latest reading is not current, and these readings show availability, not whether it is switched on or off. Nothing has been sent to it.",
+   "capability": "devices.status.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is the Living Light on?",
+     "answer": "I can't confirm whether Wave11 Living Light is on: its latest reading is not current, and these readings show availability, not whether it is switched on or off. Nothing has been sent to it.",
+     "capability": "devices.status.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A06",
+   "answer": "No — nothing was changed in this conversation. I have not executed, sent or altered anything; I have only discussed it.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Which light did you turn off?",
+     "answer": "No — nothing was changed in this conversation. I have not executed, sent or altered anything; I have only discussed it.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A07",
+   "answer": "No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.",
+   "capability": "answer_target.pending_action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Did you turn it off?",
+     "answer": "No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.",
+     "capability": "answer_target.pending_action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A08",
+   "answer": "No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.",
+   "capability": "answer_target.pending_action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "is it off now?",
+     "answer": "No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.",
+     "capability": "answer_target.pending_action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-A09",
+   "answer": "No — nothing was changed in this conversation. I have not executed, sent or altered anything; I have only discussed it. I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Did the bedroom light get turned off earlier? I think somebody did it.",
+     "answer": "No — nothing was changed in this conversation. I have not executed, sent or altered anything; I have only discussed it. I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-C01",
+   "answer": "There's nothing pending to confirm or cancel.",
+   "capability": "consumer.nothing_pending",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "yes",
+     "answer": "There's nothing pending to confirm or cancel.",
+     "capability": "consumer.nothing_pending"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-C02",
+   "answer": "Nothing is waiting for your confirmation, so nothing was done. A cancelled or finished request can't be revived by a later “yes” — tell me what you'd like and, if it is something I can propose, I'll prepare it for your approval.",
+   "capability": "answer_target.confirmation_guidance",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "ok do it",
+     "answer": "Nothing is waiting for your confirmation, so nothing was done. A cancelled or finished request can't be revived by a later “yes” — tell me what you'd like and, if it is something I can propose, I'll prepare it for your approval.",
+     "capability": "answer_target.confirmation_guidance"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-C03",
+   "answer": "Cancelled. I did not send that device command.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "cab5a742-7e23-4d07-833f-241ed1f69a7d",
+   "action_id": "a35042df-1a53-4255-9931-e689cc1d60ed",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "cancel",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Switch off the Bedroom Light",
+     "answer": "Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Cancel that",
+     "answer": "Cancelled. I did not send that device command.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-C04",
+   "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "6cfefc65-1403-4db6-9725-481e4cb635c4",
+   "action_id": "3d008157-836b-427f-8397-4452b7da28a8",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "Scrap that, but switch off the Bedroom Light",
+     "answer": "Cancelled. I did not send that device command.\n\nSeparately — Please confirm: turn off on Wave11 Bedroom Light. No command was sent yet. This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-C05",
+   "answer": "Cancelled. I did not send that device command. Nothing else has been started from the rest of your message; tell me when you want it handled.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "dc135454-3280-42e0-9672-fe0e05988c5f",
+   "action_id": "98f8c1d5-6535-43ed-8b36-62c0772f4d45",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "cancel",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Switch off the Living Light",
+     "answer": "Please confirm: turn off on Wave11 Living Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    },
+    {
+     "prompt": "never mind, I'll do it myself",
+     "answer": "Cancelled. I did not send that device command. Nothing else has been started from the rest of your message; tell me when you want it handled.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-H01",
+   "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nPlease confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "5937d981-2b70-4aa0-8513-c06007107307",
+   "action_id": "e5c5dcdc-5760-4c2c-8a98-6f42d3cf27af",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "SAFETY_RISK",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "The Kitchen Light is sparking, switch it off now",
+     "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nPlease confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-H02",
+   "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nPlease confirm: turn off on Wave11 AC. No command was sent yet.",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "pending_confirmation",
+   "capability_result_status": null,
+   "requires_confirmation": true,
+   "workflow_id": "2c193b8a-f971-4dce-bafc-def1321943c1",
+   "action_id": "299abb3a-61ec-4dd1-9301-a2ddb5e21026",
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "SAFETY_RISK",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "The AC smells of burning, turn it off",
+     "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nPlease confirm: turn off on Wave11 AC. No command was sent yet.",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-H03",
+   "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nI can prepare that device command, but I need the exact device first. Which device should I use?",
+   "capability": "devices.power.control",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": "16831bcf-3aa1-4d53-86ec-ecd271195d03",
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "SAFETY_RISK",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Something is sparking, turn it off",
+     "answer": "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.\n\nI can prepare that device command, but I need the exact device first. Which device should I use?",
+     "capability": "devices.power.control"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O01",
+   "answer": "I haven't done that: “Can you mark Lead Alpha as contacted?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+   "capability": "answer_target.action_not_executed",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Can you mark Lead Alpha as contacted?",
+     "answer": "I haven't done that: “Can you mark Lead Alpha as contacted?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+     "capability": "answer_target.action_not_executed"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O02",
+   "answer": "I haven't done that: “Could you update the status of Lead Beta to qualified?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+   "capability": "answer_target.action_not_executed",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Could you update the status of Lead Beta to qualified?",
+     "answer": "I haven't done that: “Could you update the status of Lead Beta to qualified?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+     "capability": "answer_target.action_not_executed"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O03",
+   "answer": "Wave11 Lead Alpha: new; Next action overdue.\n\nSupporting detail: 2 leads. 1 has an overdue follow-up and 1 has had no recent communication.",
+   "capability": "crm.leads.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "STATUS",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "What is the status of Lead Alpha?",
+     "answer": "Wave11 Lead Alpha: new; Next action overdue.\n\nSupporting detail: 2 leads. 1 has an overdue follow-up and 1 has had no recent communication.",
+     "capability": "crm.leads.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O04",
+   "answer": "I haven't done that: “Can you notify my expected visitor that the gate code changed?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+   "capability": "answer_target.action_not_executed",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Can you notify my expected visitor that the gate code changed?",
+     "answer": "I haven't done that: “Can you notify my expected visitor that the gate code changed?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+     "capability": "answer_target.action_not_executed"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O05",
+   "answer": "I haven't done that: “Could you tell my expected visitor I will be late?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+   "capability": "answer_target.action_not_executed",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Could you tell my expected visitor I will be late?",
+     "answer": "I haven't done that: “Could you tell my expected visitor I will be late?” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+     "capability": "answer_target.action_not_executed"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-O06",
+   "answer": "Wave11 Expected Visitor: active, past its recorded expiry; fixture meeting.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+   "capability": "visitors.pending.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "LIST",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Who are my expected visitors?",
+     "answer": "Wave11 Expected Visitor: active, past its recorded expiry; fixture meeting.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+     "capability": "visitors.pending.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-M01",
+   "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Please ask management to call me about the water leak.",
+     "answer": "I haven't done that: “Please ask management to call me about the water leak.” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.",
+     "capability": "answer_target.action_not_executed"
+    },
+    {
+     "prompt": "So have they been told?",
+     "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-M02",
+   "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "unavailable",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "callback",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-M03",
+   "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+   "capability": "answer_target.action_result",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": null,
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": null,
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please call me back.",
+     "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Has someone called me?",
+     "answer": "I can't confirm that anything was sent, emailed or passed on from here: I have no record of it (and no delivery or acknowledgement receipt). Nothing is sent from this chat unless you ask and confirm a specific action.",
+     "capability": "answer_target.action_result"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-M04",
+   "answer": "You told me not to contact you by phone, so I haven't passed a callback request to the team. Tell me how you'd like to be reached instead (email or WhatsApp), or say you do want a phone call after all. That preference is a note for this conversation only; I haven't stored it as a standing rule.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "CONFIRMATION_STATE",
+   "target_confirmation": "callback",
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Abuja, lease.",
+     "answer": "Thanks for sharing that in Abuja. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Please never contact me by phone.",
+     "answer": "Understood — I won't ask the team to contact you, and nothing has been submitted from this conversation as far as my records show. What you've told me so far, held in this conversation only: location: Abuja; opportunity type: land; structure offered: lease.",
+     "capability": "answer_target.fallback_public_callback_withdrawn"
+    },
+    {
+     "prompt": "Please call me back.",
+     "answer": "You told me not to contact you by phone, so I haven't passed a callback request to the team. Tell me how you'd like to be reached instead (email or WhatsApp), or say you do want a phone call after all. That preference is a note for this conversation only; I haven't stored it as a standing rule.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-Q01",
+   "answer": "Sale, as you told me (structure offered: sale). You haven't said it is lease.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale.",
+     "answer": "Thanks for sharing that in Kano, 5 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Is it for sale or lease?",
+     "answer": "Sale, as you told me (structure offered: sale). You haven't said it is lease.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Kano; land size: 5 acres; structure offered: sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-Q02",
+   "answer": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Land in Kano, 5 acres, sale.",
+     "answer": "Thanks for sharing that in Kano, 5 acres. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Is it in Kano?",
+     "answer": "Understood. Is there anything else about it you'd like to add, or would you like to know what we'd need from you?",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-Q03",
+   "answer": "Wave11 unresolved water issue is still open (high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is my water issue open or resolved?",
+     "answer": "Wave11 unresolved water issue is still open (high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-Q04",
+   "answer": "Yes — Wave11 unresolved water issue is still open (high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+   "capability": "maintenance.requests.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "Is my water issue still open?",
+     "answer": "Yes — Wave11 unresolved water issue is still open (high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+     "capability": "maintenance.requests.read"
+    }
+   ],
+   "executed_so_far": 0
+  },
+  {
+   "id": "R6-Q05",
+   "answer": "You haven't told me it is sale or lease. What I have recorded is structure offered: JV.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+   "capability": "corporate.opportunity.read",
+   "assessment_status": null,
+   "response_status": "read_only",
+   "capability_result_status": null,
+   "requires_confirmation": false,
+   "workflow_id": null,
+   "action_id": null,
+   "current_turn_execution": false,
+   "truth_state": "observed",
+   "target_intent": "YES_NO_WITH_REASON",
+   "target_confirmation": null,
+   "target_refusal": null,
+   "projection_shape": null,
+   "response_contract": null,
+   "projection_contract_violation": null,
+   "authority": null,
+   "resolution_outcome": "matched",
+   "turns": [
+    {
+     "prompt": "I have a plot in Lekki for a joint venture.",
+     "answer": "Thanks for sharing that in Lekki. I can help start a conversation about this -- feel free to tell me more, or ask what we'd need from you.",
+     "capability": "corporate.opportunity.read"
+    },
+    {
+     "prompt": "Is it a sale or a lease?",
+     "answer": "You haven't told me it is sale or lease. What I have recorded is structure offered: JV.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Lekki; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+     "capability": "corporate.opportunity.read"
+    }
+   ],
+   "executed_so_far": 0
+  }
+ ]
+}

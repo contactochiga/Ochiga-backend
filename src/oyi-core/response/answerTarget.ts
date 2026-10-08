@@ -163,6 +163,18 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
   const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet: submitAsk ? "submission" : ask_facet, flow, subject_scope, existential: existentialAsk, fact_keys, past_reference, top_n: null, quantity: cpt.facet === "balance" ? "value" : null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
 
+  // IQ-9A10 R6: a polite or indirect request ("Can you mark Lead Alpha as contacted?", "Could you tell my visitor I'll be late?", "I'd like you to ...") is an
+  // ACTION REQUEST, not a read. Same contract as the imperative form: nothing is done unless a governed capability claims it and the user confirms.
+  const politeM = /^\s*(?:hey\s+|ok(?:ay)?\s+)?(?:(?:would|do) you mind|(?:can|could|would|will) you|i(?:'|’)?d (?:like|appreciate) you to|i would like you to|i want you to)\s+(?:(?:please|kindly|just)\s+)*(?:to\s+)?([a-z]+)\s+(\S+)/i.exec(text);
+  if (politeM && opts.surface !== "public_corporate") {
+    const ACTION_REQUEST = ["email", "send", "forward", "close", "fund", "pay", "buy", "approve", "reject", "assign", "schedule", "book", "delete", "submit", "transfer", "withdraw", "notify", "reopen", "mark", "update", "edit", "mail", "dispatch", "inform", "alert", "remind", "message", "text", "ring", "contact", "phone", "call", "tell", "cancel", "reassign", "escalate", "resend", "revoke", "extend"];
+    const pvRaw = politeM[1].toLowerCase(), pvStems = pvRaw.endsWith("ing") ? [pvRaw.slice(0, -3), `${pvRaw.slice(0, -3)}e`, pvRaw.length > 6 && pvRaw[pvRaw.length - 4] === pvRaw[pvRaw.length - 5] ? pvRaw.slice(0, -4) : ""] : [pvRaw];
+    if (pvStems.some(v => ACTION_REQUEST.includes(v)) && !["me", "us"].includes(politeM[2].toLowerCase())) return base("CONFIRMATION_STATE", { confirmation_kind: "action", is_question: false, must_answer: "that nothing was done, and what an action needs", must_not_substitute: ["capability_menu", "read_for_action"] });
+  }
+  // "What can you do about getting a note out to X?" asks for the sending to be arranged: an action request, nothing is sent
+  if (opts.surface !== "public_corporate" && /^\s*(?:what|how)\s+(?:can|could)\s+you\s+do\s+(?:about|to)\s+(?:getting|sending|passing|forwarding|putting)\s+(?:a|an|the|my)?\s*(?:note|message|email|text|reminder|update)\b/i.test(text)) return base("CONFIRMATION_STATE", { confirmation_kind: "action", is_question: false, must_answer: "that nothing was done, and what an action needs", must_not_substitute: ["capability_menu", "read_for_action"] });
+  // IQ-9A10 R6: "Which AC did you turn off?" / "What did you send?" asks about a past action: the truth of what was done in this conversation, never a new command
+  if (u.wh && ["did", "have", "has"].includes(T[T.indexOf("you") - 1] ?? "") && T.slice(T.indexOf("you") + 1).some(x => ["turn", "turned", "switch", "switched", "send", "sent", "change", "changed", "close", "closed", "mark", "marked", "update", "updated", "email", "emailed", "call", "called", "notify", "notified", "tell", "told"].includes(x)) && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, action_domain: T.some(x => ["send", "sent", "email", "emailed", "call", "called", "notify", "notified", "tell", "told"].includes(x)) ? "communication" : "change", must_answer: "whether anything was actually changed (nothing is claimed without a record)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (opts.ambiguity?.required) return base("CLARIFICATION", { clarify_reason: "ambiguous_target", must_answer: "ask which one is meant", must_not_substitute: ["capability_menu", "evidence_readiness", "nothing_pending"] });
   if (isCapabilityInquiryText(text)) return base("CAPABILITY_DISCOVERY", { must_answer: "what Oyi can help with", must_not_substitute: [] });
   const standingMarker = T.some(t => ["while", "during", "whenever", "until", "always", "ever", "never", "rest", "session", "anyone", "anybody", "nobody"].includes(t)) || T.slice(0, 3).join(" ") === "from now on";
@@ -362,4 +374,23 @@ export function deriveAnswerTarget(text: string, opts: Parameters<typeof deriveO
     return { text: c, target: i > 0 && !t.object && t.subject_tokens.length === 0 ? { ...t, object: first.object, facet: t.facet ?? first.facet, subject_tokens: first.subject_tokens } : t };
   });
   return { ...target, clauses };
+}
+
+/**
+ * IQ-9A10 R6: indirect device power requests ("Would you mind turning the Bedroom Light off?", "I'd like the Kitchen Light off") state the SAME request as
+ * "Turn the Bedroom Light off". They are put in the imperative form before the one parser runs, so there is no second parser and no new action path:
+ * the result is still a governed proposal that needs confirmation. Anything that is not a clear on/off request for a device-like object is left alone.
+ */
+const DEVICE_NOUN = /\b(?:light|lights|lamp|lamps|bulb|ac|a\/c|air\s*con(?:ditioner|ditioning)?|fan|heater|socket|plug|tv|television|pump|generator|gen|inverter|gate|camera|sprinkler|boiler|device|switch|breaker|geyser|water\s+heater)\b/i;
+export function normalizeIndirectCommand(message: string): string {
+  const raw = (message || "").trim();
+  if (!raw || raw.length > 160) return message;
+  const t = raw.replace(/[?.!]+$/g, "").replace(/[,\s]+please$/i, "").trim();
+  let m = t.match(/^(?:would you mind|do you mind|could you please|could you kindly|would you please|will you please|could you|would you|will you|i(?:'|’)?d (?:like|appreciate) (?:you to )?|i would like (?:you to )?|i want (?:you to )?|i need (?:you to )?)\s*(?:to\s+)?(turn(?:ing)?|switch(?:ing)?)\s+(.+?)\s+(on|off)$/i);
+  if (m && DEVICE_NOUN.test(m[2])) return `Turn ${m[2]} ${m[3].toLowerCase()}`;
+  m = t.match(/^(?:would you mind|do you mind|could you|would you|will you)\s+(?:please\s+)?(turn(?:ing)?|switch(?:ing)?)\s+(on|off)\s+(.+)$/i);
+  if (m && DEVICE_NOUN.test(m[3])) return `Turn ${m[2].toLowerCase()} ${m[3]}`;
+  m = t.match(/^(?:i(?:'|’)?d like|i would like|i want|i need|i(?:'|’)?d appreciate)\s+(?:the\s+|my\s+)(.+?)\s+(on|off)$/i);
+  if (m && DEVICE_NOUN.test(m[1])) return `Turn the ${m[1]} ${m[2].toLowerCase()}`;
+  return message;
 }

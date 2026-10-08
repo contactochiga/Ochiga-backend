@@ -15,6 +15,8 @@ function shapeReadAnswer(result: DomainResult, context: CapabilityContext, capab
     const frame = context.resolvedTurn?.semantic_frame;
     const t = frame?.answerTarget;
     if (!frame || !frame.rawText || !t) return result;
+    // IQ-9A10 R6: a canonical confirmation-guidance answer is already the targeted answer; the target of an approval paraphrase must not replace it
+    if ((result.metadata as Record<string, unknown> | undefined)?.confirmation_guidance === true) return result;
     const genericDenied = result.status === "permission_restricted" && /^You are not authorised to use that Oyi capability from this surface or scope\.$/.test(String(result.answer || "").trim());
     const genericLimit = (result.status === "unsupported" || result.status === "unavailable") && isGenericUnsupportedAnswer(String(result.answer || ""));
     if (genericLimit || genericDenied) {
