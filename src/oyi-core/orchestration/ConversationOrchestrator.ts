@@ -12,6 +12,9 @@ import { responseMove } from "../interpretation/semanticObjective";
 import { targetedFallbackAnswer } from "../response/fallbackTarget";
 import { plannerAdmission } from "./plannerAdmission";
 import { suppliesOpportunityFacts, recordContactPreference } from "../capabilities/PublicOpportunityCapabilityModule";
+import { hazardClassIn, hazardPrecaution } from "../response/answerTarget";
+import { activeDisclosureConstraints, deepRedact as deepRedactNames, withheldNote as disclosureNote } from "../response/disclosureConstraint";
+import { authorizeConversationThread } from "../context/conversationOwnership";
 import { hasWithdrawalVerb, hazardReportIn, isHazardText, normalizeIndirectCommand, splitCompoundWithdrawal, splitInformationalClauses } from "../response/answerTarget";
 import { clarificationQuestion, limitationAnswer } from "../response/limitationTarget";
 import { capabilityEnabled } from "../capabilities/CapabilityRollout";
@@ -2997,6 +3000,11 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
   const evidence = fact ? [evidenceFromFollowUpFact(fact)] : [];
+  // IQ-9A14: a follow-up about a visitor record also honours a "don't mention visitor names" instruction
+  if (((context.input as any).context?.disclosure_constraints as string[] | undefined)?.includes("visitor_names") && /visitor|pass|access/i.test(String(ref.object_type))) {
+    const r = deepRedactNames(String(result.answer ?? ""), [String(ref.label), String(ref.label).replace(/^\S+\s+(?=\S+\s+Visitor\b)/i, "")]);
+    if (r.changed) result.answer = `${r.value} ${disclosureNote("visitor_names")}`;
+  }
   let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
   if (fact) {
     response.facts = [fact];
@@ -3014,6 +3022,9 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
       followup: { detected: true, resolver: "canonical", reference_type: intent.type, source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, resolution_status: fact ? "resolved" : "unavailable", resolved_object_ref: ref.canonical_id, resolved_object_type: ref.object_type, hydration_status: hydration.status },
     },
   };
+  if (((context.input as any).context?.disclosure_constraints as string[] | undefined)?.includes("visitor_names") && /visitor|pass|access/i.test(String(ref.object_type))) {
+    response = deepRedactNames(response, [String(ref.label), String((fact?.value as any)?.visitor_name ?? "")]).value;
+  }
   response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capabilityForAdapter);
   tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
   return response;
@@ -3568,6 +3579,20 @@ export class ConversationOrchestrator {
     };
     let response: ConversationRunResult;
     try {
+      context = await authorizeConversationThread(context);
+      // IQ-9A14: disclosure constraints stated earlier in THIS thread (or now) are made available to response projection for the whole turn
+      if (context.input?.message) {
+        try {
+          const tid = context.input.thread_id;
+          const prior = tid ? await supabaseAdmin.from("oyi_conversation_messages").select("content").eq("thread_id", tid).eq("role", "user").order("created_at", { ascending: true }).limit(1000) : null;
+          if (prior?.error || (prior?.data?.length ?? 0) >= 1000) throw new Error("disclosure_history_incomplete");
+          const active = activeDisclosureConstraints([...(((prior?.data as any[]) || []).map(r => String(r.content ?? ""))), String(context.input.message)]);
+          context = { ...context, input: { ...context.input, context: { ...((context.input as any).context || {}), disclosure_constraints: active } } as any };
+        } catch {
+          // Fail closed on names when the conversation's restriction history cannot be established.
+          context = { ...context, input: { ...context.input, context: { ...((context.input as any).context || {}), disclosure_constraints: ["visitor_names"] } } as any };
+        }
+      }
       // IQ-9A10 R6: an indirect device request is the same request as its imperative form; it still goes through target resolution and confirmation.
       if (context.input?.message) { const direct = normalizeIndirectCommand(context.input.message); if (direct !== context.input.message) context = { ...context, input: { ...context.input, message: direct } }; }
       // IQ-9A2: "Scrap the email, I'll phone them myself" / "forget the AC but do the kitchen one" are TWO intents. The withdrawal is
@@ -3666,18 +3691,42 @@ export class ConversationOrchestrator {
       // The companion read is a separate governed turn (its own authority decision); the not-done statement is kept first and is never softened.
       const answerNow = String((response as any)?.answer ?? "");
       const rawMsg = String(context.input?.message ?? "");
-      let companion: { read: string; prefix: string } | null = null;
-      if (context.input.surface === "consumer" && /^I can't confirm that anything was sent/.test(answerNow) && /\b(?:both|all|them|those|these|each)\b/i.test(rawMsg) && context.input.thread_id) companion = { read: "Show my maintenance requests", prefix: "For reference, the requests recorded for your home:" };
-      else if (context.input.surface === "office_internal" && /^I haven't done that:/.test(answerNow)) { const lead = /\b(Lead\s+[A-Z][a-z]+)\b/.exec(rawMsg); if (lead) companion = { read: `Show ${lead[1]}`, prefix: "What is recorded:" }; }
-      if (companion) {
-        traceHolder.tracer = null;
-        const r2 = await this.runTurn({ ...context, input: { ...context.input, message: companion.read, thread_id: (response as any).thread_id || context.input.thread_id } }, traceHolder);
-        const extra = String((r2 as any).answer ?? "").split("\n\nSupporting detail:")[0].trim();
-        if (extra && (r2 as any).persistence_saved !== false && !/not authorised|I can't do that/i.test(extra)) {
-          const combined = `${answerNow}\n\n${companion.prefix} ${extra}`;
-          (r2 as any).answer = (r2 as any).reply = (r2 as any).message = (r2 as any).summary = combined;
-          await collapseMultipartExchange({ threadId: String((r2 as any).thread_id || context.input.thread_id), turns: 2, originalMessage: rawMsg, combinedAnswer: combined, keepLastTurn: false });
-          response = r2;
+      type Plan = { read?: string; prefix?: string; replace?: string; append?: string; rebuild?: (extra: string) => string };
+      let plan: Plan | null = null;
+      const surfaceNow = context.input.surface;
+      const readFor = (cls: ReturnType<typeof hazardClassIn>): string | null => cls === "water" ? (surfaceNow === "consumer" ? "Show my maintenance requests" : surfaceNow === "facility" ? "Show the maintenance requests" : null) : cls === "intrusion" && surfaceNow === "facility" ? "Show security incidents" : null;
+      let priorHazardText: string | null = null;
+      if (context.input.thread_id && /^(?:I can't tell you that: I have no evidence it is true|No — that does not establish it|Based on the evidence available)/.test(answerNow)) {
+        try {
+          const prev = await supabaseAdmin.from("oyi_conversation_messages").select("content").eq("thread_id", context.input.thread_id).eq("role", "user").order("created_at", { ascending: false }).limit(6);
+          priorHazardText = ((prev.data as any[]) || []).map(r => String(r.content ?? "")).find(m => m !== rawMsg && hazardReportIn(m)) ?? null;
+        } catch { priorHazardText = null; }
+      }
+      if (surfaceNow === "consumer" && /^I can't confirm that anything was sent/.test(answerNow) && /\b(?:both|all|them|those|these|each)\b/i.test(rawMsg) && context.input.thread_id) plan = { read: "Show my maintenance requests", prefix: "For reference, the requests recorded for your home:" };
+      else if (surfaceNow === "office_internal" && /^I haven't done that:/.test(answerNow)) { const lead = /\b(Lead\s+[A-Z][a-z]+)\b/.exec(rawMsg); if (lead) plan = { read: `Show ${lead[1]}`, prefix: "What is recorded:" }; }
+      else if (/^This is an unverified report/.test(answerNow) && (response as any).capability_key !== "oyi.assessment.evidence_plan") { const r = readFor(hazardClassIn(rawMsg)); if (r) plan = { read: r, prefix: "What is recorded (this neither confirms nor rules out your report):" }; }
+      else if (surfaceNow === "facility" && /^I can only give the current records/.test(answerNow) && /\bcamera\b/i.test(rawMsg) && /Supporting detail: This is an unverified report/.test(answerNow)) {
+        const hazardPart = answerNow.slice(answerNow.indexOf("Supporting detail: ") + "Supporting detail: ".length);
+        plan = { read: "Show the camera status", prefix: "", rebuild: (extra) => `${extra}\n\n${hazardPart}` };
+      }
+      else if (priorHazardText && /^(?:I can't tell you that: I have no evidence it is true|No — that does not establish it)/.test(answerNow)) { const cls = hazardClassIn(priorHazardText); const r = readFor(cls); plan = { read: r ?? undefined, prefix: "What is recorded (this neither confirms nor rules out the reports):", append: `Because of the report earlier in this conversation: ${hazardPrecaution(cls)}` }; }
+      else if (priorHazardText && surfaceNow === "consumer" && /\b(?:camera|footage|cctv)\b/i.test(rawMsg) && /^Based on the evidence available/.test(answerNow)) plan = { replace: `I can't check camera footage from here: camera access isn't available to residents in this chat, so I can't tell whether anyone was caught on camera or is still there. Nothing has been verified or alerted from this conversation. ${hazardPrecaution(hazardClassIn(priorHazardText))}` };
+      if (plan) {
+        let combined: string | null = null, base: any = response;
+        if (plan.read) {
+          traceHolder.tracer = null;
+          const r2 = await this.runTurn({ ...context, input: { ...context.input, message: plan.read, thread_id: (response as any).thread_id || context.input.thread_id } }, traceHolder);
+          const extra = String((r2 as any).answer ?? "").split("\n\nSupporting detail:")[0].trim();
+          if (extra && (r2 as any).persistence_saved !== false && !/not authorised|I can't do that/i.test(extra)) {
+            combined = plan.rebuild ? plan.rebuild(extra) : `${answerNow}\n\n${plan.prefix} ${extra}${plan.append ? `\n\n${plan.append}` : ""}`;
+            base = r2;
+          }
+        } else if (plan.replace) combined = plan.replace;
+        else if (plan.append) combined = `${answerNow}\n\n${plan.append}`;
+        if (combined) {
+          base.answer = base.reply = base.message = base.summary = combined;
+          if (base.persistence_saved !== false) await collapseMultipartExchange({ threadId: String(base.thread_id || context.input.thread_id), turns: plan.read ? 2 : 1, originalMessage: rawMsg, combinedAnswer: combined, keepLastTurn: false });
+          response = base;
         }
       }
     } catch (error) {
@@ -3900,13 +3949,13 @@ export class ConversationOrchestrator {
     // pending state; it neither consumes the pending workflow as clarification input nor starts a command.
     // a state question about the very device a pending proposal targets ("so the AC is definitely off, yeah?") is the same question: nothing has changed yet
     const pendingDeviceStateAsk = Boolean(activeWorkflow && activeWorkflow.capability_key === "devices.power.control" && ["awaiting_approval", "ready_for_review"].includes(String(activeWorkflow.status))
-      && resolvedTurn.semantic_frame.domain === "devices" && !resolvedTurn.semantic_frame.mutationIntent && resolvedTurn.semantic_frame.answerTarget?.is_question
+      && !resolvedTurn.semantic_frame.mutationIntent && resolvedTurn.semantic_frame.answerTarget?.is_question
       && /\b(?:off|on)\b/i.test(resolvedTurn.semantic_frame.rawText) && /\b(?:is|are|was|were|definitely|already|now)\b/i.test(resolvedTurn.semantic_frame.rawText));
     if (activeWorkflow && (resolvedTurn.semantic_frame.answerTarget?.response_intent === "ACTION_RESULT" || pendingDeviceStateAsk) && !resolvedTurn.semantic_frame.mutationIntent) {
       const waiting = ["awaiting_approval", "ready_for_review"].includes(String(activeWorkflow.status));
       const truth = await threadActionTruth(context.input.thread_id);
       const text = waiting
-        ? `No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.${pendingDeviceStateAsk ? " I can't tell you the device is off: its latest reading is not current, and no command has been sent." : ""}`
+        ? `No — nothing has been sent or changed. Your request is waiting for your approval, and it only happens if you approve it; saying cancel drops it.${pendingDeviceStateAsk ? " This proposal is not a current physical reading: I can't confirm the device is on or off from it, and no command has been sent." : ""}`
         : resolvedTurn.semantic_frame.answerTarget?.action_domain === "communication" ? communicationTruthLead(truth, Boolean(resolvedTurn.semantic_frame.answerTarget?.future_event)) : `${actionTruthLead(truth)} Your earlier request is still being prepared and has not been approved.`;
       const pendingCapability = syntheticOfficeActionCapability("answer_target.pending_action_result", "global");
       const pendingResponse = await respondFromOfficeActionResult(context, resolvedTurn, pendingCapability, { status: "answered", answer: text, presentation_policy: resultPresentation("text"), metadata: { answer_target: "ACTION_RESULT" } });
@@ -3923,10 +3972,16 @@ export class ConversationOrchestrator {
         // IQ-9A8: a contact preference stated on Osa is kept (conversation-scoped) in the thread's opportunity objective so a later contact request can respect it
         if (context.input.surface === "public_corporate") { const kept = recordContactPreference(await loadPublicOpportunityObjective(context.input.thread_id).catch(() => null), sf.rawText); if (kept) publicObjectiveToKeep = kept; }
       }
-      else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I cannot confirm it from current evidence, and I have not alerted anyone or taken any action. If anyone may be in danger, contact emergency services or estate security directly now.`; key = "answer_target.safety_report"; }
+      else if (!earlyAssessment && hazardReportIn(sf.rawText)) { direct = `This is an unverified report, and it could be safety-relevant: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 200)}”. I can't confirm or deny the report from current evidence, and I have not alerted anyone or taken any action. ${hazardPrecaution(hazardClassIn(sf.rawText))}${/\b(?:log|record|raise|file|open|register)\b[^.?!]{0,24}\b(?:it|that|this|an?\s+incident)\b/i.test(sf.rawText) ? " I have not logged an incident; logging one would need your explicit confirmation through the governed action." : ""}${/\bconfirm(?:ed)?\b/i.test(sf.rawText) ? " I can't describe it as confirmed." : ""}`; key = "answer_target.safety_report"; }
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? `${communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event))}${/\b(?:rung|rang|phoned|called\s+back|call\s+back|ring\s+back)\b/i.test(sf.rawText) ? " Any callback request here was only ever a proposal awaiting your confirmation; no call has been confirmed." : ""}` : `${actionTruthLead(await threadActionTruth(context.input.thread_id))}${/\b(?:somebody|someone|anybody|anyone|earlier|else|manually)\b/i.test(sf.rawText) ? " I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier." : ""}`; key = "answer_target.action_result"; }
       else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
+        // Public safety questions still need their public evidence/contact boundary.
+        // Preserve that existing answer owner alongside, never instead of, hazard truth.
+        if (key === "answer_target.safety_report" && context.input.surface === "public_corporate" && earlyTarget.response_intent === "SAFETY_RISK") {
+          const publicBoundary = await targetedFallbackFor({ ...context, resolvedTurn });
+          if (publicBoundary) direct = `${publicBoundary.answer}\n\n${direct}`;
+        }
         const capability = syntheticOfficeActionCapability(key, "global");
         const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent, ...(publicObjectiveToKeep ? { public_opportunity_objective: publicObjectiveToKeep } : {}) } });
         tracer.finish({ thread_id: directResponse.thread_id || null, response_state: directResponse.persistence_saved === false ? "unsaved" : "returned" });
@@ -4566,7 +4621,7 @@ export class ConversationOrchestrator {
     // IQ-9A2: a hazard report combined with a device request keeps its safety meaning. The device proposal is still governed (target, authority,
     // confirmation), but it is never presented as having made anything safe, and the report is stated as unverified.
     if (capabilityOwnsResponse && String(capabilityOwnsResponse.key || "").startsWith("devices.") && (hazardReportIn(resolvedTurn.semantic_frame.rawText) || (isHazardText(resolvedTurn.semantic_frame.rawText) && !/\b(?:no|not|without|never|don'?t|do not)\b/i.test(resolvedTurn.semantic_frame.rawText)))) {
-      const precaution = "You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. If anyone could be in danger, keep away from it and contact emergency services or estate security directly. Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.";
+      const precaution = `You've described what sounds like a possible hazard. I can't verify that from here, and nothing I do will make it safe. ${hazardPrecaution(hazardClassIn(resolvedTurn.semantic_frame.rawText))} Switching a device off from here is only a request that needs your confirmation, and it doesn't confirm that the fault is dealt with.`;
       const prefixed = `${precaution}\n\n${response.answer}`;
       response.answer = response.reply = response.message = response.summary = prefixed;
     }

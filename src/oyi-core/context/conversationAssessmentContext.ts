@@ -111,6 +111,9 @@ export function assessmentSubjectDomains(frame: SemanticFrame, surface: string):
   // named and the active subject is inherited. Vocabulary: interpretation/domainVocabulary.ts (domain nouns only).
   const t = frame.rawText.split(/\b(?:i mean|i meant|instead of|rather than)\b/i).slice(-1)[0];
   const tokens = analyse(t).tokens;
+  // Consume the canonical head-subject correction rather than undoing it with another first-keyword scan.
+  if (frame.domain === "wallet" && frame.concepts?.head_domain === "wallet" && frame.concepts.facet === "transactions") return ["wallet"];
+  if (surface === "office_internal" && frame.domain === "office_development" && frame.concepts?.head_domain === "office_development" && frame.concepts.object === "project") return ["office_development"];
   if (tokens.some(x => ["estate", "everything", "overall", "whole", "across", "everywhere"].includes(x)) && tokens.some(x => ["estate", "home", "estatewide", "everything", "everywhere", "across"].includes(x)) && (tokens.includes("across") || tokens.includes("estatewide") || tokens.includes("everything") || tokens.includes("whole"))) return defaultSubject(surface);
   const hits = domainHits(tokens).filter(h => h.domain !== "environment");
   const first = (allowed: string[]) => hits.find(h => allowed.includes(h.domain))?.domain;

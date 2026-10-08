@@ -1,3 +1,4 @@
+import { deepRedact, withheldNote } from "../response/disclosureConstraint";
 import { randomUUID } from "crypto";
 import type { CanonicalConversationResponse, CanonicalTruth, IntelligenceFact } from "../contracts/canonicalConversation";
 import type { CapabilityContext, CapabilityModule } from "../contracts/capability";
@@ -137,6 +138,20 @@ export function capabilityDomainResultToConversationResponse(input: {
   evidence: OyiEvidence[];
 }): CanonicalConversationResponse {
   input = { ...input, result: shapeReadAnswer(input.result, input.context, input.capability.key) };
+  // IQ-9A14: a disclosure constraint stated in this conversation is enforced on the projected answer, its blocks and the facts returned with it
+  const constraints = ((input.context.input as any)?.context?.disclosure_constraints as string[] | undefined) || [];
+  let redactedFacts: IntelligenceFact[] | null = null;
+  let withheldNames: string[] = [];
+  if (constraints.includes("visitor_names")) {
+    const visitorFacts = factsFromEvidencePayload(input.evidence).filter(f => f.fact_type === "visitor_access");
+    const names = visitorFacts.flatMap(f => [text((f.value as any)?.visitor_name), text(f.object?.label), text(f.object?.label).replace(/^\S+\s+(?=\S+\s+Visitor\b)/i, "")]);
+    withheldNames = names.filter(Boolean);
+    if (names.some(Boolean)) {
+      const a = deepRedact({ answer: text(input.result.answer), blocks: input.result.blocks }, names);
+      redactedFacts = deepRedact(factsFromEvidencePayload(input.evidence), names).value;
+      if (a.changed) input = { ...input, result: { ...input.result, answer: `${a.value.answer} ${withheldNote("visitor_names")}`, blocks: a.value.blocks as any } };
+    }
+  }
   const answer = text(input.result.answer) || "Oyi could not produce an answer for this capability.";
   const now = new Date().toISOString();
   const sources = dedupeSources(input.evidence, input.capability);
@@ -163,7 +178,7 @@ export function capabilityDomainResultToConversationResponse(input: {
       desired_state: input.result.metadata.desired_state || null,
     }
     : null;
-  return {
+  const response: CanonicalConversationResponse = {
     id: randomUUID(),
     thread_id: input.context.input.thread_id || null,
     intent: input.context.resolvedTurn.semantic_frame.operation,
@@ -228,7 +243,7 @@ export function capabilityDomainResultToConversationResponse(input: {
     safe_mode: true,
     approvalRequired: confirmationRequired,
     requiresConfirmation: confirmationRequired,
-    facts: factsFromEvidencePayload(input.evidence),
+    facts: redactedFacts ?? factsFromEvidencePayload(input.evidence),
     capability_key: input.capability.key,
     // A capability may pre-compute one or more per-domain result sets
     // itself (e.g. Room/Home Intelligence, which surfaces several domains
@@ -277,4 +292,5 @@ export function capabilityDomainResultToConversationResponse(input: {
       ? { public_opportunity_objective: input.result.metadata!.public_opportunity_objective as Record<string, unknown> | null }
       : {}),
   };
+  return withheldNames.length ? deepRedact(response, withheldNames).value : response;
 }

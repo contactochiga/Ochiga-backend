@@ -8,7 +8,7 @@ import type { OyiDomain } from "../runtime/languageUnderstanding";
 // prompt. It adds no authority: a concept match never selects a capability the surface/actor is not eligible for (CapabilityService still decides).
 
 export type ObjectClass = "lead" | "opportunity" | "report" | "task" | "project" | "document" | "wallet" | "visitor" | "device" | "camera" | "maintenance_request" | "incident" | "utility" | "room";
-export type Facet = "balance" | "transactions" | "spending" | "usage" | "history" | "age" | "status" | null;
+export type Facet = "balance" | "transactions" | "spending" | "usage" | "history" | "age" | "status" | "owner" | null;
 export type SemanticConcepts = {
   domains: Array<{ domain: string; at: number }>;   // governed domain nouns by position (IQ-7 vocabulary)
   head_domain: string | null;                       // the domain of the head noun (a modifier noun does not decide)
@@ -27,8 +27,9 @@ const OBJECT_STEMS: Array<[ObjectClass, string[]]> = [
 ];
 const match = (t: string, s: string) => (s.endsWith("*") ? t.startsWith(s.slice(0, -1)) : t === s);
 const FACET_TOKENS: Record<Exclude<Facet, null>, string[]> = {
+  owner: ["owner", "owners", "owns", "assignee"],
   balance: ["balance", "bal", "left", "remaining", "sitting", "funds", "available", "inside"],
-  transactions: ["transaction", "transactions", "history", "statement", "ledger", "went", "gone", "through", "payments", "purchases", "activity", "topup", "topped", "deposit", "deposited", "funded", "credited"],
+  transactions: ["purchase", "purchases", "funding", "transaction", "transactions", "history", "statement", "ledger", "went", "gone", "through", "payments", "activity", "topup", "topped", "deposit", "deposited", "funded", "credited"],
   spending: ["spent", "spend", "spending", "cost", "costs", "paid", "bill", "bills", "price", "expenses"],
   usage: ["usage", "used", "use", "consumption", "consumed", "kwh", "burn", "burnt", "burned", "burning", "burns", "units"],
   history: ["since", "yesterday", "earlier", "previously", "before", "ago", "changed", "history"],
@@ -42,6 +43,14 @@ export function resolveConcepts(text: string): SemanticConcepts {
   let head = hits[0]?.domain ?? null;
   // in a noun compound the LAST noun is the head ("VI Development opportunity" is an opportunity; "light issue" is an issue)
   for (let i = 0; i + 1 < hits.length; i++) if (hits[i + 1].at === hits[i].at + 1) head = hits[i + 1].domain;
+  // IQ-9A14: head-subject precedence. A generic money word never outranks the record class the question is about (a development project, wallet transactions);
+  // an explicit consumption/billing word keeps utilities.
+  const GENERIC_MONEY = new Set(["money", "cash", "fund", "funds", "capital", "budget", "budgets"]);
+  const financialOnlyGeneric = hits.filter(h => h.domain === "office_financial").every(h => GENERIC_MONEY.has(T[h.at] ?? ""));
+  if (head === "office_financial" && financialOnlyGeneric && hits.some(h => h.domain === "office_development") && T.some(t => ["project", "projects", "development", "developments"].includes(t))) head = "office_development";
+  const TX_NOUNS = ["purchase", "purchases", "funding", "funded", "topup", "deposit", "deposits", "transaction", "transactions", "transfer", "transfers", "payment", "payments"];
+  const CONSUMPTION = ["usage", "used", "consumption", "consumed", "kwh", "units", "meter", "meters", "tariff", "tariffs", "rate", "rates"];
+  if (["utilities", "office_financial"].includes(head ?? "") && hits.some(h => h.domain === "wallet") && T.some(t => TX_NOUNS.includes(t)) && !T.some(t => CONSUMPTION.includes(t))) head = "wallet";
   // "top up" is one money-in word
   const topUp = T.some((t, i) => (t === "top" && T[i + 1] === "up") || t === "topup" || t === "topped");
   if (topUp && !head) head = "wallet";
@@ -55,9 +64,11 @@ export function resolveConcepts(text: string): SemanticConcepts {
   const has = (c: Exclude<Facet, null>) => T.some(t => FACET_TOKENS[c].includes(t)) || (c === "transactions" && topUp);
   // how long since something last happened is an activity-AGE fact, not a history comparison
   const age = T.some(t => ["since", "ago"].includes(t)) && T.some(t => ["days", "weeks", "months", "long", "time"].includes(t));
+  // An owner mentioned as the recipient of a promise/action is not an ownership lookup.
+  const ownerRead = has("owner") && (T.some(t => ["who", "whose"].includes(t)) || (T.some(t => ["show", "list", "identify"].includes(t)) && !T.some(t => ["send", "promise", "fund", "pay", "call", "email"].includes(t))));
   const facet: Facet = object === "wallet" || T.includes("wallet") ? (has("transactions") || (has("spending") && !has("balance")) ? "transactions" : has("balance") || (T.includes("wallet") && T.includes("in") && !has("spending")) ? "balance" : null)
     : object === "utility" || head === "utilities" ? (has("usage") && !has("spending") ? "usage" : has("spending") ? "spending" : null)
-    : age ? "age" : has("history") && T.some(t => ["changed", "since", "yesterday", "earlier", "ago"].includes(t)) ? "history" : has("status") ? "status" : null;
+    : ownerRead ? "owner" : age ? "age" : has("history") && T.some(t => ["changed", "since", "yesterday", "earlier", "ago"].includes(t)) ? "history" : has("status") ? "status" : null;
   const quantity = T[0] === "how" && ["many", "much"].includes(T[1] ?? "") || (T.includes("number") && T.includes("of")) || T.includes("count") ? "count" : null;
   // state concepts in priority order; arrival/departure only count for visitor language ("the deal has gone cold" is not a departure)
   const found = new Set(T.map(conceptOf).filter(Boolean));
@@ -74,6 +85,10 @@ const VOCAB_TO_DOMAIN: Record<string, OyiDomain> = { devices: "devices", visitor
 const OBJECT_DOMAIN: Partial<Record<ObjectClass, OyiDomain>> = { lead: "crm", opportunity: "crm", report: "office_reports", task: "office_tasks", wallet: "wallet", visitor: "visitors", device: "devices", camera: "cameras", maintenance_request: "maintenance", incident: "security" };
 export function reconcileDomain(legacyIn: OyiDomain | null, c: SemanticConcepts, text: string): OyiDomain | null {
   const legacy = (legacyIn as string | null) === "transactions" ? null : legacyIn;
+  // A transactional population is distinct from consumption even when its purchase is electricity.
+  if (c.head_domain === "wallet" && c.facet === "transactions" && ["utilities", "reports"].includes(legacy ?? "") && analyse(text).tokens.some(t => ["purchase", "purchases", "funding", "funded", "topup", "deposit", "transaction", "transactions", "transfer", "transfers", "payment", "payments"].includes(t))) return "wallet";
+  if (c.head_domain === "office_development" && c.object === "project" && legacy === "office_financial") return "office_development";
+  if (c.object === "maintenance_request" && c.facet === "status" && [null, "devices", "utilities", "home"].includes(legacy)) return "maintenance";
   const target = c.head_domain ? VOCAB_TO_DOMAIN[c.head_domain] ?? null : null;
   if (!legacy && !target && c.object && OBJECT_DOMAIN[c.object]) return OBJECT_DOMAIN[c.object]!;
   if (!legacy) return target;

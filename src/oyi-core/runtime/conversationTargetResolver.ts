@@ -140,7 +140,7 @@ export function requestedChannelCode(message: string) {
 // stuck, turn it off"), never to an earlier turn's object; a bare pronoun with no named subject yields no phrase (the workflow / reference rules decide).
 // Short names ("AC") are legitimate; they are matched as whole words against the authorised device registry, never as substrings.
 const PHRASE_FILLER = new Set(["could", "you", "can", "would", "will", "please", "kindly", "hey", "turn", "switch", "power", "set", "shut", "down", "kill", "cut", "on", "off", "up", "to", "the", "my", "a", "an", "for", "me", "now", "again", "back", "right", "then", "and", "also", "just"]);
-const SUBJECT_BEFORE_VERB = /^\s*(?:hey,?\s*)?(?:the|my)\s+([a-z0-9][a-z0-9 ]{0,30}?)\s+(?:is|are|looks?|seems?|keeps?|has|have|was|appears?|isn't|won't|doesn't|makes?|making|smells?|sounds?|feels?)\b/i;
+const SUBJECT_BEFORE_VERB = /^\s*(?:hey,?\s*)?(?:(?:the|my)\s+)?([a-z0-9][a-z0-9 ]{0,30}?)\s+(?:is|are|looks?|seems?|keeps?|has|have|was|appears?|isn't|won't|doesn't|makes?|making|smells?|sounds?|feels?)\b/i;
 export function namedDevicePhraseFromControlMessage(message: string, options: { isControlRequest: (message: string) => boolean }) {
   if (!options.isControlRequest(message)) return null;
   const raw = text(message);

@@ -62,13 +62,14 @@ const ACTION_VERBS = ["switch", "switched", "change", "changed", "alter", "alter
 const HAZARD = ["stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "burst", "fumes", "fume", "gas", "smoke", "fire", "flame", "burning", "electrical", "electric", "wiring", "sparks", "sparking", "sparked", "spark", "overheating", "shock", "flood", "flooding", "collapse", "explosion", "leak", "leaking", "unsafe", "dangerous", "hazard", "hazardous", "injury", "injured", "intruder", "burglar", "alarm", "carbon", "monoxide", "panel", "exposed", "threat", "smell"];
 const RISK_ASK = ["hurt", "safety", "exposed", "dangerous", "unsafe", "hazard", "hazardous", "hazards", "danger", "safe", "secure", "risk", "risks", "risky", "threat", "worried", "worry", "concern", "concerning", "worrying", "harm", "vulnerable"];
 
-const NEGATION = new Set(["no", "not", "never", "nothing", "without", "none", "isn", "aren", "hasn", "haven", "cannot", "neither"]);
+const NEGATION = new Set(["no", "not", "never", "nothing", "nobody", "without", "none", "isn", "aren", "hasn", "haven", "cannot", "neither"]);
 /** A declarative report of a hazard (not a question, a negation or a supposition): safety-relevant, unverified. */
 export function isHazardReport(text: string): boolean {
   const u = analyse(text), T = u.tokens;
-  const intrusion = T.some(t => ["burglary", "burglar", "burglars", "intruder", "intruders", "robbery", "robbed", "trespasser", "trespassers", "breakin"].includes(t)) || T.some((t, i) => (t === "break" || t === "broke" || t === "broken") && T[i + 1] === "in");
+  const intrusion = T.some(t => ["burglary", "burglar", "burglars", "burgled", "burglarised", "burglarized", "ransacked", "intruder", "intruders", "intrusion", "robbery", "robbed", "trespasser", "trespassers", "breakin", "breakins"].includes(t)) || T.some((t, i) => (t === "break" || t === "broke" || t === "broken" || t === "breaking") && ["in", "into"].includes(T[i + 1]));
   const pairedHazard = T.some(t => WET.includes(t)) && T.some(t => ELECTRIC.includes(t));
-  if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard || intrusion) || T.some(t => NEGATION.has(t))) return false;
+  const forcedEntry = T.includes("trying") && T.includes("door") && T.includes("handle");
+  if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard || intrusion || forcedEntry) || T.some(t => NEGATION.has(t))) return false;
   return !["if", "suppose", "imagine", "assume", "what", "when", "hypothetically"].includes(T[0]);
 }
 const WET = ["water", "wet", "flooding", "flooded", "leaking", "liquid", "dripping", "damp"], ELECTRIC = ["socket", "sockets", "outlet", "outlets", "panel", "wiring", "wire", "wires", "cable", "cables", "plug", "fuse", "breaker", "electrical", "electric"];
@@ -220,8 +221,8 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
 
   // did/have you <done something>? -> truth about actions taken in this conversation
   // IQ-9A: a past-tense question about an action or a communication, whoever the agent is (you / anybody / someone / the team), asks for the TRUTH of what was done
-  const AGENT = ["you", "u", "anybody", "anyone", "someone", "somebody", "oyi", "they", "we", "team", "staff", "anything"];
-  const COMM = ["rung", "rang", "phoned", "email", "emailed", "mailed", "called", "told", "informed", "notified", "alerted", "contacted", "forwarded", "submitted", "escalated", "dispatched", "passed", "messaged", "texted", "reported", "sent", "reached", "arranged", "acknowledged"];
+  const AGENT = ["you", "u", "anybody", "anyone", "someone", "somebody", "oyi", "they", "we", "team", "staff", "anything", "system", "alarm"];
+  const COMM = ["alert", "acknowledge", "rung", "rang", "phoned", "email", "emailed", "mailed", "called", "told", "informed", "notified", "alerted", "contacted", "forwarded", "submitted", "escalated", "dispatched", "passed", "messaged", "texted", "reported", "sent", "reached", "arranged", "acknowledged"];
   const SEND = ["sent", "emailed", "mailed", "notified", "alerted", "informed", "told", "forwarded", "dispatched", "texted", "messaged", "delivered", "called", "contacted", "received"];
   const PART = ["turned", "switched", "sent", "told", "informed", "notified", "emailed", "delivered", "done", "called", "closed", "marked", "updated", "changed", "received", "acknowledged", "processed", "executed", "completed"];
   const passiveOutcome = (u.q || u.auxLead || /\?\s*$/.test(text)) && T.some((t, i) => (["been", "get", "got"].includes(t) && PART.includes(T[i + 1] ?? "")) || (t === "through" && ["gone", "went", "go", "goes"].includes(T[i - 1] ?? "")) || ["acknowledged", "received", "delivered"].includes(t));
@@ -236,6 +237,7 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
   if (outcomePronounQ && !recordStatusAsk) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, action_domain: T.some(t => ["sent", "told", "informed", "received", "acknowledged", "delivered", "team", "management", "office"].includes(t)) ? "communication" : "change", must_answer: "whether it actually happened (never yes without a record)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   // IQ-9A6: "did <anyone's> owner get my message?" asks whether a communication arrived: a communication-result question like any other agent
   const gotComm = ["did", "has", "have", "had"].includes(T[0]) && T.slice(1).some(x => ["get", "got", "receive", "received", "see", "seen", "read"].includes(x)) && T.slice(1).some(x => ["message", "messages", "note", "email", "reminder", "alert", "text", "request"].includes(x)) && T.some(x => ["my", "our", "the"].includes(x));
+  if (["did", "has", "have", "had"].includes(T[0]) && T[1] === "the" && AGENT.includes(T[2]) && T.slice(3).some(x => COMM.includes(x))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, action_domain: "communication", must_answer: "whether a receipt proves that communication occurred", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   const youDid = gotComm || ["did", "have", "has", "was", "were", "had", "is", "are"].includes(T[0]) && (AGENT.includes(T[1] ?? "") && T.slice(2).some(x => (ACTION_VERBS.includes(x) && !["do", "did"].includes(x)) || COMM.includes(x) || (T[0] === "did" && ["email", "mail", "call", "tell", "inform", "notify", "alert", "contact", "forward", "send", "text", "message", "switch", "turn", "close", "mark", "update", "change", "ring", "reply", "respond"].includes(x))) || (T.slice(1, 4).some(x => ["any", "some", "anyone", "anybody", "someone", "somebody"].includes(x)) && T.slice(2).some(x => SEND.includes(x))));
   if (youDid && !/\b(?:prove|mean)\b/.test(T.join(" "))) return base("ACTION_RESULT", { yes_no: { kind: "action_result" }, action_domain: gotComm || T.some(x => COMM.includes(x)) ? "communication" : "change", must_answer: "whether anything was actually changed (yes/no first)", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
 
@@ -393,4 +395,27 @@ export function normalizeIndirectCommand(message: string): string {
   m = t.match(/^(?:i(?:'|’)?d like|i would like|i want|i need|i(?:'|’)?d appreciate)\s+(?:the\s+|my\s+)(.+?)\s+(on|off)$/i);
   if (m && DEVICE_NOUN.test(m[1])) return `Turn the ${m[1]} ${m[2].toLowerCase()}`;
   return message;
+}
+
+
+/** IQ-9A14: the class of a user-reported hazard (general concepts, not sentences) and the precaution that fits it. A precaution is guidance, never proof that anything is safe. */
+export type HazardClass = "intrusion" | "gas" | "fire" | "water" | "electrical" | "other";
+export function hazardClassIn(text: string): HazardClass {
+  const T = analyse(text).tokens, has = (...w: string[]) => T.some(t => w.includes(t));
+  if (has("burglary", "burglar", "burglars", "burgled", "intruder", "intruders", "intrusion", "robbery", "robbed", "stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "breakin", "breakins", "ransacked") || T.some((t, i) => ["break", "broke", "broken", "breaking"].includes(t) && ["in", "into"].includes(T[i + 1] ?? "")) || (has("door") && has("handle") && has("trying"))) return "intrusion";
+  if (has("gas", "fumes", "fume", "carbon", "monoxide")) return "gas";
+  if (has("fire", "smoke", "flame", "burning", "explosion")) return "fire";
+  if (has("flood", "flooding", "flooded", "burst", "leak", "leaking", "pipe", "water", "wet", "dripping")) return "water";
+  if (has("spark", "sparks", "sparking", "sparked", "shock", "wiring", "electrical", "electric", "socket", "overheating", "panel")) return "electrical";
+  return "other";
+}
+export function hazardPrecaution(c: HazardClass): string {
+  switch (c) {
+    case "intrusion": return "Do not confront anyone; stay somewhere safe and contact estate security or the police directly now.";
+    case "gas": return "Leave the area, avoid electrical switches and flames, and contact emergency services from a safe location now.";
+    case "fire": return "Leave the area if you can and contact the fire service or emergency services directly now.";
+    case "water": return "Only if you can do so safely, shut the water off at the mains and keep clear of electrics; contact estate management for an on-site check or emergency help if anyone may be in danger.";
+    case "electrical": return "Keep clear of it and cut power at the breaker only if you can do so safely; contact an electrician or emergency services if anyone may be in danger.";
+    default: return "If anyone may be in danger, contact emergency services or estate security directly now.";
+  }
 }

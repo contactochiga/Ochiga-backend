@@ -32,6 +32,7 @@ const JUDGMENT_OBJECTIVES = new Set(["prioritize", "compare", "advise"]);
 
 export function plannerAdmission(i: PlannerAdmissionInput): PlannerAdmission {
   const shape = i.target?.response_intent ?? null;
+  if (i.target?.facet === "owner" && !i.mutationOrAction && i.specificCapability) return { admit: false, reason: "record_owner_is_retrieval_not_ranking" };
   // a yes/no about what WOULD happen, or what follows from something, is a cognitive question, not a record lookup
   const yesNoKind = i.target?.yes_no?.kind ?? null;
   const retrievalShape = Boolean(shape && RETRIEVAL_SHAPES.has(shape)) && !(shape === "YES_NO_WITH_REASON" && !["state", "fact", "change"].includes(String(yesNoKind)));

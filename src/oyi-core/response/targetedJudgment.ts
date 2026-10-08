@@ -90,6 +90,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     }
     case "YES_NO_WITH_REASON": {
       const kind = target.yes_no?.kind ?? "state";
+      if (noJudgment && (kind === "advice" || T.some(t => ["good", "bad", "invest", "investment", "worth"].includes(t)))) return { lead: sentence(`I can't give a business verdict from these records. What is recorded — ${recordedFacts(named.length ? named : business)}`), support: [] };
       if (T.some(t => ["first", "top", "priority", "ahead"].includes(t)) && T.includes("still") && named.length === 1) {
         if (r.ranking?.length) { const yes = r.ranking[0].cid === named[0].cid; return { lead: sentence(`${yes ? "Yes" : "No"} — ${yes ? `${named[0].ref.label} is first on what is recorded` : `${r.ranking[0].ref.label} comes ahead of ${named[0].ref.label} on what is recorded`}`), support: [] }; }
         const act = typed.filter(c => levelOf(c, "lifecycle") === "active");

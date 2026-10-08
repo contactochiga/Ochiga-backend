@@ -153,7 +153,10 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   const operationFinal0: SemanticOperation = operation.startsWith("utilities.") && concepts.facet === "usage" ? "utilities.usage" : operation;
   // Office: a question about a named development project belongs to the development records when no other domain was named (public conversations keep their own routing)
   // Office: "portfolio financial position / balance / revenue" asks about the financial summary, not the list of portfolio entries
-  const reconciled = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
+  const reconciled0 = reconcileDomain(domainCandidate, concepts, normalized.normalized_text);
+  const reconciled = opts.surface === "office_internal" && concepts.head_domain === "office_development" && concepts.object === "project"
+    && concepts.domains.some(h => h.domain === "office_financial")
+    && [null, "corporate_development", "office_financial"].includes(reconciled0) ? "office_development" as const : reconciled0;
   const domain = (opts.surface === "office_internal" && reconciled === "office_portfolio" && /\b(?:financial|finance|revenue|balance|cash|income|money|funds?)\b/i.test(normalized.normalized_text) ? ("office_financial" as const) : reconciled) ?? (opts.surface === "office_internal" && concepts.head_domain === "office_development" && /\b(?:status|tell me about|how is|how's|update on|progress)\b/i.test(normalized.normalized_text) ? ("office_development" as const) : null);
   const primaryEntity = entityFor(normalized.normalized_text, domain);
   const constraints = constraintsFor(normalized.normalized_text, domain);

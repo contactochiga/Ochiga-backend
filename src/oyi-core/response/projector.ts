@@ -10,7 +10,7 @@ import { acknowledgeConstraint } from "./constraintAck";
 // never re-derives the target: the only text it receives from the user is `asked`, quoted back verbatim in limitation sentences.
 
 export type Projection = { shape: string; primary: string; supporting: string[] };
-const norm = (s: string) => s.toLowerCase();
+const norm = (s: string) => s.toLowerCase().replace(/[’']s\b/g, "");
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const stem = (w: string) => w.replace(/(?:ing|ed|es|s)$/, "");
@@ -42,8 +42,12 @@ const list = (rs: EnvelopeRecord[], max = 8) => rs.slice(0, max).map(label).join
 
 function narrow(t: AnswerTarget, e: ResultEnvelope) {
   const all = e.records || [], scope = scopeTokens(e);
-  const names = new Set(t.subject_tokens.filter(w => !GENERIC.has(w) && !scope.has(w)));
-  const named = all.filter(r => wordsOf(r).some(w => names.has(w) && !GENERIC.has(w)));
+  const names = new Set(t.subject_tokens.map(norm).filter(w => !GENERIC.has(w) && !scope.has(w)));
+  const subjectNamed = all.filter(r => wordsOf(r).some(w => names.has(w) && !GENERIC.has(w)));
+  // A record-name qualifier can identify e.g. Historical Visitor, but must not
+  // widen an explicit water target to a different record named "resolved light".
+  const qualifierNames = new Set(t.qualifier_tokens.map(norm).filter(w => !GENERIC.has(w) && !scope.has(w)));
+  const named = subjectNamed.length ? subjectNamed : all.filter(r => wordsOf(r).some(w => qualifierNames.has(w) && !GENERIC.has(w)));
   let rows = named.length && named.length < all.length ? named : all;
   const q = qualifiers(t, e);
   const applicable = q.all.filter(x => rows.some(r => matches(r, x)) && !q.inPopulation.includes(x));
@@ -85,7 +89,11 @@ function measureText(e: ResultEnvelope, ms: NonNullable<ResultEnvelope["measures
 }
 
 export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; raw?: string }): Projection | null {
-  const p = projectCore(t, e, ctx);
+  let p = projectCore(t, e, ctx);
+  // Every visitor projection retains the population's epistemic limit, including lists and named-record replies.
+  if (p && e.hints?.permission_only && !/permission.*(?:presence|arrival|arrived)/i.test(p.primary)) {
+    p = { ...p, primary: `${p.primary} These are permission records, not proof of arrival, presence or departure.` };
+  }
   // IQ-9A12: a wallet-history answer that was asked together with the balance states the canonical balance beside the rows (separate source, never derived from them),
   // or says that the balance could not be read
   if (p && e.capability_key === "wallet.transactions.read" && /\b(?:history|balance)\b/i.test(ctx.raw || ctx.asked)) {
@@ -108,6 +116,10 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
   if (e.availability === "denied" || e.availability === "unsupported" || e.availability === "unavailable") return done("LIMITATION", limitationText(e, ctx.asked, t));
   // 2. held (public) facts
   if (e.held_facts) return projectHeld(t, e, ctx);
+  if (t.facet === "owner" && e.records?.length) {
+    const rows = narrow(t, e).rows;
+    return done("DETAIL", rows.map(r => `${r.label}: ${r.status ?? "recorded"}${r.age_days != null ? `; ${r.age_days} days since activity` : ""}; owner: ${r.fields?.owner ?? "not recorded"}`).join(". ") + ". This read has not contacted anyone.");
+  }
   // 3. facet the capability cannot provide (consumption from a spending source, an earlier point in time from a current-only source)
   if (t.facet === "usage" && !e.subject.facets.includes("usage")) return done("LIMITATION", `I can't tell you how much you used: I can see what was spent, but consumption (usage) readings are not available yet.`, legacy);
   if (t.past_reference && !e.subject.facets.includes("history") && (intent === "STATUS" || intent === "LIST" || intent === "COUNT" || intent === "DIRECT_ANSWER" || e.value))
