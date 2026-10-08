@@ -1,0 +1,29 @@
+{
+  "scope": "Structural capture diagnostics only; no grades or expectation changes",
+  "scored_cases": 520,
+  "total_turns_including_setup": 1267,
+  "responses_captured": 1267,
+  "persistence_saved": 1266,
+  "durable_trace_correlations": 0,
+  "execution_attempts": 0,
+  "trace_failure": {
+    "observed_error_code": "PGRST204",
+    "first_log_timestamp": "2026-10-08T22:11:30.191Z",
+    "cause": "Read-only schema inspection found local trace table lacks planner_admitted and planner_admission_reason fields emitted by the unchanged candidate projection",
+    "availability": "UNAVAILABLE; do not infer a successful durable trace write from captured responses",
+    "repair_or_replay_performed": false
+  },
+  "unsaved_turn": {
+    "case_id": "IQ9B-Osa-F007",
+    "index": 1,
+    "scored": false,
+    "stage": "thread_upsert",
+    "error": "UND_ERR_SOCKET: other side closed",
+    "response_returned": true,
+    "persistence_saved": false,
+    "repair_or_retry_performed": false
+  },
+  "first_contact_immutable": true,
+  "raw_responses_and_packets_rewritten": false,
+  "production_or_schema_changes": false
+}

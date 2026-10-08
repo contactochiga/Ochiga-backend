@@ -1,0 +1,28 @@
+{
+  "sealed_at": "2026-10-08T22:14:24.317Z",
+  "raw_sha256": "190940636ffbe4f89b6b61679fac4ad0482fc8c8c296ff252a4dcbbed0fa96ad",
+  "journal_sha256": "548027f603e01f00b01ac775895647f3b6697f6a0b8ebaeffd2bb127f95213e1",
+  "start_sha256": "e689e17286597caea28c796f8278277b3893c2286cfff97c4c4248e663d7d881",
+  "grading_inputs": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Oma.json",
+      "sha256": "3f9239b0a4a12537f5cd0193151f7308ddd3e401c4459b54da557348a913d923",
+      "cases": 130
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Osa.json",
+      "sha256": "81f6e99025e0f84d075911dfda096ab03b9a79265b7b6be93aa9377f86dce3f8",
+      "cases": 130
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Facility.json",
+      "sha256": "69c0283bde2f9d4471c1aff2fa5b049b1e7ab3d90fd912618ffc081aac0a2184",
+      "cases": 130
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grading-Consumer.json",
+      "sha256": "f3cc2024cb4b69aa91b934112e86ca157ec2566ae222651b0822e80272820f99",
+      "cases": 130
+    }
+  ]
+}

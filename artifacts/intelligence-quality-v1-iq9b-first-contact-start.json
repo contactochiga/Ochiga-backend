@@ -1,0 +1,193 @@
+{
+  "candidate": "872fb7bf264d30865e1aadb5dfa44ae46a9579d6",
+  "execution_head": "13be1e55f6acb3e736f9b2a64ec9a829fb2225c5",
+  "started_at": "2026-10-08T22:11:29.779Z",
+  "seal_sha256": "db62f81b27807a640a01498e73cd3a98236278b88d1b7a76f5269e86b379eb39",
+  "fixture": "verified loopback 55421",
+  "provider": "absent",
+  "snapshot": {
+    "generated_at": "2026-10-08T22:11:29.765Z",
+    "leads": {
+      "total_open": 2,
+      "needing_attention": [
+        {
+          "id": "wave11-lead-alpha",
+          "name": "Wave11 Lead Alpha",
+          "status": "new",
+          "reason": "Next action overdue",
+          "last_activity_at": "2026-10-08T22:11:29.765Z",
+          "email": "lead-alpha@wave11-fixture.test"
+        },
+        {
+          "id": "wave11-lead-beta",
+          "name": "Wave11 Lead Beta",
+          "status": "qualified",
+          "reason": "No recent communication",
+          "last_activity_at": "2026-10-08T22:11:29.765Z",
+          "email": "lead-beta@wave11-fixture.test"
+        }
+      ]
+    },
+    "opportunities": {
+      "total_open": 2,
+      "stale": [
+        {
+          "id": "wave11-vi-development",
+          "name": "Wave11 VI Development",
+          "stage": "review",
+          "days_since_activity": 21,
+          "owner": "Wave11 Office Admin"
+        },
+        {
+          "id": "wave11-abuja-jv",
+          "name": "Wave11 Abuja JV",
+          "stage": "qualification",
+          "days_since_activity": 8,
+          "owner": "Wave11 Office Admin"
+        }
+      ]
+    },
+    "tasks": {
+      "total_open": 1,
+      "open": [
+        {
+          "id": "wave11-task",
+          "title": "Wave11 overdue follow-up",
+          "status": "open",
+          "priority": "high",
+          "owner": "Wave11 Office Admin",
+          "due_at": "2026-10-08T22:11:29.765Z",
+          "overdue": true
+        }
+      ]
+    },
+    "reports": {
+      "pending_approval": [
+        {
+          "id": "wave11-report",
+          "title": "Wave11 Portfolio Report",
+          "submitted_by": "Wave11 Office Admin",
+          "submitted_at": "2026-10-08T22:11:29.765Z"
+        }
+      ]
+    },
+    "development": {
+      "projects": [
+        {
+          "id": "wave11-development",
+          "name": "Wave11 VI Development",
+          "status": "planning",
+          "percent_complete": 35,
+          "units_sold": 0,
+          "units_total": 40
+        }
+      ]
+    },
+    "financial": {
+      "generated_at": "2026-10-08T22:11:29.765Z",
+      "period_start": "2026-10-08T22:11:29.765Z",
+      "period_end": "2026-10-08T22:11:29.765Z",
+      "portfolio": {
+        "estate_count": 1,
+        "currency": "NGN",
+        "current_balance_total": 12500,
+        "revenue_period_total": 15000,
+        "utility_sales_period_total": 2500,
+        "service_charge_period_total": 0,
+        "transaction_count_total": 2
+      },
+      "estates": []
+    },
+    "automations": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-office-automation",
+          "name": "Wave11 follow-up reminder",
+          "enabled": true,
+          "trigger_summary": "Friday",
+          "last_run_status": null,
+          "last_run_at": null
+        }
+      ]
+    },
+    "meetings": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-meeting",
+          "title": "Wave11 JV review",
+          "status": "scheduled",
+          "scheduled_at": "2026-10-08T22:11:29.765Z",
+          "owner": "Wave11 Office Admin",
+          "participants": [
+            "Wave11 Lead Alpha"
+          ]
+        }
+      ]
+    },
+    "support": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-support",
+          "title": "Wave11 support case",
+          "status": "open",
+          "priority": "high",
+          "severity": "medium",
+          "owner": "Wave11 Office Admin"
+        }
+      ]
+    },
+    "portfolio": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-portfolio",
+          "name": "Wave11 Test Estate",
+          "status": "active",
+          "support_status": "healthy",
+          "health_summary": "Synthetic fixture",
+          "owner": "Wave11 Office Admin"
+        }
+      ]
+    },
+    "partnerships": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-partnership",
+          "name": "Wave11 Abuja JV",
+          "status": "review",
+          "review_status": "pending",
+          "relationship_type": "JV",
+          "owner": "Wave11 Office Admin"
+        }
+      ]
+    },
+    "documents": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-document",
+          "title": "Wave11 JV Brief",
+          "document_type": "brief",
+          "status": "ready",
+          "owner": "Wave11 Office Admin"
+        }
+      ]
+    },
+    "content": {
+      "total": 1,
+      "items": [
+        {
+          "id": "wave11-content",
+          "title": "Wave11 Development Update",
+          "workflow_status": "draft",
+          "category": "development",
+          "author": "Wave11 Office Admin"
+        }
+      ]
+    }
+  }
+}
