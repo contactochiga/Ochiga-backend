@@ -1049,10 +1049,11 @@ function officeTasksQueryReadModule(): CapabilityModule {
             columns: [
               { key: "title", label: "Task" },
               { key: "status", label: "Status" },
+              { key: "priority", label: "Priority" },
               { key: "owner", label: "Owner" },
               { key: "due_at", label: "Due" },
             ],
-            rows: rows.map((task) => ({ id: task.id, title: task.title, status: task.status, owner: task.owner, due_at: task.due_at })),
+            rows: rows.map((task) => ({ id: task.id, title: task.title, status: task.status, priority: (task as unknown as Record<string, unknown>).priority ?? null, owner: task.owner, due_at: task.due_at })),
             total_count: totalOpen,
             truncated: rows.length < totalOpen,
           },

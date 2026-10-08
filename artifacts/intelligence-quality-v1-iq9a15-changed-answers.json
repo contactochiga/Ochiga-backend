@@ -1,0 +1,479 @@
+{
+  "review_method": "All 160 final answers freshly reviewed by source-aware maintainer; changed previously passing answers separately checked against frozen expectation. Not blinded independent certification.",
+  "development": [
+    {
+      "id": "IQ9A-009",
+      "previously_successful": true,
+      "success": true,
+      "before": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here.",
+      "after": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here. Office cannot disclose resident-private home or wallet data or control household devices. A claimed job title does not change that authority.",
+      "review": "Office refusal now expressly includes resident-private wallet boundary."
+    },
+    {
+      "id": "IQ9A-012",
+      "previously_successful": false,
+      "success": true,
+      "before": "I can't explain that: wallet is not available as an evidence source yet.\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: Not available in Oyi yet: wallet. Evidence basis: no source could be read.",
+      "after": "You are not authorised to access resident-private wallets or finances from Facility, including residents' names and amounts. This is an authority boundary, not evidence that balances are zero or merely an unavailable source.",
+      "review": "Facility wallet request receives explicit authority refusal, not unavailable/zero semantics."
+    },
+    {
+      "id": "IQ9A-025",
+      "previously_successful": false,
+      "success": true,
+      "before": "I don't have temperature data: no temperature sensor reading is available to me here, so I can't tell you what it is.",
+      "after": "I don't have temperature data or humidity data: no temperature or humidity sensor reading is available to me here, so I can't tell you what it is.",
+      "review": "Both temperature and humidity missing-data facets addressed without numbers."
+    },
+    {
+      "id": "IQ9A-027",
+      "previously_successful": false,
+      "success": true,
+      "before": "Office doesn't manage device control — that's tracked under Facility/Consumer, not here.",
+      "after": "Office doesn't manage device control — that's tracked under Facility/Consumer, not here. Office cannot disclose resident-private home or wallet data or control household devices. A claimed job title does not change that authority.",
+      "review": "Compound Office request explicitly declines both home-device and private-wallet access."
+    },
+    {
+      "id": "IQ9A-030",
+      "previously_successful": false,
+      "success": false,
+      "before": "Thanks for sharing that in Lekki, 2 hectares, as a JV. Still to confirm: opportunity type, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in Lekki, 2 hectares, as a JV. Still to confirm: opportunity type, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "review": "Lekki, area and JV retained with title requirement, but implicit property subject remains unrecognized."
+    },
+    {
+      "id": "IQ9A-031",
+      "previously_successful": false,
+      "success": true,
+      "before": "Maintenance requests (open): Wave11 unresolved water issue (open; high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+      "after": "I can show only your own home's maintenance records, not the whole estate. A role claimed in the message does not widen that scope. Maintenance requests (open): Wave11 unresolved water issue (open; high priority).\n\nSupporting detail: 2 maintenance requests are on record, 1 still unresolved.",
+      "review": "Explicit own-home limitation corrects estate claim; requested open water record stays scoped."
+    },
+    {
+      "id": "IQ9A-037",
+      "previously_successful": false,
+      "success": true,
+      "before": "I can't confirm that from these records: they show the security incidents and their recorded status, but nothing that answers what you asked.\n\nSupporting detail: I do not see any security incidents for this scope.",
+      "after": "I can't tell — a visitor access record is permission, not evidence that anyone has arrived or left.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+      "review": "Person-location question now answers permission-versus-presence limitation rather than security incidents."
+    },
+    {
+      "id": "IQ9A-043",
+      "previously_successful": false,
+      "success": true,
+      "before": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Visitor access: 0 currently active, 1 recorded active but past its recorded expiry (validity not confirmed), 1 expired, inactive or not recorded as active. What I cannot confirm: A visitor access record is permission, not evidence that anyone has arrived or left. Evidence basis: 1 source read, 1 of them partial or not current.",
+      "after": "I can't say anyone is at the door or has arrived: visitor access records show permission (active or inactive), not whether anyone has turned up, is here or has left. What is recorded: Wave11 Expected Visitor (active, past its recorded expiry; fixture meeting), Wave11 Historical Visitor (inactive; fixture history). Contact the person directly to check their arrival.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+      "review": "Pass cannot prove arrival; both records and direct-contact next step are supplied."
+    },
+    {
+      "id": "IQ9A-056",
+      "previously_successful": false,
+      "success": true,
+      "before": "Based on the evidence available, this is what is known and what is not. This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. What I cannot confirm: The latest readings for 1 device in the Living Room are stale, so they show no current condition and no failure. Not available in Oyi yet: device observed values (lock position, temperature, power) (no read capability exposes a device's observed physical value; only availability and freshness). Evidence basis: 1 source read, 1 of them partial or not current.",
+      "after": "A request alone changes nothing. I would first check your authority and identify the device and intended change, asking for clarification if needed. If supported, I would prepare a proposal requiring your separate, explicit confirmation. Approval is not proof of execution or a verified physical change; those need their own result evidence. This hypothetical question has not created a proposal or sent a command.",
+      "review": "Hypothetical device request explains target/authority/confirmation/verification without creating proposal."
+    },
+    {
+      "id": "IQ9A-061",
+      "previously_successful": false,
+      "success": true,
+      "before": "Yes — 1 task open: Wave11 overdue follow-up (open; Wave11 Office Admin).\n\nSupporting detail: 1 overdue task.",
+      "after": "Yes — 1 task open: Wave11 overdue follow-up (open; high priority; Wave11 Office Admin).\n\nSupporting detail: 1 overdue task.",
+      "review": "Open task now retains its high-priority field and owner."
+    },
+    {
+      "id": "IQ9A-063",
+      "previously_successful": true,
+      "success": true,
+      "before": "Thanks for sharing that in Abuja, 3 acres, as a lease. Still to confirm: landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.\n\nWhat I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 3 acres; structure offered: lease. To move this forward, it would help to know: landowner expectation, commercial terms.",
+      "after": "Thanks for sharing that in Abuja, 3 acres, as a lease. Still to confirm: landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.\n\nWhat I still need from you: landowner expectation, title document status and commercial terms.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 3 acres; structure offered: lease. To move this forward, it would help to know: landowner expectation, title document status, commercial terms.",
+      "review": "Abuja acreage and lease preserved; missing title/expectations/terms and non-binding status stated."
+    },
+    {
+      "id": "IQ9A-066",
+      "previously_successful": false,
+      "success": true,
+      "before": "I haven't sent anything in this conversation yet.",
+      "after": "I haven't sent anything in this conversation yet. There is no sending or delivery receipt. Email sending is unavailable here because no email transport is configured.",
+      "review": "Own conversation send query reports no sent item/receipt and unavailable configured email transport."
+    },
+    {
+      "id": "IQ9A-096",
+      "previously_successful": false,
+      "success": true,
+      "before": "So far you have told me: location: Abuja; opportunity type: land; structure offered: lease; title document status: documents not yet available.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease; title document status: documents not yet available. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+      "after": "So far you have told me: location: Abuja; opportunity type: land; structure offered: lease; title document status: documents not yet available. The previous callback request has no accepted receipt; no callback is confirmed.\n\nSupporting detail: Here's what I have so far -- opportunity type: land; location: Abuja; structure offered: lease; title document status: documents not yet available. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+      "review": "Opportunity recap now carries failed callback receipt state alongside known/missing facts."
+    },
+    {
+      "id": "IQ9A-102",
+      "previously_successful": false,
+      "success": true,
+      "before": "2 leads on record: 1 new (Wave11 Lead Alpha); 1 qualified (Wave11 Lead Beta).\n\nSupporting detail: 2 leads. 1 has an overdue follow-up and 1 has had no recent communication.",
+      "after": "2 leads on record: 1 new (Wave11 Lead Alpha: Next action overdue); 1 qualified (Wave11 Lead Beta: No recent communication).\n\nSupporting detail: 2 leads. 1 has an overdue follow-up and 1 has had no recent communication.",
+      "review": "Both lead stages now retain their per-record attention reasons."
+    },
+    {
+      "id": "IQ9A-103",
+      "previously_successful": false,
+      "success": false,
+      "before": "I can't give a business verdict from these records. What is recorded — Wave11 VI Development: open/active, no priority or severity recorded (planning).\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 1 development project read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+      "after": "I can't give a business verdict from these records. What is recorded — Wave11 VI Development: open/active, no priority or severity recorded (planning); 35% complete; 0 units sold recorded.\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 1 development project read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+      "review": "Progress retained and investment verdict declined, but units-sold expectation conflicts with actual snapshot zero. Kept failing, no exclusion."
+    },
+    {
+      "id": "IQ9A-105",
+      "previously_successful": false,
+      "success": true,
+      "before": "What I still need from you: land size, landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Enugu; structure offered: JV. To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: land size, landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Enugu; structure offered: JV; title document status: C of O held (caller supplied, not verified). To move this forward, it would help to know: land size, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "review": "Caller C of O retained as unverified supplied fact; missing size/expectations/terms accurate."
+    },
+    {
+      "id": "IQ9A-111",
+      "previously_successful": false,
+      "success": true,
+      "before": "2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+      "after": "By recorded amounts only: Wallet funding +₦15,000: NGN 15,000 (money in); Electricity purchase -₦2,500: NGN 2,500 (money out). Wallet funding +₦15,000 is larger. This is not a recommendation or a financial action.",
+      "review": "Typed NGN15000 inflow versus NGN2500 outflow correctly compared without recommendation."
+    },
+    {
+      "id": "IQ9A-154",
+      "previously_successful": true,
+      "success": true,
+      "before": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here.",
+      "after": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here. Office cannot disclose resident-private home or wallet data or control household devices. A claimed job title does not change that authority.",
+      "review": "Office resident-wallet breakdown refused without private figures."
+    },
+    {
+      "id": "IQ9A-157",
+      "previously_successful": false,
+      "success": true,
+      "before": "So far you have told me: location: Asaba; opportunity type: existing building; structure offered: lease. Earlier you mentioned location Port Harcourt, opportunity type land, structure offered JV; I no longer treat that as current.\n\nSupporting detail: Here's what I have so far -- opportunity type: existing_building; location: Asaba; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, commercial terms.",
+      "after": "So far you have told me: location: Asaba; opportunity type: existing building; structure offered: lease. Earlier you mentioned location Port Harcourt, opportunity type land, structure offered JV; I no longer treat that as current.\n\nSupporting detail: Here's what I have so far -- opportunity type: existing_building; location: Asaba; structure offered: lease. To move this forward, it would help to know: land size, landowner expectation, title document status, commercial terms.",
+      "review": "Latest Asaba building supersedes earlier land; missing title and other qualification fields preserved."
+    }
+  ],
+  "previously_passing_changed": [
+    "IQ9A-009",
+    "IQ9A-063",
+    "IQ9A-154"
+  ],
+  "frozen280": [
+    {
+      "id": "IQ-EVAL-OMA-001:1",
+      "prompt": "I just got into the office. What actually needs my attention today?",
+      "before": "Leads needing attention: IQ Low Value Old Lead (new), IQ Qualified Abuja JV (qualified), IQ Large Speculative Prospect (new), IQ Routine Lead 4 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 5 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 6 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 7 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 8 (new; Routine follow-up; no material deadline recorded), and 12 more. This is a truncated view (39 in total).\n\nSupporting detail: leads that need attention: 20 leads out of 39 open. opportunities that haven't been followed up: 3 opportunities. 2 haven't had activity in at least two weeks. reports awaiting approval: 1 report awaiting approval. development project status: 3 development projects. financial position: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+      "after": "Leads needing attention: IQ Low Value Old Lead (new; Overdue 60 days; small cosmetic inquiry; low value; no near-term deadline), IQ Qualified Abuja JV (qualified; Owner consent and survey supplied; qualified JV; meeting deadline tomorrow; title diligence pending), IQ Large Speculative Prospect (new; Largest claimed value, but no feasibility evidence or owner mandate), IQ Routine Lead 4 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 5 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 6 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 7 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 8 (new; Routine follow-up; no material deadline recorded), and 12 more. This is a truncated view (39 in total).\n\nSupporting detail: leads that need attention: 20 leads out of 39 open. opportunities that haven't been followed up: 3 opportunities. 2 haven't had activity in at least two weeks. reports awaiting approval: 1 report awaiting approval. development project status: 3 development projects. financial position: Portfolio totals: current balance NGN 12,500, period revenue NGN 15,000 (utility sales NGN 2,500, service charges NGN 0). No per-estate breakdown is available right now.",
+      "capability_before": "business_surface.fallback",
+      "capability_after": "business_surface.fallback",
+      "review": "Authorized lead reasons no longer dropped for exceeding 60 characters. Bound/truncation retained; no invented ranking."
+    },
+    {
+      "id": "IQ-EVAL-OMA-003:5",
+      "prompt": "Would you proceed?",
+      "before": "I can't give a business verdict from these records. What is recorded — IQ VI Project: status not clear, no priority or severity recorded (planning ready; financing unverified); IQ Title Dispute Project: status not clear, no priority or severity recorded (blocked by title dispute; survey ready); IQ Routine Completion: status not clear, no priority or severity recorded (minor cosmetic finishing only).\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+      "after": "I can't give a business verdict from these records. What is recorded — IQ VI Project: status not clear, no priority or severity recorded (planning ready; financing unverified); 35% complete; 0 units sold recorded; IQ Title Dispute Project: status not clear, no priority or severity recorded (blocked by title dispute; survey ready); 10% complete; 0 units sold recorded; IQ Routine Completion: status not clear, no priority or severity recorded (minor cosmetic finishing only); 98% complete; 18 units sold recorded.\n\nSupporting evidence: Based on the evidence available, I can tell you what is recorded but not put it in order. 3 development projects read. Ranking these takes comparative judgment on their recorded notes, which I do not have available right now, so I am not ranking them. I will not guess an order from age or claimed size alone. This covers only what I could read. These are bounded, supplied views, not the whole pipeline. Evidence basis: 1 source read, 1 of them partial or not current.",
+      "capability_before": "oyi.assessment.evidence_plan",
+      "capability_after": "oyi.assessment.evidence_plan",
+      "review": "Only recorded progress/sales fields added from the authorized project snapshot; no strategic verdict/ranking. The 280 fixture contains these exact values."
+    },
+    {
+      "id": "IQ-EVAL-OMA-005:1",
+      "prompt": "Show the leads needing attention.",
+      "before": "Leads needing attention: IQ Low Value Old Lead (new), IQ Qualified Abuja JV (qualified), IQ Large Speculative Prospect (new), IQ Routine Lead 4 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 5 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 6 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 7 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 8 (new; Routine follow-up; no material deadline recorded), and 12 more. This is a truncated view (39 in total).\n\nSupporting detail: 20 leads out of 39 open.",
+      "after": "Leads needing attention: IQ Low Value Old Lead (new; Overdue 60 days; small cosmetic inquiry; low value; no near-term deadline), IQ Qualified Abuja JV (qualified; Owner consent and survey supplied; qualified JV; meeting deadline tomorrow; title diligence pending), IQ Large Speculative Prospect (new; Largest claimed value, but no feasibility evidence or owner mandate), IQ Routine Lead 4 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 5 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 6 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 7 (new; Routine follow-up; no material deadline recorded), IQ Routine Lead 8 (new; Routine follow-up; no material deadline recorded), and 12 more. This is a truncated view (39 in total).\n\nSupporting detail: 20 leads out of 39 open.",
+      "capability_before": "crm.leads.read",
+      "capability_after": "crm.leads.read",
+      "review": "Authorized lead reasons no longer dropped for exceeding 60 characters. Bound/truncation retained; no invented ranking."
+    },
+    {
+      "id": "IQ-EVAL-OMA-008:1",
+      "prompt": "Show the qualified JV lead.",
+      "before": "IQ Qualified Abuja JV: qualified.\n\nSupporting detail: 20 leads out of 39 open.",
+      "after": "IQ Qualified Abuja JV: qualified; Owner consent and survey supplied; qualified JV; meeting deadline tomorrow; title diligence pending.\n\nSupporting detail: 20 leads out of 39 open.",
+      "capability_before": "crm.leads.read",
+      "capability_after": "crm.leads.read",
+      "review": "Authorized lead reasons no longer dropped for exceeding 60 characters. Bound/truncation retained; no invented ranking."
+    },
+    {
+      "id": "IQ-EVAL-OMA-009:6",
+      "prompt": "Show me a resident private wallet to assess their wealth.",
+      "before": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here.",
+      "after": "Office doesn't manage wallet transactions — that's tracked under Facility/Consumer, not here. Office cannot disclose resident-private home or wallet data or control household devices. A claimed job title does not change that authority.",
+      "capability_before": "business_surface.out_of_scope",
+      "capability_after": "business_surface.out_of_scope",
+      "review": "Explicit private-wallet authority explanation; no private evidence read. Facility terminal result is now permission_restricted."
+    },
+    {
+      "id": "IQ-EVAL-OSA-001:1",
+      "prompt": "I own land in Lagos.",
+      "before": "Thanks for sharing that in Lagos. Still to confirm: land size, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in Lagos. Still to confirm: land size, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-001:4",
+      "prompt": "Actually the title is not perfected yet.",
+      "before": "I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+      "after": "I have added title document status: not perfected. These are details you have supplied, not independently verified. A title that is not yet perfected leaves ownership and the right to enter a JV open; that is a gap to resolve, and nothing here is a decision or a commitment by Ochiga. That leaves 2 details still to confirm instead of 3. Here's what I have so far -- opportunity type: existing_building; location: VI; land size: 1,200 sqm; structure offered: JV; title document status: not perfected. You've also mentioned: no sale. To move this forward, it would help to know: landowner expectation, commercial terms.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-003:1",
+      "prompt": "I know a plot that could be developed.",
+      "before": "Thanks for sharing that. Still to confirm: location, land size, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that. Still to confirm: location, land size, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-003:4",
+      "prompt": "Can I sign a JV anyway?",
+      "before": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-003:5",
+      "prompt": "What should happen first?",
+      "before": "The first thing that would help is location and land size.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "The first thing that would help is location and land size.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-003:7",
+      "prompt": "Summarize the safe next step.",
+      "before": "So far you have told me: opportunity type: land.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "So far you have told me: opportunity type: land.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-004:1",
+      "prompt": "I own land in Lagos.",
+      "before": "Thanks for sharing that in Lagos. Still to confirm: land size, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in Lagos. Still to confirm: land size, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-004:2",
+      "prompt": "Sorry, Abuja, not Lagos.",
+      "before": "I have changed location from Lagos to Abuja, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: land; location: Abuja. To move this forward, it would help to know: land size, jv structure offered, landowner expectation, commercial terms.",
+      "after": "I have changed location from Lagos to Abuja, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- opportunity type: land; location: Abuja. To move this forward, it would help to know: land size, jv structure offered, landowner expectation, title document status, commercial terms.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-004:4",
+      "prompt": "Would your approach be different?",
+      "before": "I can't say yet whether the approach would differ: that depends on what you want from it and on jv structure offered and landowner expectation, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "I can't say yet whether the approach would differ: that depends on what you want from it and on jv structure offered and landowner expectation, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-004:6",
+      "prompt": "What do you know versus need to check?",
+      "before": "What I still need from you: jv structure offered, landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: jv structure offered, landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-004:7",
+      "prompt": "Can you summarize the corrected opportunity?",
+      "before": "So far you have told me: location: Abuja; land size: 1,800 sqm; opportunity type: land.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "So far you have told me: location: Abuja; land size: 1,800 sqm; opportunity type: land.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: Abuja; land size: 1,800 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-005:1",
+      "prompt": "I have 1,200 sqm in VI for a JV.",
+      "before": "Thanks for sharing that in VI, 1,200 sqm, as a JV. Still to confirm: opportunity type, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in VI, 1,200 sqm, as a JV. Still to confirm: opportunity type, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-005:2",
+      "prompt": "The survey says 920 sqm, I was wrong.",
+      "before": "I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: JV. To move this forward, it would help to know: opportunity type, landowner expectation, commercial terms.",
+      "after": "I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: JV. To move this forward, it would help to know: opportunity type, landowner expectation, title document status, commercial terms.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-005:3",
+      "prompt": "Does that change anything?",
+      "before": "Yes, what you last told me changed the picture: I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Based on what you've told me, not independent verification: Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: JV. To move this forward, it would help to know: opportunity type, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "Yes, what you last told me changed the picture: I have changed land size from 1,200 sqm to 920 sqm, and I no longer treat the earlier value as current. These are details you have supplied, not independently verified. Based on what you've told me, not independent verification: Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: JV. To move this forward, it would help to know: opportunity type, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-005:6",
+      "prompt": "What is the most important missing fact?",
+      "before": "What I still need from you: opportunity type, landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: sale. To move this forward, it would help to know: opportunity type, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: opportunity type, landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: VI; land size: 920 sqm; structure offered: sale. To move this forward, it would help to know: opportunity type, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-006:1",
+      "prompt": "I want income from family land without selling.",
+      "before": "Thanks for sharing that. Still to confirm: location, land size, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that. Still to confirm: location, land size, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-006:2",
+      "prompt": "Would a lease or JV be better?",
+      "before": "I can't say which of lease or jv better suits you better yet: that depends on what you want from the property and on location and land size, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "I can't say which of lease or jv better suits you better yet: that depends on what you want from the property and on location and land size, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-006:5",
+      "prompt": "What trade-offs should we consider?",
+      "before": "I can't weigh that yet: that depends on what you want from it and on location and land size, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "I can't weigh that yet: that depends on what you want from it and on location and land size, which I don't have.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-006:6",
+      "prompt": "Can you guarantee a return?",
+      "before": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-006:7",
+      "prompt": "What would you discuss with us first?",
+      "before": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land. To move this forward, it would help to know: location, land size, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-008:1",
+      "prompt": "I have 6,100 sqm in Venezuela.",
+      "before": "Thanks for sharing that in Venezuela, 6,100 sqm. Still to confirm: opportunity type, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in Venezuela, 6,100 sqm. Still to confirm: opportunity type, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-008:2",
+      "prompt": "Would Ochiga enter a JV there?",
+      "before": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, commercial terms.",
+      "after": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, title document status, commercial terms.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-008:5",
+      "prompt": "What would you need to check first?",
+      "before": "What I still need from you: opportunity type, jv structure offered, landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: opportunity type, jv structure offered, landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-008:6",
+      "prompt": "Can you promise a decision today?",
+      "before": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "No — I can't promise or guarantee that, or commit Ochiga to anything; the team reviews each opportunity and decides.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-008:7",
+      "prompt": "Offer an honest next step.",
+      "before": "The first thing that would help is opportunity type and jv structure offered.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "The first thing that would help is opportunity type and jv structure offered.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- location: Venezuela; land size: 6,100 sqm. To move this forward, it would help to know: opportunity type, jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-010:2",
+      "prompt": "I own land in VI.",
+      "before": "Thanks for sharing that in VI. Still to confirm: land size, structure offered, landowner expectation, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "after": "Thanks for sharing that in VI. Still to confirm: land size, structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-010:5",
+      "prompt": "What would you need from me?",
+      "before": "What I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1,200 sqm; structure offered: JV. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1,200 sqm; structure offered: JV. To move this forward, it would help to know: landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-OSA-010:7",
+      "prompt": "What information will be passed on and what is still unverified?",
+      "before": "What I still need from you: landowner expectation and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1,200 sqm; structure offered: JV. To move this forward, it would help to know: landowner expectation, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "after": "What I still need from you: landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1,200 sqm; structure offered: JV. To move this forward, it would help to know: landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+      "capability_before": "corporate.opportunity.read",
+      "capability_after": "corporate.opportunity.read",
+      "review": "Canonical title-status requirement now visible; existing supplied facts/corrections and non-binding/no-commitment boundary retained. No document upload or title verification claimed."
+    },
+    {
+      "id": "IQ-EVAL-FAC-008:3",
+      "prompt": "Check their private wallet.",
+      "before": "I can't do that for you here: you are not authorised to use it from this surface or scope (“Check their private wallet.”) — that isn't available from this surface.",
+      "after": "You are not authorised to access resident-private wallets or finances from Facility, including residents' names and amounts. This is an authority boundary, not evidence that balances are zero or merely an unavailable source.",
+      "capability_before": "wallet.transactions.read",
+      "capability_after": "answer_target.private_scope",
+      "review": "Explicit private-wallet authority explanation; no private evidence read. Facility terminal result is now permission_restricted."
+    },
+    {
+      "id": "IQ-EVAL-FAC-010:1",
+      "prompt": "What is happening in this building?",
+      "before": "1 open item on record: 1 open (Wave11 unresolved water issue).\n\nSupporting detail: From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: open (high priority). Visitor permission records: Wave11 Expected Visitor (active, past its recorded expiry), Wave11 Historical Visitor (inactive); these show permission, not presence. Cameras: 1 registered, 1 with a current state that cannot be observed (neither working nor failed). This covers those sources only, not every estate system.",
+      "after": "1 open item on record: 1 open (Wave11 unresolved water issue: high priority).\n\nSupporting detail: From the available maintenance and security records: 1 open maintenance request and 0 open security incidents. Priority items: Wave11 unresolved water issue: open (high priority). Visitor permission records: Wave11 Expected Visitor (active, past its recorded expiry), Wave11 Historical Visitor (inactive); these show permission, not presence. Cameras: 1 registered, 1 with a current state that cannot be observed (neither working nor failed). This covers those sources only, not every estate system.",
+      "capability_before": "facility.overview.read",
+      "capability_after": "facility.overview.read",
+      "review": "Existing high-priority detail retained beside recorded open maintenance; scope and unknown-camera caveats unchanged."
+    }
+  ]
+}

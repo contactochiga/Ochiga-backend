@@ -57,7 +57,12 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
   const named = namedCandidates(index, T), business = index.candidates.filter(c => c.needs_comparative_judgment), typed = index.candidates.filter(c => !c.needs_comparative_judgment);
   const noJudgment = business.length > 0 && (r.mode === "bounded_no_provider" || r.mode === "fallback_after_rejection");
   const limitNote = "That takes comparative judgment on their recorded notes, which is not available right now.";
-  const recordedFacts = (cs: Candidate[]) => cs.map(c => `${c.ref.label || "item"}: ${describe(c).join(", ")}${c.signals[0] ? ` (${c.signals[0].text})` : ""}`).join("; ");
+  const recordedFacts = (cs: Candidate[]) => cs.map(c => {
+    const fields = c.evidence.map(ref => index.entries.get(ref)).find(e => e?.kind === "item")?.fields;
+    const progress = typeof fields?.percent_complete === "number" ? `; ${fields.percent_complete}% complete` : "";
+    const sales = c.evidence_class === "office_development" ? typeof fields?.units_sold === "number" ? `; ${fields.units_sold} units sold recorded` : "; units sold not recorded" : "";
+    return `${c.ref.label || "item"}: ${describe(c).join(", ")}${c.signals[0] ? ` (${c.signals[0].text})` : ""}${progress}${sales}`;
+  }).join("; ");
   const supportOf = (extra: string[] = []) => [...extra];
   const missing = missingCapability(state);
   const notAvailAll = unc.filter(u => /^Not available in Oyi yet:/.test(u));

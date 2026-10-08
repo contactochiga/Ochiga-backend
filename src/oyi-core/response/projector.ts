@@ -114,6 +114,16 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
   if (intent === "REFUSAL") return done("REFUSAL", limitationAnswer(t, ctx.asked));
   // 1. availability / limitation first: a capability that did not answer is projected as the specific limitation, never as an answer
   if (e.availability === "denied" || e.availability === "unsupported" || e.availability === "unavailable") return done("LIMITATION", limitationText(e, ctx.asked, t));
+  // Like-unit recorded amounts are comparable without strategic judgment.
+  if (intent === "COMPARISON" && e.records?.length && /\b(?:bigger|larger|greater|smaller|less|more|highest|lowest)\b/i.test(ctx.raw || ctx.asked)) {
+    const named = narrow(t,e).named;
+    const ms = named.filter(r => typeof r.fields?.amount === "number" && typeof r.fields.currency === "string").map(r => ({label:r.label,amount:r.fields!.amount as number,currency:r.fields!.currency as string,direction:r.fields!.direction,partial:e.truncated}));
+    if (ms.length >= 2 && new Set(ms.map(m => m.currency)).size === 1 && ms.every(m => Number.isFinite(m.amount))) {
+      const smaller = /\b(?:smaller|less|lowest)\b/i.test(ctx.raw || ctx.asked);
+      const sorted = [...ms].sort((a,b) => smaller ? a.amount-b.amount : b.amount-a.amount);
+      return done("COMPARISON", `By recorded amounts only: ${sorted.map(m => `${m.label}: ${money(m.currency,m.amount)}${m.direction ? ` (money ${m.direction})` : ""}`).join("; ")}. ${sorted[0].amount === sorted[1].amount ? `The ${smaller ? "smallest" : "largest"} recorded amounts are equal.` : `${cap(sorted[0].label)} is ${smaller ? "smaller" : "larger"}.`}${ms.some(m => m.partial) ? " This is a bounded partial view, not a complete-period total." : ""} This is not a recommendation or a financial action.`);
+    }
+  }
   // 2. held (public) facts
   if (e.held_facts) return projectHeld(t, e, ctx);
   if (t.facet === "owner" && e.records?.length) {
@@ -159,7 +169,7 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
   }
   // IQ-9A5: a permission-only record answers permission questions; a presence question about it is answered with that limit, then the records
   if (e.hints?.permission_only && /\b(?:at\s+the\s+(?:door|gate)|outside|inside|arrived|is\s+here|here\s+(?:now|yet)|at\s+(?:my\s+)?(?:place|home|house)|on\s+the\s+estate|by\s+now)\b/i.test(ctx.raw || "") && ["STATUS", "DIRECT_ANSWER", "LIST", "SUMMARY", "ADVICE", "YES_NO_WITH_REASON", "ASSESSMENT"].includes(intent) && e.records?.length) {
-    return done("YES_NO", `I can't say anyone is at the door or has arrived: visitor access records show permission (active or inactive), not whether anyone has turned up, is here or has left. What is recorded: ${list(e.records, 4)}.`, ...support);
+    return done("YES_NO", `I can't say anyone is at the door or has arrived: visitor access records show permission (active or inactive), not whether anyone has turned up, is here or has left. What is recorded: ${list(e.records, 4)}. Contact the person directly to check their arrival.`, ...support);
   }
   // IQ-9A5: a comparison of RECORDED days since activity between named records is a field comparison, not a business judgment
       if ((eff === "COMPARISON" || eff === "LIST") && n.named.length >= 2 && /\b(?:longer|longest|more\s+recent|less\s+recent|older|newer|which)\b/i.test(ctx.raw || "") && n.named.every(r => r.age_days != null) && /\bactivity\b/i.test(ctx.raw || "")) {
@@ -187,7 +197,7 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
       if (!e.records.length) return done("STATUS", `I do not see any ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
       if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
       const by = new Map<string, EnvelopeRecord[]>(); for (const r of rows) by.set(norm(r.status || "recorded"), [...(by.get(norm(r.status || "recorded")) || []), r]);
-      const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => r.label).join(", ")})` : ""}`);
+      const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => `${r.label}${r.detail ? `: ${r.detail}` : ""}`).join(", ")})` : ""}`);
       const fresh = e.limitations?.some(l => l.kind === "STALE") ? " The readings behind this are stale, so they show no current condition." : "";
       return done("STATUS", `${cap(askedN(rows.length))} on record: ${parts.join("; ")}.${fresh}`, ...support);
     }

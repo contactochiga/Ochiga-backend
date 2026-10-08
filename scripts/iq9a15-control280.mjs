@@ -1,0 +1,23 @@
+// Compile the committed recovery control outside the worktree; never checkout/reset it.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {execFileSync,spawnSync} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
+assert.equal(process.env.SUPABASE_URL,'http://127.0.0.1:55421');
+const checkpoint='02ceeeec7bb3e496b2b4ff002ab41ac4180fef58';
+const root=process.cwd(), temporary=fs.mkdtempSync(path.join(os.tmpdir(),'iq9a15-control-'));
+const archive=execFileSync('git',['archive',checkpoint,'src','tsconfig.json','package.json'],{maxBuffer:50000000});
+execFileSync('tar',['-x','-C',temporary],{input:archive});
+fs.symlinkSync(path.join(root,'node_modules'),path.join(temporary,'node_modules'),'dir');
+execFileSync(process.execPath,[path.join(root,'node_modules/typescript/bin/tsc'),'-p',temporary],{stdio:'inherit',timeout:120000});
+let source=fs.readFileSync('scripts/intelligence-quality-v1-run.mjs','utf8');
+const guard="if (execFileSync('git',['diff',startingHead,'--','src','supabase','migrations'],{encoding:'utf8'}).trim()) throw new Error('Baseline refuses modified runtime/schema');";
+assert(source.includes(guard));source=source.replace(guard,'// Committed archived runtime; frozen inputs verified by local launcher.');
+source=source.replace("const output='artifacts/intelligence-quality-v1-baseline.json';",`const output=${JSON.stringify(process.env.WAVE11_HARNESS_OUT+'.json')};`);
+source=source.replace("const root = new URL('../', import.meta.url);",`const root=new URL(${JSON.stringify(pathToFileURL(root+'/').href)});`);
+source=source.replaceAll("'../dist/",`'${pathToFileURL(temporary+'/dist/').href}`);
+source=source.replace("'./intelligence-quality-v1-corpus.mjs'",JSON.stringify(pathToFileURL(root+'/scripts/intelligence-quality-v1-corpus.mjs').href));
+const p=spawnSync(process.execPath,['--input-type=module','-e',source],{env:process.env,stdio:'inherit',timeout:150000});
+console.log(JSON.stringify({checkpoint,temporary,exit:p.status}));process.exitCode=p.status??1;

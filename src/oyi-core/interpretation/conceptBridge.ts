@@ -59,6 +59,10 @@ export function resolveConcepts(text: string): SemanticConcepts {
   // the object is the first object-class noun that is not just the modifier of a later record noun ("light issue" -> maintenance_request)
   let object: ObjectClass | null = objectAt[0]?.c ?? null;
   for (let k = 0; k + 1 < objectAt.length; k++) if (objectAt[k + 1].i === objectAt[k].i + 1) object = objectAt[k + 1].c;
+  // Interrogative person-location is a presence question, not an incident report.
+  // Permission records may inform it but can never establish physical presence.
+  const presenceQuestion = ["is", "are", "who"].includes(T[0]) && T.some(t => ["anyone", "someone", "anybody", "somebody", "who"].includes(t)) && T.some(t => ["gate", "compound", "inside", "outside", "door"].includes(t)) && !T.some(t => ["intruder", "burglar", "danger", "attack", "incident"].includes(t));
+  if (presenceQuestion) { head = "visitors"; object = "visitor"; hits.splice(0, hits.length, {domain:"visitors",at:0}); }
   if (topUp && !object) object = "wallet";
   void hit;
   const has = (c: Exclude<Facet, null>) => T.some(t => FACET_TOKENS[c].includes(t)) || (c === "transactions" && topUp);
@@ -85,6 +89,7 @@ const VOCAB_TO_DOMAIN: Record<string, OyiDomain> = { devices: "devices", visitor
 const OBJECT_DOMAIN: Partial<Record<ObjectClass, OyiDomain>> = { lead: "crm", opportunity: "crm", report: "office_reports", task: "office_tasks", wallet: "wallet", visitor: "visitors", device: "devices", camera: "cameras", maintenance_request: "maintenance", incident: "security" };
 export function reconcileDomain(legacyIn: OyiDomain | null, c: SemanticConcepts, text: string): OyiDomain | null {
   const legacy = (legacyIn as string | null) === "transactions" ? null : legacyIn;
+  if (c.head_domain === "visitors" && c.object === "visitor" && c.domains.length === 1 && c.domains[0].at === 0) return "visitors";
   // A transactional population is distinct from consumption even when its purchase is electricity.
   if (c.head_domain === "wallet" && c.facet === "transactions" && ["utilities", "reports"].includes(legacy ?? "") && analyse(text).tokens.some(t => ["purchase", "purchases", "funding", "funded", "topup", "deposit", "transaction", "transactions", "transfer", "transfers", "payment", "payments"].includes(t))) return "wallet";
   if (c.head_domain === "office_development" && c.object === "project" && legacy === "office_financial") return "office_development";

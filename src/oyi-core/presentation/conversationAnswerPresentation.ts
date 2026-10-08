@@ -598,5 +598,9 @@ export function visitorAnswerRows(facts: IntelligenceFact[]) {
   return { noun: "visitor access records", singular: "visitor access record", rows: visitorAccessRows(facts).map((r) => ({ label: r.visitor, status: r.status, detail: r.purpose === "Not specified" ? undefined : r.purpose })) };
 }
 export function walletAnswerRows(facts: IntelligenceFact[]) {
-  return { noun: "wallet transactions", singular: "wallet transaction", rows: walletTransactionRows(facts).map((r) => ({ label: `${r.description} ${r.amount}`, status: r.status })) };
+  const tx = facts.filter(f => f.fact_type === "wallet_transaction");
+  return { noun: "wallet transactions", singular: "wallet transaction", rows: walletTransactionRows(facts).map((r, i) => {
+    const v = recordOf(tx[i].value);
+    return { label: `${r.description} ${r.amount}`, status: r.status, fields: { amount: typeof v.amount === "number" ? Math.abs(v.amount) : null, currency: typeof v.currency === "string" ? v.currency : "NGN", direction: v.direction === "credit" ? "in" : v.direction === "debit" ? "out" : null } };
+  }) };
 }

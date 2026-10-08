@@ -39,6 +39,8 @@ export type PublicOpportunityObjective = {
   constraints: string[];
   current_subject: string | null;
   next_move: string | null;
+  // Last actual handoff result only; no promise or autonomous follow-up.
+  handoff_stage?: "accepted_receipt_recorded" | "rejected" | "unavailable" | "attempted_no_receipt" | "contact_completed";
   turns: number;
   // IQ-6: what the caller's LAST update changed (field, previous value or null, new value). Caller-supplied, unverified; no raw message text.
   last_changes?: Array<{ field: string; from: string | null; to: string }>;
@@ -52,6 +54,9 @@ export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
 // Caller-supplied correction, never verified ownership/title evidence.
 // Title status as the caller states it (never verified title evidence).
 export function extractTitleStatus(message: string): string | null {
+  // A named document is a caller claim, never verification or perfected title.
+  const documentClaim = /\b(?:(?:do\s+not|don't|does\s+not|doesn't|not|never|no\s+longer)\s+)?(?:have|has|hold|holds|with|got|obtained|without|awaiting)\s+(?:(?:a|the|no|not|yet)\s+)*(?:c\s+of\s+o|certificate\s+of\s+occupancy)\b/i.exec(message);
+  if (documentClaim && !/^\s*(?:what|which|how|do|does|can|could|should|would|is)\b/i.test(message)) return /\b(?:no|not|never|don't|doesn't|without|awaiting)\b/i.test(documentClaim[0]) ? "C of O not available (caller supplied)" : "C of O held (caller supplied, not verified)";
   if (!/\btitle\b/i.test(message)) return null;
   // IQ-9A11 R7: "no title papers yet" states that title documents are not available; it is not a statement that title is perfected
   if (/\bno\s+title\s+(?:papers?|documents?|deeds?)\b|\btitle\s+(?:papers?|documents?|deeds?)\s+(?:are\s+)?(?:not|yet\s+to)\b|\bwithout\s+title\s+(?:papers?|documents?)\b/i.test(message)) return "documents not yet available";

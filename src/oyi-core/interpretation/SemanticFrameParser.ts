@@ -167,7 +167,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
   // question about what was done ("did you switch it off?") asks for the truth of an action, it is never a command to perform it.
   const answerTarget = deriveAnswerTarget(normalized.raw_text, { objective: cognitiveObjective, activeAssessment: opts.activeAssessment, surface: opts.surface, ambiguity: { required: false, reason: null }, pronounRef: resolveReferences(normalized.normalized_text).some((r) => r.kind === "pronoun") });
   // a past-tense question about what was done ("did you switch it off?") never keeps a command operation: it must not select a control capability
-  const operationFinal: SemanticOperation = answerTarget.response_intent === "ACTION_RESULT" && /^(?:device\.power|approve|reject|compose)/.test(operationFinal0) ? "inform" : operationFinal0;
+  const operationFinal: SemanticOperation = domain === "visitors" && operationFinal0 === "device.status" ? "inspect" : (answerTarget.response_intent === "ACTION_RESULT" || answerTarget.hypothetical_process) && /^(?:device\.power|approve|reject|compose)/.test(operationFinal0) ? "inform" : operationFinal0;
   return {
     rawText: normalized.raw_text,
     concepts,
@@ -181,7 +181,7 @@ export function parseSemanticFrame(rawText: unknown, opts: { activeAssessment?: 
     confidence: primaryEntity ? Math.max(0.75, primaryEntity.confidence) : 0.72,
     ambiguity: { required: false, reason: null, candidates: [] },
     corrections: normalized.corrections,
-    mutationIntent: answerTarget.response_intent !== "ACTION_RESULT" && !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
+    mutationIntent: !answerTarget.hypothetical_process && answerTarget.response_intent !== "ACTION_RESULT" && !withdrawalMarked && !holdOrCallback && !absenceStatement && !meaningCorrection && !advisory && cognitiveObjective !== "summarize" && operation !== "cancel" && (normalized.mutation_intent || operation.startsWith("device.power.")),
     cognitiveObjective,
     capabilityInquiry: isCapabilityInquiry(normalized.normalized_text),
     // IQ-8D: derived ONCE, here, and carried on the frame; no downstream layer derives it again

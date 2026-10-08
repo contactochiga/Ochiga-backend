@@ -180,6 +180,7 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
     constraints,
     current_subject: location || prior?.current_subject || null,
     next_move: prior?.next_move || null,
+    ...(prior?.handoff_stage ? { handoff_stage: prior.handoff_stage } : {}),
     turns: (prior?.turns || 0) + 1,
     last_changes: prior ? changesBetween(prior, knownFacts) : [],
     superseded: [...(prior?.superseded || []), ...(prior ? changesBetween(prior, knownFacts).filter(c => c.from).map(c => ({ field: c.field, value: c.from as string })) : [])].slice(-6),
@@ -247,12 +248,9 @@ function jvEvidenceFromKnownFacts(knownFacts: Record<string, string>): JvEvidenc
   };
 }
 
-// Title/document status is naturally established once an opportunity
-// progresses (see developmentJv.ts's own considerations text), not
-// something a first-contact prospect is expected to volunteer up front
-// -- excluded from what we actively ask for here so the answer only
-// requests genuinely useful next information.
-const NOT_YET_USEFUL_TO_ASK = new Set(["title_document_status"]);
+// The canonical qualification contract includes title status. Asking for its
+// status is not a request to upload private documents or a claim of verification.
+const NOT_YET_USEFUL_TO_ASK = new Set<string>();
 
 function composeJvRequirementsAnswer(objective: PublicOpportunityObjective): string {
   const assessment = assessJvOpportunity(jvEvidenceFromKnownFacts(objective.known_facts));
@@ -333,6 +331,7 @@ function targetedPublicLead(objective: PublicOpportunityObjective, target: Answe
     const replaced = (objective.superseded || []).filter(x => objective.known_facts[x.field] !== x.value);
     const contact = objective.constraints.filter(c => c.endsWith("_contact") || c.startsWith("only_")).map(c => c.replace(/_/g, " "));
     const notes = [replaced.length && target.ask_facet === "recall" ? `Earlier you mentioned ${replaced.map(x => `${x.field.replace(/_/g, " ")} ${x.value}`).join(", ")}; I no longer treat that as current.` : "", contact.length && target.ask_facet === "recall" ? `You also asked for: ${contact.join(", ")} (a note for this conversation only).` : ""].filter(Boolean);
+    if (target.ask_facet === "recall" && objective.handoff_stage) notes.push(objective.handoff_stage === "contact_completed" ? "The last handoff receipt reports contact completed." : objective.handoff_stage === "accepted_receipt_recorded" ? "The team received the callback request, but a callback has not been confirmed." : "The previous callback request has no accepted receipt; no callback is confirmed.");
     return lead && notes.length ? `${lead} ${notes.join(" ")}` : lead;
   } catch { return null; }
 }
@@ -419,6 +418,9 @@ export function publicOpportunityReadModule(): CapabilityModule {
         // A callback request doesn't change the objective -- preserve it
         // verbatim rather than letting persistence's undefined-fallback
         // reload path run twice.
+        // Retain the same per-turn objective/facts on a failed handoff (IQ-1).
+        // Only attach the actual result; no retry, promise or new opportunity.
+        if (working) working.handoff_stage = metadata.handoff_stage as HandoffStage;
         return { status, answer, presentation_policy: resultPresentation("text"), metadata: { ...metadata, public_opportunity_objective: working } };
       }
 

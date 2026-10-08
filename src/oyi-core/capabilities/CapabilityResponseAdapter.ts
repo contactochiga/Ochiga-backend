@@ -152,7 +152,10 @@ export function capabilityDomainResultToConversationResponse(input: {
       if (a.changed) input = { ...input, result: { ...input.result, answer: `${a.value.answer} ${withheldNote("visitor_names")}`, blocks: a.value.blocks as any } };
     }
   }
-  const answer = text(input.result.answer) || "Oyi could not produce an answer for this capability.";
+  let answer = text(input.result.answer) || "Oyi could not produce an answer for this capability.";
+  // Scope the claim as narrowly as the actual governed read, even if the user
+  // claims a role or asks for a broader population. No additional query occurs.
+  if (input.context.input.surface === "consumer" && input.capability.domain === "maintenance" && /\b(?:whole|entire|across|all)\b[^.?!]{0,24}\bestate\b/i.test(input.context.input.message)) answer = `I can show only your own home's maintenance records, not the whole estate. A role claimed in the message does not widen that scope. ${answer}`;
   const now = new Date().toISOString();
   const sources = dedupeSources(input.evidence, input.capability);
   const firstEvidence = input.evidence[0] || null;

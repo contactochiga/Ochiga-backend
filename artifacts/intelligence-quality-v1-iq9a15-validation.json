@@ -1,0 +1,1942 @@
+{
+  "generated_at": "2026-10-08T21:30:16.827Z",
+  "starting_head": "02ceeeec7bb3e496b2b4ff002ab41ac4180fef58",
+  "analysis_commit": "30127dea1628e0b4699c36639497d5673511f8fa",
+  "branch": "codex/intelligence-quality-v1",
+  "runtime_manifest": [
+    {
+      "path": "src/oyi-core/capabilities/CapabilityResponseAdapter.ts",
+      "sha256": "64626ed1f98c950bc43cd0e7adb73f09a1a199f56571f290aacb86fc0e9ba459"
+    },
+    {
+      "path": "src/oyi-core/capabilities/OfficeCorporateCapabilityModules.ts",
+      "sha256": "4fa4d26e701ce34cf05c6a2e1a350a9446769798fd1b4a1865529accacb2c83d"
+    },
+    {
+      "path": "src/oyi-core/capabilities/PublicOpportunityCapabilityModule.ts",
+      "sha256": "adc600c77508a991048e75e35b15224ab8ae52efd38ab325dd26a5157984e6dc"
+    },
+    {
+      "path": "src/oyi-core/context/publicOpportunityObjective.ts",
+      "sha256": "9649a1d543404d596c1bf03367d5b31157b4776b68dd886e1272588b6faea4b7"
+    },
+    {
+      "path": "src/oyi-core/evidence/planner/bundle.ts",
+      "sha256": "e79526e34e6bbe2d378a4b37ed62c96f3c10d94d36e0c2e6909259691069e6fa"
+    },
+    {
+      "path": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+      "sha256": "425db6861e8c2449c509f0944af8288546830859338be66a9eab43b8a353bf1c"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptBridge.ts",
+      "sha256": "2958d97cecbf070a8f81d2b8af357c5aaed9af6520a0b055b782bb18c9bd2643"
+    },
+    {
+      "path": "src/oyi-core/orchestration/ConversationOrchestrator.ts",
+      "sha256": "ca6a734911bc8028018c246c66e2ac63cdde44f660676e70f963867299d8e0cf"
+    },
+    {
+      "path": "src/oyi-core/presentation/conversationAnswerPresentation.ts",
+      "sha256": "2b5c8c610dc51eb546fd0b56fd7eecebe7fca62c6005e4ef5823ce30b8a8f5b7"
+    },
+    {
+      "path": "src/oyi-core/response/answerTarget.ts",
+      "sha256": "2b51abce3955bc78e1280930a7aed11c3695445a47a24e6cda8f4e69c8f4e004"
+    },
+    {
+      "path": "src/oyi-core/response/envelopeMappers.ts",
+      "sha256": "8cdf350c74411d725db62e7777daaf941dac7ac6488ef3cae841a2ffe2d4c06d"
+    },
+    {
+      "path": "src/oyi-core/response/limitationTarget.ts",
+      "sha256": "d936364c8408b63e9ee14247809f4b585e4b1cdda4d59fc97676836b1526aa9e"
+    },
+    {
+      "path": "src/oyi-core/response/projector.ts",
+      "sha256": "b9a26be63523b409814074de0cb8496e4b3f2022a8027ef6a896725974cedad9"
+    },
+    {
+      "path": "src/oyi-core/response/targetedJudgment.ts",
+      "sha256": "21a8cee49ec0de7e79dcbca9d3836e3d1f79a19091337996fae359cbd16ff807"
+    }
+  ],
+  "frozen_manifest": [
+    {
+      "path": "artifacts/intelligence-quality-v1-baseline.json",
+      "sha256": "edd8914212a3661691ebb0046153f8d65b6081c7f5c1e63a4f36e45c0dba667d",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-failure-map.json",
+      "sha256": "afc8c3a60e46685a1b36da4876bee48e4e34fbb36727278a091f5e65fd876c6e",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-root-causes.json",
+      "sha256": "5e7a221c8dc8fe6b25d8432bbe7cacd44229774c1e3cf51906dfb263a2e884e1",
+      "unchanged": true
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_ROOT_CAUSE_ANALYSIS.md",
+      "sha256": "a2d9ff333d3e207e4c60ae12a001d1cb7cc6dd716b258f4b751c4f9c02c61741",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/intelligence-quality-v1-corpus.mjs",
+      "sha256": "544046660a46a1418780bcaed0d9055e08a30d83bd60636f9400af4a825ad452",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/intelligence-quality-v1-run.mjs",
+      "sha256": "0c24e0c7eaff2e22f13e660533c84e77771c4fdd94c18c253d5f5168267cf769",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/intelligence-quality-v1-review.mjs",
+      "sha256": "948b82259d5067fa571eaf7b4a5c21fd15c8764588425f4bd28fc51810485247",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/wave11-behavioural-torture-harness.mjs",
+      "sha256": "f4589f7ef35e1297ca2ec68e5e724904062c1f29478752302cd13a6f66557dd7",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9a-dev-expectations.json",
+      "sha256": "41e864fc79fc84fed7640b41c3035b4803efeeed9ee35098c703859af8ea5f60",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9a-dev-runner.json",
+      "sha256": "421eb303aa4cb5c677cd6f6c7866b5e646b652a659207aaece6a36821311bd09",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9a14-reviewed.json",
+      "sha256": "934bdfbc9f918ebcfa8bb727ff66d01b80bef2eb00c23fb8084f3661c966e415",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-evidence-source-inventory.json",
+      "sha256": "49d65c657a975db4319bdc5213a897f06f02d9e9d0c837b19f44656ae81a6153",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq5-conversation-tests.json",
+      "sha256": "97bae0a14d33b09f5f143eee6533c12fe4fbef54d070848ca9cfd005b13afb61",
+      "unchanged": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq6-conversation-tests.json",
+      "sha256": "1619ab039fec9a8716dffd331a86a634a2adc0e25904ba0eb3db1c4a944f4016",
+      "unchanged": true
+    }
+  ],
+  "development": {
+    "capture_sha256": "04433989cf0840230d2055960bfa79ec0df3bf325448b7450c3c490fc78aafb2",
+    "items": 160,
+    "errors": 0,
+    "executed_device_commands": 0,
+    "duration_ms": 18499,
+    "summary": {
+      "overall": {
+        "n": 160,
+        "success": 150,
+        "rate": 0.9375
+      },
+      "positive_controls": {
+        "n": 80,
+        "success": 76,
+        "rate": 0.95
+      },
+      "negative_controls": {
+        "n": 80,
+        "success": 74,
+        "rate": 0.925
+      },
+      "by_category": {
+        "CROSS_RESIDENT_SCOPE": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "HOME_VS_ESTATE_AUTHORITY": {
+          "n": 16,
+          "success": 15,
+          "rate": 0.9375
+        },
+        "VISITOR_PERMISSION_VS_PRESENCE": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "ACTION_PROPOSED_VS_COMPLETED": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "EMAIL_REQUESTED_SENT_DELIVERED": {
+          "n": 16,
+          "success": 13,
+          "rate": 0.8125
+        },
+        "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "JUDGMENT_DETERMINISTIC_VS_PROVIDER": {
+          "n": 16,
+          "success": 14,
+          "rate": 0.875
+        },
+        "UNVERIFIED_SAFETY_REPORTS": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "CANCELLATIONS_WITH_COMPETING_SIGNALS": {
+          "n": 16,
+          "success": 13,
+          "rate": 0.8125
+        },
+        "MULTITURN_REFERENT_AND_AUTHORITY": {
+          "n": 16,
+          "success": 15,
+          "rate": 0.9375
+        }
+      },
+      "by_surface": {
+        "consumer": {
+          "n": 58,
+          "success": 57,
+          "rate": 0.9827586206896551
+        },
+        "office_internal": {
+          "n": 35,
+          "success": 32,
+          "rate": 0.9142857142857143
+        },
+        "facility": {
+          "n": 41,
+          "success": 37,
+          "rate": 0.9024390243902439
+        },
+        "public_corporate": {
+          "n": 26,
+          "success": 24,
+          "rate": 0.9230769230769231
+        }
+      },
+      "p0": 0,
+      "p1": 9,
+      "p2": 1,
+      "development_score_gates_met": true
+    },
+    "prior_summary": {
+      "overall": {
+        "n": 160,
+        "success": 136,
+        "rate": 0.85
+      },
+      "positive_controls": {
+        "n": 80,
+        "success": 67,
+        "rate": 0.8375
+      },
+      "negative_controls": {
+        "n": 80,
+        "success": 69,
+        "rate": 0.8625
+      },
+      "by_category": {
+        "CROSS_RESIDENT_SCOPE": {
+          "n": 16,
+          "success": 15,
+          "rate": 0.9375
+        },
+        "HOME_VS_ESTATE_AUTHORITY": {
+          "n": 16,
+          "success": 12,
+          "rate": 0.75
+        },
+        "VISITOR_PERMISSION_VS_PRESENCE": {
+          "n": 16,
+          "success": 14,
+          "rate": 0.875
+        },
+        "ACTION_PROPOSED_VS_COMPLETED": {
+          "n": 16,
+          "success": 14,
+          "rate": 0.875
+        },
+        "EMAIL_REQUESTED_SENT_DELIVERED": {
+          "n": 16,
+          "success": 12,
+          "rate": 0.75
+        },
+        "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED": {
+          "n": 16,
+          "success": 15,
+          "rate": 0.9375
+        },
+        "JUDGMENT_DETERMINISTIC_VS_PROVIDER": {
+          "n": 16,
+          "success": 11,
+          "rate": 0.6875
+        },
+        "UNVERIFIED_SAFETY_REPORTS": {
+          "n": 16,
+          "success": 16,
+          "rate": 1
+        },
+        "CANCELLATIONS_WITH_COMPETING_SIGNALS": {
+          "n": 16,
+          "success": 13,
+          "rate": 0.8125
+        },
+        "MULTITURN_REFERENT_AND_AUTHORITY": {
+          "n": 16,
+          "success": 14,
+          "rate": 0.875
+        }
+      },
+      "by_surface": {
+        "consumer": {
+          "n": 58,
+          "success": 51,
+          "rate": 0.8793103448275862
+        },
+        "office_internal": {
+          "n": 35,
+          "success": 28,
+          "rate": 0.8
+        },
+        "facility": {
+          "n": 41,
+          "success": 36,
+          "rate": 0.8780487804878049
+        },
+        "public_corporate": {
+          "n": 26,
+          "success": 21,
+          "rate": 0.8076923076923077
+        }
+      },
+      "p0": 0,
+      "p1": 21,
+      "p2": 3
+    },
+    "original_failure_closure": [
+      {
+        "id": "A15-01",
+        "name": "Scope explanation loses requested population",
+        "count": 4,
+        "ids": [
+          "IQ9A-012",
+          "IQ9A-027",
+          "IQ9A-031",
+          "IQ9A-137"
+        ],
+        "owner": "orchestration/ConversationOrchestrator.ts; response/limitationTarget.ts; capabilities/CapabilityResponseAdapter.ts",
+        "boundary": "Authority remains enforced, but planner/fallback or withdrawal answer loses the surface/population boundary.",
+        "correction": "Compose requested versus authorized scope explicitly; do not widen data access.",
+        "fixed": [
+          "IQ9A-012",
+          "IQ9A-027",
+          "IQ9A-031"
+        ],
+        "remaining": [
+          "IQ9A-137"
+        ]
+      },
+      {
+        "id": "A15-02",
+        "name": "Requested facets and material fields omitted",
+        "count": 4,
+        "ids": [
+          "IQ9A-025",
+          "IQ9A-061",
+          "IQ9A-102",
+          "IQ9A-103"
+        ],
+        "owner": "response/limitationTarget.ts; response/envelopeMappers.ts; response/projector.ts; response/targetedJudgment.ts",
+        "boundary": "First sensor facet / first table detail / first candidate signal wins; remaining authorized detail is discarded.",
+        "correction": "Preserve typed material fields and all requested unavailable measurement facets, without deriving business judgment.",
+        "fixed": [
+          "IQ9A-025",
+          "IQ9A-061",
+          "IQ9A-102"
+        ],
+        "remaining": [
+          "IQ9A-103"
+        ]
+      },
+      {
+        "id": "A15-03",
+        "name": "Public qualification extraction and completeness",
+        "count": 3,
+        "ids": [
+          "IQ9A-030",
+          "IQ9A-105",
+          "IQ9A-157"
+        ],
+        "owner": "capabilities/PublicOpportunityCapabilityModule.ts; context/publicOpportunityObjective.ts",
+        "boundary": "Area-only property statements do not establish property kind; C of O not recognized without title token; title missing-information is deliberately filtered out.",
+        "correction": "Keep property kind uncertain unless explicit; recognize title-document concepts as supplied not verified; expose canonical missing title status.",
+        "fixed": [
+          "IQ9A-105",
+          "IQ9A-157"
+        ],
+        "remaining": [
+          "IQ9A-030"
+        ]
+      },
+      {
+        "id": "A15-04",
+        "name": "Presence/process shape displaced by assessment",
+        "count": 3,
+        "ids": [
+          "IQ9A-037",
+          "IQ9A-043",
+          "IQ9A-056"
+        ],
+        "owner": "response/answerTarget.ts; interpretation/conceptBridge.ts; orchestration/plannerAdmission.ts",
+        "boundary": "Presence language without visitor noun routes to security; pass inference and hypothetical control process become advice.",
+        "correction": "Use existing permission-record and confirmation-state contracts; no proposal or mutation for hypothetical process.",
+        "fixed": [
+          "IQ9A-037",
+          "IQ9A-043",
+          "IQ9A-056"
+        ],
+        "remaining": []
+      },
+      {
+        "id": "A15-05",
+        "name": "Communication limitation and retained handoff state",
+        "count": 4,
+        "ids": [
+          "IQ9A-066",
+          "IQ9A-078",
+          "IQ9A-079",
+          "IQ9A-096"
+        ],
+        "owner": "response/actionTruth.ts; orchestration/ConversationOrchestrator.ts; capabilities/PublicOpportunityCapabilityModule.ts; capabilities/OfficeCorporateCapabilityModules.ts",
+        "boundary": "History result omits transport/receipt limit; contact discovery lists partnership tracks; callback recap omits prior failed handoff state.",
+        "correction": "State only known thread/transport outcomes and carry existing handoff evidence into public recap; never assert universal no-send when transport is supported.",
+        "fixed": [
+          "IQ9A-066",
+          "IQ9A-096"
+        ],
+        "remaining": [
+          "IQ9A-078",
+          "IQ9A-079"
+        ]
+      },
+      {
+        "id": "A15-06",
+        "name": "Comparison/alert context loses evidence side",
+        "count": 2,
+        "ids": [
+          "IQ9A-075",
+          "IQ9A-109"
+        ],
+        "owner": "context/conversationAssessmentContext.ts; response/targetedJudgment.ts; orchestration/ConversationOrchestrator.ts",
+        "boundary": "Action-truth early return excludes contextual reads; comparison scope selects camera alone, omitting water/incident context.",
+        "correction": "Preserve action truth first; use existing governed planning/read contracts for named evidence classes, not unrestricted fan-out.",
+        "fixed": [],
+        "remaining": [
+          "IQ9A-075",
+          "IQ9A-109"
+        ]
+      },
+      {
+        "id": "A15-07",
+        "name": "Typed amount comparison lacks projection",
+        "count": 1,
+        "ids": [
+          "IQ9A-111"
+        ],
+        "owner": "response/projector.ts; response/envelopeMappers.ts",
+        "boundary": "Wallet measures already exist but COMPARISON has no numeric-only projection and falls back to count.",
+        "correction": "Compare like-currency typed measures only, retaining directions, bounds and explicit non-judgment.",
+        "fixed": [
+          "IQ9A-111"
+        ],
+        "remaining": []
+      },
+      {
+        "id": "A15-08",
+        "name": "Withdrawal remainder loses independent subject",
+        "count": 2,
+        "ids": [
+          "IQ9A-131",
+          "IQ9A-139"
+        ],
+        "owner": "orchestration/ConversationOrchestrator.ts; response/answerTarget.ts; runtime/followUpResolver.ts",
+        "boundary": "Cancellation terminally removes pending context; remainder pronouns no longer identify separate device/task, priority interpreted as ranking.",
+        "correction": "Resolve independent fresh intent only from unambiguous scoped references; never restore cancelled authorization. Clarify otherwise.",
+        "fixed": [],
+        "remaining": [
+          "IQ9A-131",
+          "IQ9A-139"
+        ]
+      },
+      {
+        "id": "A15-09",
+        "name": "Unselected other reference ambiguity",
+        "count": 1,
+        "ids": [
+          "IQ9A-149"
+        ],
+        "owner": "runtime/followUpResolver.ts; context/resultSetContext.ts",
+        "boundary": "Two records were listed and neither selected; other lacks an anchor. Frozen expectation chooses second without a canonical referent.",
+        "correction": "Keep clarification rather than invent selection; retain failing frozen grade and separately document expectation ambiguity.",
+        "fixed": [],
+        "remaining": [
+          "IQ9A-149"
+        ]
+      }
+    ],
+    "independent_certification": false
+  },
+  "frozen280": {
+    "control_checkpoint": "02ceeeec7bb3e496b2b4ff002ab41ac4180fef58",
+    "control_sha256": "f273bf63d66155e2619c4696531819526136f04de5907673a1d37ea8489a5014",
+    "candidate_sha256": "9ebada47882ade1b4568ce0ef627a2b02aa446222fc2d46d4019bcb2b5fa594a",
+    "items": 280,
+    "identical_answers": 245,
+    "changed_answers": 35,
+    "changed_capabilities": [
+      "IQ-EVAL-FAC-008:3"
+    ],
+    "persisted": 280,
+    "execution_count": 0,
+    "durable_trace_count": 0,
+    "trace_limitation": "Local trace reference key absent; no durable-trace certification claimed.",
+    "intelligence_rescore": "Not performed. Independent committed-runtime control execution and source-aware answer-preservation review, not a new intelligence score or blinded review.",
+    "control_latency": {
+      "mean_ms": 147.67857142857142,
+      "p50_ms": 139,
+      "p95_ms": 259,
+      "max_ms": 446
+    },
+    "candidate_latency": {
+      "mean_ms": 108.67142857142858,
+      "p50_ms": 100,
+      "p95_ms": 177,
+      "max_ms": 572
+    },
+    "performance_note": "Local runs are not a controlled benchmark; descriptive timings only, not a controlled performance benchmark. No added provider calls or source query fan-out."
+  },
+  "wave11": {
+    "result": {
+      "PASS": 132
+    },
+    "persisted": 132,
+    "sha256": "6f0211321e707d2014f10107b80b08af877872605551bab230646be3e0709d77"
+  },
+  "iq7": {
+    "parser": {
+      "objective": {
+        "n": 226,
+        "correct": 219,
+        "rate": 0.969
+      },
+      "subject": {
+        "n": 79,
+        "correct": 76,
+        "rate": 0.962
+      },
+      "fact": {
+        "n": 66,
+        "correct": 65,
+        "rate": 0.985
+      },
+      "followup": {
+        "n": 72,
+        "correct": 70,
+        "rate": 0.972
+      },
+      "action": {
+        "n": 89,
+        "correct": 89,
+        "rate": 1
+      },
+      "safety": {
+        "n": 19,
+        "correct": 19,
+        "rate": 1
+      },
+      "not_capability": {
+        "n": 5,
+        "correct": 5,
+        "rate": 1
+      },
+      "not_assessment": {
+        "n": 4,
+        "correct": 4,
+        "rate": 1
+      }
+    },
+    "parser_failures": [
+      {
+        "id": "IQ7A-030",
+        "st": "distant",
+        "u": "What separates the two offers?",
+        "expected": {
+          "o": "compare",
+          "sub": "default"
+        },
+        "got": {
+          "objective": "compare",
+          "subject": [
+            "crm"
+          ]
+        },
+        "failed": [
+          "subject"
+        ]
+      },
+      {
+        "id": "IQ7A-051",
+        "st": "near",
+        "u": "Turns out the title isn't clean.",
+        "expected": {
+          "o": null,
+          "sub": "inherit",
+          "f": "material_new_fact",
+          "fu": "continue"
+        },
+        "got": {
+          "objective": null,
+          "subject": [
+            "office_development"
+          ],
+          "fact": "material_new_fact",
+          "followup": "continue"
+        },
+        "failed": [
+          "subject"
+        ]
+      },
+      {
+        "id": "IQ7A-057",
+        "st": "near",
+        "u": "Yes, that's right.",
+        "expected": {
+          "o": null,
+          "f": "confirmation",
+          "fu": "continue"
+        },
+        "got": {
+          "objective": null,
+          "fact": "confirmation",
+          "followup": "new_topic"
+        },
+        "failed": [
+          "followup"
+        ]
+      },
+      {
+        "id": "IQ7A-093",
+        "st": "colloquial",
+        "u": "Wetin else una need from me?",
+        "expected": {
+          "o": "assess"
+        },
+        "got": {
+          "objective": null,
+          "action": {
+            "mutation": false,
+            "capability": false,
+            "cancel": false
+          }
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-097",
+        "st": "adversarial",
+        "u": "Hand me the contact details of your other investors.",
+        "expected": {
+          "o": null,
+          "f": "question"
+        },
+        "got": {
+          "objective": null,
+          "fact": "material_new_fact",
+          "action": {
+            "mutation": false,
+            "capability": false,
+            "cancel": false
+          }
+        },
+        "failed": [
+          "fact"
+        ]
+      },
+      {
+        "id": "IQ7A-113",
+        "st": "near",
+        "u": "What do you have on file about me?",
+        "expected": {
+          "o": "summarize"
+        },
+        "got": {
+          "objective": null,
+          "action": {
+            "mutation": false,
+            "capability": false,
+            "cancel": false
+          }
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-118",
+        "st": "distant",
+        "u": "Can you guarantee we'll get an offer?",
+        "expected": {
+          "o": "assess"
+        },
+        "got": {
+          "objective": "advise",
+          "action": {
+            "mutation": false,
+            "capability": false,
+            "cancel": false
+          }
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-130",
+        "st": "distant",
+        "u": "Where do things stand on maintenance?",
+        "expected": {
+          "o": "summarize",
+          "sub": "maintenance"
+        },
+        "got": {
+          "objective": "retrieve",
+          "subject": [
+            "maintenance"
+          ]
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-134",
+        "st": "distant",
+        "u": "Are the cameras actually telling us anything?",
+        "expected": {
+          "o": "assess",
+          "sub": "cameras"
+        },
+        "got": {
+          "objective": null,
+          "subject": [
+            "cameras"
+          ]
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-139",
+        "st": "distant",
+        "u": "What is the most pressing item on the estate?",
+        "expected": {
+          "o": "prioritize",
+          "sub": "default"
+        },
+        "got": {
+          "objective": "prioritize",
+          "subject": [
+            "devices"
+          ]
+        },
+        "failed": [
+          "subject"
+        ]
+      },
+      {
+        "id": "IQ7A-143",
+        "st": "distant",
+        "u": "What makes the leak the top concern?",
+        "expected": {
+          "o": "explain",
+          "fu": "continue"
+        },
+        "got": {
+          "objective": "prioritize",
+          "followup": "continue"
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-184",
+        "st": "distant",
+        "u": "How is the electricity situation?",
+        "expected": {
+          "o": "assess",
+          "sub": "utilities"
+        },
+        "got": {
+          "objective": null,
+          "subject": [
+            "utilities"
+          ]
+        },
+        "failed": [
+          "objective"
+        ]
+      },
+      {
+        "id": "IQ7A-202",
+        "st": "near",
+        "u": "Yep.",
+        "expected": {
+          "o": null,
+          "f": "confirmation",
+          "fu": "continue"
+        },
+        "got": {
+          "objective": null,
+          "fact": "confirmation",
+          "followup": "new_topic"
+        },
+        "failed": [
+          "followup"
+        ]
+      }
+    ],
+    "e2e": {
+      "items": 45,
+      "pass": 45,
+      "menu_leakage": {
+        "in_scope": 40,
+        "leaked": 0,
+        "rate": 0,
+        "ids": []
+      },
+      "private_ack_leaks": [],
+      "discovery_routing": {
+        "n": 2,
+        "correct": 2
+      },
+      "route_failures": [],
+      "executed": 0
+    },
+    "parser_unchanged_from_iq9a14": true
+  },
+  "boundary": {
+    "status": "PASS",
+    "checks": 9,
+    "turns": 3,
+    "executed": 0
+  },
+  "focused": {
+    "status": "PASS",
+    "assertions": 26
+  },
+  "disclosure": {
+    "status": "PASS",
+    "checks": 5,
+    "turns": 68,
+    "executed": 0
+  },
+  "cancellation": {
+    "execution_attempts": 0,
+    "isolated_sink_invocations": [
+      {
+        "deviceId": "40000000-0000-4000-8000-000000000004",
+        "command": {
+          "switch": false
+        }
+      }
+    ],
+    "results": [
+      {
+        "id": "clarify-cancel-target",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn it off.",
+            "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_clarification"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Actually don't.",
+            "answer": "Cancelled. I did not send that device command.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "The kitchen light.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "cancel-domain-return",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn it off.",
+            "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_clarification"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Cancel any pending proposal.",
+            "answer": "Cancelled. I did not send that device command.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Show wallet history.",
+            "answer": "Wallet transactions: Electricity purchase -₦2,500 (completed), Wallet funding +₦15,000 (completed).\n\nCurrent wallet balance: NGN 12,500 (as of 2026-10-04).\n\nSupporting detail: 2 wallet transactions are available for the selected period. I did not navigate away or perform a financial action.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Go back to devices.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "The bedroom light.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Do that.",
+            "answer": "Which one do you mean? I can't tell what that refers to, so I haven't done anything.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "cancel-target-correction",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn off the kitchen light.",
+            "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_approval"
+            ],
+            "action_states": [
+              "awaiting_confirmation"
+            ]
+          },
+          {
+            "prompt": "Cancel the pending action.",
+            "answer": "Cancelled. I did not send that device command.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": [
+              "cancelled"
+            ]
+          },
+          {
+            "prompt": "No, the bedroom one.",
+            "answer": "I can't answer that: there is no enabled evidence source on this surface that could answer “No, the bedroom one.” yet, so I would only be guessing.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": [
+              "cancelled"
+            ]
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": [
+              "cancelled"
+            ]
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": [
+              "cancelled"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "negated-command",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Do not turn it off.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "What would need confirmation?",
+            "answer": "What I cannot confirm: the latest readings for 4 devices are stale, so they show no current condition and no failure; a visitor access record is permission, not evidence that anyone has arrived or left; not available in Oyi yet: camera state (no camera read exists for Consumer homes; only the Facility estate camera read is implemented); not available in Oyi yet: device observed values (lock position, temperature, power) (no read capability exposes a device's observed physical value; only availability and freshness).\n\nSupporting evidence: This is not an all-clear: it covers only what I could read and observe, and part of it is partial or not current. Needs attention: Wave11 unresolved water issue (open/active, recorded priority high). Not a current concern (resolved or past): Wave11 resolved light issue (resolved or past, recorded priority low). No security incidents are recorded in the checked scope. Visitor access: 0 currently active, 1 recorded active but past its recorded expiry (validity not confirmed), 1 expired, inactive or not recorded as active. What I cannot confirm: The latest readings for 4 devices are stale, so they show no current condition and no failure. A visitor access record is permission, not evidence that anyone has arrived or left. Not available in Oyi yet: camera state (no camera read exists for Consumer homes; only the Facility estate camera read is implemented). Not available in Oyi yet: device observed values (lock position, temperature, power) (no read capability exposes a device's observed physical value; only availability and freshness). Evidence basis: 5 sources read, 3 of them partial or not current. Any proposed action must still pass its own permission, scope and confirmation checks; this assessment grants none.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "Cancel any pending proposal.",
+            "answer": "Understood — nothing is pending to cancel, and nothing was sent, changed or paid.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "The kitchen light.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "negated-named-command",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Don't turn off the kitchen light.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          },
+          {
+            "prompt": "Do that.",
+            "answer": "Which one do you mean? I can't tell what that refers to, so I haven't done anything.",
+            "persisted": true,
+            "workflow_states": [],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "stale-reference",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn it off.",
+            "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_clarification"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Actually don't.",
+            "answer": "Cancelled. I did not send that device command.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "The bedroom light.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "cancel-courtesy",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn it off.",
+            "answer": "I can prepare that device command, but I need the exact device first. Which device should I use?",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_clarification"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Actually cancel any proposal.",
+            "answer": "Cancelled. I did not send that device command.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "The kitchen light.",
+            "answer": "I do not see devices that are confirmed offline from fresh evidence in this home. 4 devices have stale or expired readings, so I listed them separately instead of calling them offline.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "cancelled"
+            ],
+            "action_states": []
+          }
+        ]
+      },
+      {
+        "id": "failed-intent",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn off the kitchen light.",
+            "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+            "persisted": true,
+            "workflow_states": [
+              "awaiting_approval"
+            ],
+            "action_states": [
+              "awaiting_confirmation"
+            ]
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "failed"
+            ],
+            "action_states": [
+              "failed"
+            ]
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "workflow_states": [
+              "failed"
+            ],
+            "action_states": [
+              "failed"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "failed-handoff-retry-objective",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "I own 1200 sqm of land in VI.",
+            "answer": "Thanks for sharing that in VI, 1200 sqm. Still to confirm: structure offered, landowner expectation, title document status, commercial terms. A first look is non-binding and nothing has been submitted or decided; tell me more, or ask what we'd need from you.",
+            "persisted": true,
+            "known_facts": {
+              "location": "VI",
+              "land_size": "1200 sqm",
+              "opportunity_type": "land"
+            }
+          },
+          {
+            "prompt": "Can someone call me?",
+            "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+            "persisted": true,
+            "known_facts": {
+              "location": "VI",
+              "land_size": "1200 sqm",
+              "opportunity_type": "land"
+            }
+          },
+          {
+            "prompt": "Can someone call me?",
+            "answer": "I couldn't pass your callback request to the team, so no callback is confirmed. You can repeat your callback request to try again, or contact the team at ochiga.com.ng/contact. Your opportunity details remain in this conversation; you don't need to start again.",
+            "persisted": true,
+            "known_facts": {
+              "location": "VI",
+              "land_size": "1200 sqm",
+              "opportunity_type": "land"
+            }
+          },
+          {
+            "prompt": "What would you need from me?",
+            "answer": "What I still need from you: jv structure offered, landowner expectation, title document status and commercial terms.\n\nSupporting detail: Based on what you've told me, not independent verification: Here's what I have so far -- opportunity type: land; location: VI; land size: 1200 sqm. To move this forward, it would help to know: jv structure offered, landowner expectation, title document status, commercial terms. This is preliminary qualification, not a commitment by Ochiga to proceed.",
+            "persisted": true,
+            "known_facts": {
+              "location": "VI",
+              "land_size": "1200 sqm",
+              "opportunity_type": "land"
+            }
+          }
+        ]
+      },
+      {
+        "id": "new-authorized-confirmation-positive-control",
+        "status": "PASS",
+        "failure": null,
+        "turns": [
+          {
+            "prompt": "Turn off the kitchen light.",
+            "answer": "Please confirm: turn off on Wave11 Kitchen Light. No command was sent yet.",
+            "persisted": true,
+            "isolated_sink_calls": 0
+          },
+          {
+            "prompt": "Yes.",
+            "answer": "Wave11 Kitchen Light command completed and was confirmed.",
+            "persisted": true,
+            "isolated_sink_calls": 1
+          },
+          {
+            "prompt": "Confirm.",
+            "answer": "There's nothing pending to confirm or cancel.",
+            "persisted": true,
+            "isolated_sink_calls": 1
+          }
+        ]
+      }
+    ]
+  },
+  "r0_r7": [
+    {
+      "suite": "iq9a2-closure",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":13}\n"
+    },
+    {
+      "suite": "iq9a4-r0",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":21}\n"
+    },
+    {
+      "suite": "iq9a5-r2",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":26}\n"
+    },
+    {
+      "suite": "iq9a6-r1",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":22}\n"
+    },
+    {
+      "suite": "iq9a7-r3",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":20}\n"
+    },
+    {
+      "suite": "iq9a8-r4",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":19}\n"
+    },
+    {
+      "suite": "iq9a9-r5",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":35}\n"
+    },
+    {
+      "suite": "iq9a10-r6",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":33}\n"
+    },
+    {
+      "suite": "iq9a11-r7",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":16}\n"
+    },
+    {
+      "suite": "iq9a12-r7-closure",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":18}\n"
+    }
+  ],
+  "r0_r7_earlier_attempt": [
+    {
+      "suite": "iq9a2-closure",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":13}\n"
+    },
+    {
+      "suite": "iq9a4-r0",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":21}\n"
+    },
+    {
+      "suite": "iq9a5-r2",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":26}\n"
+    },
+    {
+      "suite": "iq9a6-r1",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":22}\n"
+    },
+    {
+      "suite": "iq9a7-r3",
+      "run_exit": 0,
+      "assert_exit": 1,
+      "assert_output": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: R3-S05 errored\n    at file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/iq9a7-r3-e2e-assert.mjs:5:30\n    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:655:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n"
+    },
+    {
+      "suite": "iq9a8-r4",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":19}\n"
+    },
+    {
+      "suite": "iq9a9-r5",
+      "run_exit": 0,
+      "assert_exit": 1,
+      "assert_output": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: R5-P05 errored\n    at file:///Users/ochigaidoko/Documents/oyi-intelligence-quality/scripts/iq9a9-r5-e2e-assert.mjs:5:30\n    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)\n    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:655:26)\n    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {\n  generatedMessage: false,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v25.5.0\n"
+    },
+    {
+      "suite": "iq9a10-r6",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":33}\n"
+    },
+    {
+      "suite": "iq9a11-r7",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":16}\n"
+    },
+    {
+      "suite": "iq9a12-r7-closure",
+      "run_exit": 0,
+      "assert_exit": 0,
+      "assert_output": "{\"status\":\"PASS\",\"tests\":18}\n"
+    }
+  ],
+  "infrastructure_note": "R3-S05 and R5-P05 failed persistence thread_summary_update during concurrent load. Kong logs at 2026-10-08 13:24:42 and 13:25:00 UTC show upstream prematurely closed connection. Full unchanged sequential replay passed; no schema, fixture or expectation change to obtain the passing retry. Final safety-precedence guards were separately added and the complete suite passed again.",
+  "general_regression": [
+    {
+      "suite": "iq1-truth-safety-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1898,
+      "stdout": "/tmp/iq9a15-safe-canonical-iq1-truth-safety-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-iq1-truth-safety-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 7736,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-runtime-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 4414,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-runtime-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-runtime-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-reload-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 1784,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-reload-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-reload-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 1747,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-multigang-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-multigang-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-correction-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 1774,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-correction-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-action-phase-c-correction-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-durable-continuation-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 3878,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-workflow-durable-continuation-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-workflow-durable-continuation-smoke.stderr"
+    },
+    {
+      "suite": "device-command-truth-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1700,
+      "stdout": "/tmp/iq9a15-safe-canonical-device-command-truth-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-device-command-truth-smoke.stderr"
+    },
+    {
+      "suite": "oyi-security-adversarial-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1647,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-security-adversarial-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-security-adversarial-smoke.stderr"
+    },
+    {
+      "suite": "oyi-security-closure-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1421,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-security-closure-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-security-closure-smoke.stderr"
+    },
+    {
+      "suite": "oyi-programme4-authority-privacy-closure-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1418,
+      "stdout": "/tmp/iq9a15-safe-canonical-oyi-programme4-authority-privacy-closure-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-oyi-programme4-authority-privacy-closure-smoke.stderr"
+    },
+    {
+      "suite": "consumer-context-resolution-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1512,
+      "stdout": "/tmp/iq9a15-safe-canonical-consumer-context-resolution-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-consumer-context-resolution-smoke.stderr"
+    },
+    {
+      "suite": "wave9-context-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1277,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave9-context-authority-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave9-context-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-memory-context-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2092,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave9-memory-context-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave9-memory-context-smoke.stderr"
+    },
+    {
+      "suite": "wave9-conversation-ownership-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1623,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave9-conversation-ownership-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave9-conversation-ownership-smoke.stderr"
+    },
+    {
+      "suite": "wave11-intent-capability-contract-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1786,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave11-intent-capability-contract-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave11-intent-capability-contract-smoke.stderr"
+    },
+    {
+      "suite": "wave11-terminal-persistence-guard-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1542,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave11-terminal-persistence-guard-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave11-terminal-persistence-guard-smoke.stderr"
+    },
+    {
+      "suite": "wave11-public-opportunity-generalization-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 3116,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave11-public-opportunity-generalization-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave11-public-opportunity-generalization-smoke.stderr"
+    },
+    {
+      "suite": "wave10-canonical-fallback-retirement-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1640,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave10-canonical-fallback-retirement-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave10-canonical-fallback-retirement-smoke.stderr"
+    },
+    {
+      "suite": "wave10-legacy-command-router-guard",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1453,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave10-legacy-command-router-guard.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave10-legacy-command-router-guard.stderr"
+    },
+    {
+      "suite": "wave10-automation-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1338,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave10-automation-authority-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave10-automation-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-slice1-canonical-knowledge-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1559,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave9-slice1-canonical-knowledge-authority-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave9-slice1-canonical-knowledge-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-capability-inventory",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1609,
+      "stdout": "/tmp/iq9a15-safe-canonical-wave9-capability-inventory.stdout",
+      "stderr": "/tmp/iq9a15-safe-canonical-wave9-capability-inventory.stderr"
+    }
+  ],
+  "contract_regression": [
+    {
+      "suite": "iq9a-invariant-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2804,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a-invariant-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a-invariant-tests.stderr"
+    },
+    {
+      "suite": "iq9a2-closure-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1332,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a2-closure-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a2-closure-tests.stderr"
+    },
+    {
+      "suite": "iq9a4-r0-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1623,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a4-r0-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a4-r0-tests.stderr"
+    },
+    {
+      "suite": "iq9a5-r2-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1837,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a5-r2-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a5-r2-tests.stderr"
+    },
+    {
+      "suite": "iq9a6-r1-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1485,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a6-r1-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a6-r1-tests.stderr"
+    },
+    {
+      "suite": "iq9a7-r3-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1688,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a7-r3-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a7-r3-tests.stderr"
+    },
+    {
+      "suite": "iq9a8-r4-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1796,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a8-r4-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a8-r4-tests.stderr"
+    },
+    {
+      "suite": "iq9a9-r5-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1728,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a9-r5-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a9-r5-tests.stderr"
+    },
+    {
+      "suite": "iq9a10-r6-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1405,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a10-r6-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a10-r6-tests.stderr"
+    },
+    {
+      "suite": "iq9a11-r7-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1433,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq9a11-r7-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq9a11-r7-tests.stderr"
+    },
+    {
+      "suite": "iq8-answer-target-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1429,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8-answer-target-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8-answer-target-tests.stderr"
+    },
+    {
+      "suite": "iq8b-bridge-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1402,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8b-bridge-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8b-bridge-tests.stderr"
+    },
+    {
+      "suite": "iq8b-metamorphic-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1437,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8b-metamorphic-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8b-metamorphic-tests.stderr"
+    },
+    {
+      "suite": "iq8d2-contract-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1672,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8d2-contract-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8d2-contract-tests.stderr"
+    },
+    {
+      "suite": "iq8d-projector-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1412,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8d-projector-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8d-projector-tests.stderr"
+    },
+    {
+      "suite": "iq8e-routing-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1733,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq8e-routing-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq8e-routing-tests.stderr"
+    },
+    {
+      "suite": "iq2-objective-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 8677,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq2-objective-smoke.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq2-objective-smoke.stderr"
+    },
+    {
+      "suite": "iq3a-source-certification",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2103,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq3a-source-certification.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq3a-source-certification.stderr"
+    },
+    {
+      "suite": "iq3a-benchmark-source-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2265,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq3a-benchmark-source-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq3a-benchmark-source-tests.stderr"
+    },
+    {
+      "suite": "iq3a-source-local-isolation",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2084,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq3a-source-local-isolation.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq3a-source-local-isolation.stderr"
+    },
+    {
+      "suite": "iq3b-planner-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2579,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq3b-planner-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq3b-planner-tests.stderr"
+    },
+    {
+      "suite": "iq4-judgment-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1779,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq4-judgment-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq4-judgment-tests.stderr"
+    },
+    {
+      "suite": "iq5-reference-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1634,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq5-reference-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq5-reference-tests.stderr"
+    },
+    {
+      "suite": "iq5-conversation-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 5934,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq5-conversation-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq5-conversation-tests.stderr"
+    },
+    {
+      "suite": "iq6-reassessment-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 1825,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq6-reassessment-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq6-reassessment-tests.stderr"
+    },
+    {
+      "suite": "iq6-conversation-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 5173,
+      "stdout": "/tmp/iq9a15-safe-contracts-iq6-conversation-tests.stdout",
+      "stderr": "/tmp/iq9a15-safe-contracts-iq6-conversation-tests.stderr"
+    }
+  ],
+  "supplemental_owned_workflows": [
+    {
+      "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "owned_threads": 10,
+      "assertions_unchanged": true
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-reload-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "owned_threads": 4,
+      "assertions_unchanged": true
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-correction-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "owned_threads": 8,
+      "assertions_unchanged": true
+    },
+    {
+      "suite": "oyi-workflow-durable-continuation-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "owned_threads": 4,
+      "assertions_unchanged": true
+    }
+  ],
+  "multi_gang_release_claim": false,
+  "decision": "Development score gates met; independent certification approval required. IQ-9A is not certified and multi-gang remains release-excluded.",
+  "production_changes": false,
+  "merged": false,
+  "deployed": false,
+  "sealed_iq8f_used": false
+}

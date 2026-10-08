@@ -29,8 +29,8 @@ export function limitationAnswer(target: AnswerTarget, question: string): string
   if (target.response_intent === "REFUSAL") return "I can't say who is responsible: attributing a problem to a person is not something the evidence supports, and I won't guess or name anyone.";
   const asked = question.replace(/\s+/g, " ").trim().slice(0, 120);
   if (target.facet === "usage") return "I can't tell you how much was used: consumption (usage) readings are not available yet.";
-  const measure = target.response_intent === "LIMITATION" ? analyse(question).tokens.find(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t)) : undefined;
-  if (measure) return `I don't have ${measure} data: no ${measure} sensor reading is available to me here, so I can't tell you what it is.`;
+  const measures = target.response_intent === "LIMITATION" ? [...new Set(analyse(question).tokens.filter(t => ["temperature", "humidity", "noise", "decibels", "airflow", "pollution"].includes(t)))] : [];
+  if (measures.length) return `I don't have ${measures.map(m => `${m} data`).join(" or ")}: no ${measures.join(" or ")} sensor reading is available to me here, so I can't tell you what it is.`;
   const lead = target.response_intent === "YES_NO_WITH_REASON" || target.response_intent === "ACTION_RESULT" ? "I can't tell" : "I can't answer that";
   return `${lead}: there is no enabled evidence source on this surface that could answer “${asked}” yet, so I would only be guessing.`;
 }

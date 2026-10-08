@@ -46,12 +46,13 @@ function recordsFromBlock(b: Record<string, unknown> | undefined): EnvelopeRecor
   const cols = ((b.columns as Array<{ key: string }>) || []).map(c => c.key);
   const labelKey = ["name", "title", "visitor", "description", "device", "lead", "label"].find(k => cols.includes(k)) || cols[0];
   const statusKey = ["status", "state", "stage"].find(k => cols.includes(k));
-  const detailKey = ["reason", "priority", "purpose", "owner", "amount"].find(k => cols.includes(k));
+  const detailKeys = ["reason", "priority", "purpose", "owner", "amount"].filter(k => cols.includes(k));
   return (b.rows as Array<Record<string, unknown>>).map(r => {
-    const status = statusKey && r[statusKey] ? clean(r[statusKey]) : null, detail = detailKey && r[detailKey] ? clean(r[detailKey]) : null;
+    const status = statusKey && r[statusKey] ? clean(r[statusKey]) : null;
+    const detail = detailKeys.filter(k => r[k] !== undefined && r[k] !== null && r[k] !== "").map(k => k === "priority" ? `${clean(r[k])} priority` : clean(r[k])).join("; ");
     const fields: Record<string, string | number | boolean | null> = {};
     for (const c of cols) { const v = r[c]; if (v === null || ["string", "number", "boolean"].includes(typeof v)) fields[c] = v as string | number | boolean | null; }
-    return { id: r.id ? String(r.id) : null, label: clean(r[labelKey] ?? "item"), status, state: stateOfStatus(status), detail: detail && detail.length <= 60 ? detail : null, time: clean(r.due_at ?? r.date ?? r.last_observed_at ?? "") || null, fields };
+    return { id: r.id ? String(r.id) : null, label: clean(r[labelKey] ?? "item"), status, state: stateOfStatus(status), detail: detail ? detail.slice(0, 240) : null, time: clean(r.due_at ?? r.date ?? r.last_observed_at ?? "") || null, fields };
   });
 }
 
@@ -62,8 +63,8 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
   const title = clean(block?.title).toLowerCase();
   const noun = fam?.noun ?? (title || "records"), singular = fam?.singular ?? noun.replace(/ies$/, "y").replace(/s$/, "");
   const meta = (result.metadata || {}) as Record<string, any>;
-  const rows = meta.answer_rows?.rows as Array<{ label: string; status?: string; detail?: string }> | undefined;
-  let records: EnvelopeRecord[] | undefined = rows ? rows.map(r => ({ label: clean(r.label), status: r.status ?? null, state: stateOfStatus(r.status), detail: r.detail ?? null })) : recordsFromBlock(block);
+  const rows = meta.answer_rows?.rows as Array<{ label: string; status?: string; detail?: string; fields?: EnvelopeRecord["fields"] }> | undefined;
+  let records: EnvelopeRecord[] | undefined = rows ? rows.map(r => ({ label: clean(r.label), status: r.status ?? null, state: stateOfStatus(r.status), detail: r.detail ?? null, ...(r.fields ? { fields:r.fields } : {}) })) : recordsFromBlock(block);
   const facts = (meta.result_facts || {}) as Record<string, any>;
   if (!records && Array.isArray(facts.records)) records = facts.records as EnvelopeRecord[];
   // structured per-record facts a capability already holds (activity age ...), merged by record id; never derived from prose

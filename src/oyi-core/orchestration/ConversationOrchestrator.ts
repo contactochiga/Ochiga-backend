@@ -1884,7 +1884,7 @@ async function handleCommunicationTurn(
     if (!recent) {
       const result: DomainResult = {
         status: "answered",
-        answer: "I haven't sent anything in this conversation yet.",
+        answer: `I haven't sent anything in this conversation yet. There is no sending or delivery receipt.${!communicationRuntime.adapterFor("email").isConfigured() ? " Email sending is unavailable here because no email transport is configured." : " A new send would need its own governed confirmation; a request alone sends nothing."}`,
         presentation_policy: resultPresentation("text"),
       };
       return respondFromOfficeActionResult(context, resolvedTurn, capability, result);
@@ -3425,7 +3425,7 @@ async function buildBusinessSurfaceFallbackResponse(
     };
     const result: DomainResult = {
       status: "unsupported",
-      answer: `${surface === "office_internal" ? "Office" : "This surface"} doesn't manage ${label} — that's tracked under Facility/Consumer, not here.${/visitor/i.test(label) && /\b(?:on\s+the\s+estate|arrived|present|at\s+the\s+moment|right\s+now|currently|here)\b/i.test(frame.rawText || "") ? " I also have no presence data: visitor records anywhere show permission (active or inactive), never whether someone is actually on site." : ""}`,
+      answer: `${surface === "office_internal" ? "Office" : "This surface"} doesn't manage ${label} — that's tracked under Facility/Consumer, not here.${/\b(?:wallets?|residents?|household)\b/i.test(frame.rawText) ? " Office cannot disclose resident-private home or wallet data or control household devices. A claimed job title does not change that authority." : ""}${/visitor/i.test(label) && /\b(?:on\s+the\s+estate|arrived|present|at\s+the\s+moment|right\s+now|currently|here)\b/i.test(frame.rawText || "") ? " I also have no presence data: visitor records anywhere show permission (active or inactive), never whether someone is actually on site." : ""}`,
       presentation_policy: resultPresentation("text"),
     };
     const capabilityContext: CapabilityContext = { ...baseContext, legacyFallback: unavailableInsideFallback };
@@ -3967,6 +3967,14 @@ export class ConversationOrchestrator {
       let direct: string | null = null, key = "";
       let publicObjectiveToKeep: Awaited<ReturnType<typeof recordContactPreference>> = null;
       if (actionUnclaimed) { direct = `I haven't done that: “${sf.rawText.replace(/\s+/g, " ").trim().slice(0, 160)}” is an action, and nothing has been sent, changed or paid. I have no confirmable action ready for it here, so nothing is pending. Tell me exactly what you want and I'll say whether it can be done and what confirmation it needs.${/\b(?:note|message|email|mail|text|reminder|notify|inform|tell)\b/i.test(sf.rawText) && /^\s*(?:(?:what|how)\s+(?:can|could)\s+you\b|(?:can|could|would|will)\s+you\b)/i.test(sf.rawText) ? " I can't send email or messages from this chat; a send could at most be prepared as a proposal for your explicit confirmation." : ""}`; key = "answer_target.action_not_executed"; }
+      else if (earlyTarget.hypothetical_process && !earlyTarget.safety_relevant) {
+        direct = "A request alone changes nothing. I would first check your authority and identify the device and intended change, asking for clarification if needed. If supported, I would prepare a proposal requiring your separate, explicit confirmation. Approval is not proof of execution or a verified physical change; those need their own result evidence. This hypothetical question has not created a proposal or sent a command.";
+        key = "answer_target.confirmation_process";
+      }
+      else if (context.input.surface === "facility" && !earlyTarget.safety_relevant && !hazardReportIn(sf.rawText) && /\bwallets?\b/i.test(sf.rawText)) {
+        direct = "You are not authorised to access resident-private wallets or finances from Facility, including residents' names and amounts. This is an authority boundary, not evidence that balances are zero or merely an unavailable source.";
+        key = "answer_target.private_scope";
+      }
       else if (earlyTarget.confirmation_kind === "constraint") {
         direct = acknowledgeConstraint(sf.rawText); key = "answer_target.constraint_acknowledged";
         // IQ-9A8: a contact preference stated on Osa is kept (conversation-scoped) in the thread's opportunity objective so a later contact request can respect it
@@ -3976,6 +3984,7 @@ export class ConversationOrchestrator {
       else if (earlyTarget.response_intent === "ACTION_RESULT") { direct = earlyTarget.action_domain === "communication" ? `${communicationTruthLead(await threadActionTruth(context.input.thread_id), Boolean(earlyTarget.future_event))}${/\b(?:rung|rang|phoned|called\s+back|call\s+back|ring\s+back)\b/i.test(sf.rawText) ? " Any callback request here was only ever a proposal awaiting your confirmation; no call has been confirmed." : ""}` : `${actionTruthLead(await threadActionTruth(context.input.thread_id))}${/\b(?:somebody|someone|anybody|anyone|earlier|else|manually)\b/i.test(sf.rawText) ? " I can only speak for what I did in this conversation; I can't see changes made some other way (a wall switch, another app or another person), so I can't say whether it was changed earlier." : ""}`; key = "answer_target.action_result"; }
       else if (earlyTarget.confirmation_kind === "cancel" && !activeWorkflow && hasWithdrawalVerb(sf.rawText)) { direct = earlyTarget.constraint_withdrawal ? "Understood — I've dropped that rule for this conversation." : "Understood — nothing is pending to cancel, and nothing was sent, changed or paid."; key = "answer_target.cancellation_acknowledged"; }
       if (direct) {
+        if (key === "answer_target.action_result" && earlyTarget.action_domain === "communication" && /\b(?:email|mail)\b/i.test(sf.rawText) && !earlyTarget.future_event && !communicationRuntime.adapterFor("email").isConfigured()) direct += " Email sending is unavailable here because no email transport is configured; no email was sent by this request.";
         // Public safety questions still need their public evidence/contact boundary.
         // Preserve that existing answer owner alongside, never instead of, hazard truth.
         if (key === "answer_target.safety_report" && context.input.surface === "public_corporate" && earlyTarget.response_intent === "SAFETY_RISK") {
@@ -3983,7 +3992,7 @@ export class ConversationOrchestrator {
           if (publicBoundary) direct = `${publicBoundary.answer}\n\n${direct}`;
         }
         const capability = syntheticOfficeActionCapability(key, "global");
-        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent, ...(publicObjectiveToKeep ? { public_opportunity_objective: publicObjectiveToKeep } : {}) } });
+        const directResponse = await respondFromOfficeActionResult(context, resolvedTurn, capability, { status: key === "answer_target.private_scope" ? "permission_restricted" : "answered", answer: direct, presentation_policy: resultPresentation("text"), metadata: { answer_target: earlyTarget.response_intent, ...(publicObjectiveToKeep ? { public_opportunity_objective: publicObjectiveToKeep } : {}) } });
         tracer.finish({ thread_id: directResponse.thread_id || null, response_state: directResponse.persistence_saved === false ? "unsaved" : "returned" });
         return directResponse;
       }

@@ -12,7 +12,7 @@ const recordOf = (v: unknown): Record<string, unknown> => (v && typeof v === "ob
 // credentials, free-text descriptions and contact details are deliberately not projectable.
 const MATERIAL_FIELDS = ["id", "name", "title", "status", "stage", "state", "priority", "severity", "overdue", "days_since_activity", "reason", "last_activity_at",
   "scheduled_at", "due_at", "expires_at", "opened_at", "created_at", "updated_at", "enabled", "availability", "online", "category", "device_family", "room_name",
-  "overall", "video_evidence", "observed_at", "freshness", "workflow_status", "location", "type", "known_facts_count", "claim_boundary", "canonical_key"] as const;
+  "overall", "video_evidence", "observed_at", "freshness", "workflow_status", "location", "type", "known_facts_count", "claim_boundary", "canonical_key", "percent_complete", "units_sold", "units_total"] as const;
 
 function primaryObject(record: OyiEvidence): Record<string, unknown> {
   const payload = recordOf(record.payload);

@@ -28,6 +28,7 @@ export type AnswerTarget = {
   confirmation_kind?: "cancel" | "hold" | "callback" | "constraint" | "action";
   action_domain?: "communication" | "change"; // what a past-tense "did X happen" question is about
   future_event?: boolean;              // the question asks whether someone WILL do it (a promise), not whether it was done
+  hypothetical_process?: boolean;      // explanation of governance, not a request/approval
   refusal_kind?: "authority" | "attribution" | "internal" | "commitment" | "unverified_assurance";
   must_not_substitute: string[];       // what the lead must NOT be: "capability_menu", "count_for_list", "list_for_count", "evidence_readiness", "state_for_answer"
   // IQ-8D: the asked-about aspect, taken once from the IQ-7 concept view so downstream layers never re-read the wording
@@ -163,6 +164,10 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
   const existentialAsk = (["is", "are"].includes(lead) && T[1] === "there") || lead === "any" || T.slice(0, 3).includes("any") || (T[0] === "do" && T[1] === "i" && T[2] === "have" && T.includes("any")) || (["do", "does"].includes(lead) && T.includes("any"));
   const base = (intent: ResponseIntent, over: Partial<AnswerTarget> = {}): AnswerTarget => ({ object: cpt.object, facet: cpt.facet, state_concept: cpt.state, response_intent: intent, subject_tokens: content.filter(t => !stateTok(t)), negated_qualifiers: negQual, ask_facet: submitAsk ? "submission" : ask_facet, flow, subject_scope, existential: existentialAsk, fact_keys, past_reference, top_n: null, quantity: cpt.facet === "balance" ? "value" : null, yes_no: null, compare_terms: [], qualifier_tokens: qualifiersAll,
     safety_relevant: hazard || riskAsk, is_question: u.q || u.wh || u.auxLead || u.imperative, must_answer: "", supporting_context_allowed: true, must_not_substitute: ["capability_menu"], ...over });
+
+  // Conditional speech about asking for an action explains the protocol; it is
+  // neither physical-state evidence nor a command, even with embedded verbs.
+  if (u.wh && T.includes("if") && T.some(t => ["ask", "asked", "request", "requested"].includes(t)) && T.includes("you") && T.some(t => ["turn", "switch", "lock", "unlock"].includes(t))) return base("CONFIRMATION_STATE", { hypothetical_process: true, must_answer: "target and authority checks, proposal, explicit confirmation, execution verification", must_not_substitute: ["action_proposal", "state_for_answer"] });
 
   // IQ-9A10 R6: a polite or indirect request ("Can you mark Lead Alpha as contacted?", "Could you tell my visitor I'll be late?", "I'd like you to ...") is an
   // ACTION REQUEST, not a read. Same contract as the imperative form: nothing is done unless a governed capability claims it and the user confirms.
