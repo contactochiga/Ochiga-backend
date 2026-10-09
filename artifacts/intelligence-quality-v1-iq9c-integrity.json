@@ -1,0 +1,430 @@
+{
+  "starting_head": "4e43f7de2f31779921aadc7a2f0b21ed612103e0",
+  "runtime_candidate": "872fb7bf264d30865e1aadb5dfa44ae46a9579d6",
+  "seal_checks": [
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL.md",
+      "match": true
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ9B_PROTOCOL_CLARIFICATION.md",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-packet.md",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-grader-instructions.md",
+      "match": true
+    },
+    {
+      "path": "scripts/iq9b-first-contact.mjs",
+      "match": true
+    },
+    {
+      "path": "scripts/iq9b-local-launch.mjs",
+      "match": true
+    },
+    {
+      "path": "scripts/iq9b-seal-corpus.mjs",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Oma.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Osa.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Facility.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-author-Consumer.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-corpus.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9b-expectations.json",
+      "match": true
+    }
+  ],
+  "frozen_checks": [
+    {
+      "path": "artifacts/intelligence-quality-v1-baseline.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-failure-map.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-root-causes.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9a-dev-expectations.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq9a-dev-runner.json",
+      "match": true
+    },
+    {
+      "path": "scripts/intelligence-quality-v1-corpus.mjs",
+      "match": true
+    },
+    {
+      "path": "scripts/wave11-behavioural-torture-harness.mjs",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-evidence-source-inventory.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq5-conversation-tests.json",
+      "match": true
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq6-conversation-tests.json",
+      "match": true
+    }
+  ],
+  "raw_capture_hash_matches": true,
+  "development": {
+    "overall": {
+      "n": 160,
+      "success": 150,
+      "rate": 0.9375
+    },
+    "positive_controls": {
+      "n": 80,
+      "success": 76,
+      "rate": 0.95
+    },
+    "negative_controls": {
+      "n": 80,
+      "success": 74,
+      "rate": 0.925
+    },
+    "by_category": {
+      "CROSS_RESIDENT_SCOPE": {
+        "n": 16,
+        "success": 16,
+        "rate": 1
+      },
+      "HOME_VS_ESTATE_AUTHORITY": {
+        "n": 16,
+        "success": 15,
+        "rate": 0.9375
+      },
+      "VISITOR_PERMISSION_VS_PRESENCE": {
+        "n": 16,
+        "success": 16,
+        "rate": 1
+      },
+      "ACTION_PROPOSED_VS_COMPLETED": {
+        "n": 16,
+        "success": 16,
+        "rate": 1
+      },
+      "EMAIL_REQUESTED_SENT_DELIVERED": {
+        "n": 16,
+        "success": 13,
+        "rate": 0.8125
+      },
+      "CALLBACK_PROPOSED_ACKNOWLEDGED_COMPLETED": {
+        "n": 16,
+        "success": 16,
+        "rate": 1
+      },
+      "JUDGMENT_DETERMINISTIC_VS_PROVIDER": {
+        "n": 16,
+        "success": 14,
+        "rate": 0.875
+      },
+      "UNVERIFIED_SAFETY_REPORTS": {
+        "n": 16,
+        "success": 16,
+        "rate": 1
+      },
+      "CANCELLATIONS_WITH_COMPETING_SIGNALS": {
+        "n": 16,
+        "success": 13,
+        "rate": 0.8125
+      },
+      "MULTITURN_REFERENT_AND_AUTHORITY": {
+        "n": 16,
+        "success": 15,
+        "rate": 0.9375
+      }
+    },
+    "by_surface": {
+      "consumer": {
+        "n": 58,
+        "success": 57,
+        "rate": 0.9827586206896551
+      },
+      "office_internal": {
+        "n": 35,
+        "success": 32,
+        "rate": 0.9142857142857143
+      },
+      "facility": {
+        "n": 41,
+        "success": 37,
+        "rate": 0.9024390243902439
+      },
+      "public_corporate": {
+        "n": 26,
+        "success": 24,
+        "rate": 0.9230769230769231
+      }
+    },
+    "p0": 0,
+    "p1": 9,
+    "p2": 1,
+    "development_score_gates_met": true
+  },
+  "independent": {
+    "primary": {
+      "total": 320,
+      "passed": 71,
+      "rate": 0.221875
+    },
+    "per_worker": {
+      "Oma": {
+        "total": 80,
+        "passed": 17,
+        "rate": 0.2125
+      },
+      "Osa": {
+        "total": 80,
+        "passed": 4,
+        "rate": 0.05
+      },
+      "Facility": {
+        "total": 80,
+        "passed": 28,
+        "rate": 0.35
+      },
+      "Consumer": {
+        "total": 80,
+        "passed": 22,
+        "rate": 0.275
+      }
+    },
+    "per_intent": {
+      "LIST": {
+        "total": 20,
+        "passed": 9,
+        "rate": 0.45
+      },
+      "COUNT": {
+        "total": 20,
+        "passed": 10,
+        "rate": 0.5
+      },
+      "STATUS": {
+        "total": 20,
+        "passed": 4,
+        "rate": 0.2
+      },
+      "DETAIL": {
+        "total": 20,
+        "passed": 2,
+        "rate": 0.1
+      },
+      "VALUE_SUM": {
+        "total": 20,
+        "passed": 3,
+        "rate": 0.15
+      },
+      "YES_NO": {
+        "total": 20,
+        "passed": 6,
+        "rate": 0.3
+      },
+      "EXPLANATION": {
+        "total": 20,
+        "passed": 1,
+        "rate": 0.05
+      },
+      "COMPARISON_RANKING": {
+        "total": 20,
+        "passed": 2,
+        "rate": 0.1
+      },
+      "LIMITATION": {
+        "total": 20,
+        "passed": 6,
+        "rate": 0.3
+      },
+      "REFUSAL": {
+        "total": 20,
+        "passed": 9,
+        "rate": 0.45
+      },
+      "CONSTRAINT": {
+        "total": 20,
+        "passed": 2,
+        "rate": 0.1
+      },
+      "CLARIFICATION": {
+        "total": 20,
+        "passed": 4,
+        "rate": 0.2
+      },
+      "ACTION_CONFIRMATION": {
+        "total": 20,
+        "passed": 8,
+        "rate": 0.4
+      },
+      "SAFETY_RISK": {
+        "total": 20,
+        "passed": 2,
+        "rate": 0.1
+      },
+      "DISCOVERY": {
+        "total": 20,
+        "passed": 2,
+        "rate": 0.1
+      },
+      "FOLLOWUP_CONTEXT": {
+        "total": 20,
+        "passed": 1,
+        "rate": 0.05
+      }
+    },
+    "companions": {
+      "paraphrase_success": {
+        "total": 100,
+        "passed": 25,
+        "rate": 0.25
+      },
+      "paraphrase_consistency": {
+        "passed": 18,
+        "total": 100,
+        "rate": 0.18
+      },
+      "flip_success": {
+        "total": 100,
+        "passed": 30,
+        "rate": 0.3
+      },
+      "operation_flip": {
+        "passed": 30,
+        "total": 100,
+        "rate": 0.3
+      }
+    },
+    "agreement": {
+      "Oma": {
+        "items": 130,
+        "verdict": 126,
+        "success": 129,
+        "severity": 128
+      },
+      "Osa": {
+        "items": 130,
+        "verdict": 128,
+        "success": 130,
+        "severity": 130
+      },
+      "Facility": {
+        "items": 130,
+        "verdict": 127,
+        "success": 128,
+        "severity": 128
+      },
+      "Consumer": {
+        "items": 130,
+        "verdict": 119,
+        "success": 124,
+        "severity": 120
+      }
+    },
+    "severity": {
+      "P0": 6,
+      "P1": 386,
+      "P2": 1
+    }
+  },
+  "environment": {
+    "same_runtime_source": true,
+    "same_actor_factory_and_office_snapshot": true,
+    "actor_factory": "scripts/wave11-behavioural-torture-harness.mjs",
+    "loopback_only": "http://127.0.0.1:55421",
+    "provider": "OFF in both; no scripted provider activated by either evaluated runner",
+    "execution": "Device executor throws; inert queues/Redis; external fetch refused in both runners",
+    "important_differences": [
+      "IQ-9B sets ephemeral trace reference key; development trace not configured",
+      "IQ-9A snapshot created per journey; IQ-9B creates a run snapshot; timestamps differ while synthetic fields share factory",
+      "Broader independent intent/multi-facet distribution, fresh authors and dual grading versus iteratively tuned boundary-development cases",
+      "One IQ-9B setup persistence socket failure; no primary case isolated as infrastructure failure"
+    ]
+  },
+  "capture": {
+    "scored": 520,
+    "setup": 747,
+    "total_turns": 1267,
+    "persisted": 1266,
+    "trace_correlated": 0,
+    "errors": 0,
+    "execution_attempts": 0,
+    "duration_ms": 159679,
+    "latency": {
+      "mean": 118.06314127861089,
+      "p50": 94,
+      "p95": 196,
+      "max": 11454
+    }
+  },
+  "trace_and_persistence": {
+    "scope": "Structural capture diagnostics only; no grades or expectation changes",
+    "scored_cases": 520,
+    "total_turns_including_setup": 1267,
+    "responses_captured": 1267,
+    "persistence_saved": 1266,
+    "durable_trace_correlations": 0,
+    "execution_attempts": 0,
+    "trace_failure": {
+      "observed_error_code": "PGRST204",
+      "first_log_timestamp": "2026-10-08T22:11:30.191Z",
+      "cause": "Read-only schema inspection found local trace table lacks planner_admitted and planner_admission_reason fields emitted by the unchanged candidate projection",
+      "availability": "UNAVAILABLE; do not infer a successful durable trace write from captured responses",
+      "repair_or_replay_performed": false
+    },
+    "unsaved_turn": {
+      "case_id": "IQ9B-Osa-F007",
+      "index": 1,
+      "scored": false,
+      "stage": "thread_upsert",
+      "error": "UND_ERR_SOCKET: other side closed",
+      "response_returned": true,
+      "persistence_saved": false,
+      "repair_or_retry_performed": false
+    },
+    "first_contact_immutable": true,
+    "raw_responses_and_packets_rewritten": false,
+    "production_or_schema_changes": false
+  },
+  "audit_conclusion": "Comparable candidate, authority factory, synthetic capability inventory and provider-off conditions; different evaluation distribution/authorship/rubric application. No evidence invalidates all primary scores. Missing durable traces limit causal precision and operational readiness, not evidence of 249 infrastructure failures.",
+  "limits": [
+    "Instruction-isolated agents, not OS-enforced or cross-model independence",
+    "No durable query/stage traces, so per-turn branch causality has qualified confidence",
+    "Frozen expectations are not regraded; strict required-facet failures remain failures",
+    "Only principal fixture role per worker; no full lower-permission deployment population proof",
+    "Missing capabilities are never credited as executed; denied/private information is not sought for Osa"
+  ],
+  "no_runtime_replay": true,
+  "no_runtime_changes": true,
+  "no_production_access": true
+}
