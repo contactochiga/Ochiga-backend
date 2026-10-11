@@ -1,0 +1,236 @@
+{
+  "runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "preflight": {
+    "status": "compatible",
+    "stage": "complete",
+    "code": null,
+    "elapsed_ms": 126
+  },
+  "fixture": "verified loopback 55421",
+  "provider": "off",
+  "probes": [
+    {
+      "surface": "office_internal",
+      "request_id": "3239a9c6-d376-4e26-b816-b1ef4e2c5cf3",
+      "thread_id": "e7f9365a-0f8b-4e0d-bab8-3faf8b9f3fc7",
+      "persistence_saved": true,
+      "trace": {
+        "trace_id": "ae40d67d-2e07-4c39-a41e-d56015480fa6",
+        "persistence_saved": true
+      },
+      "trace_error": false
+    },
+    {
+      "surface": "public_corporate",
+      "request_id": "8064ad33-3d6f-40a8-8e20-d59b0946bef7",
+      "thread_id": "26fa7302-b07d-431b-8f82-1bd084c9260d",
+      "persistence_saved": true,
+      "trace": {
+        "trace_id": "1dc9533e-290f-4749-8cfb-3ff4ec2df820",
+        "persistence_saved": true
+      },
+      "trace_error": false
+    },
+    {
+      "surface": "facility",
+      "request_id": "30a1080f-b88b-4dca-8869-3e6f40359dc0",
+      "thread_id": "14966579-6dc3-4437-bdbe-0a108fc2e254",
+      "persistence_saved": true,
+      "trace": {
+        "trace_id": "92ab4da0-2bd5-4fc7-aff7-868990b8602b",
+        "persistence_saved": true
+      },
+      "trace_error": false
+    },
+    {
+      "surface": "consumer",
+      "request_id": "fe118153-318a-4b03-be78-6335ad08681b",
+      "thread_id": "f9a2b892-a835-4781-b636-e8bef79b1b0e",
+      "persistence_saved": true,
+      "trace": {
+        "trace_id": "fc94cf87-5a5c-4e4f-b251-e9ed781575f6",
+        "persistence_saved": true
+      },
+      "trace_error": false
+    }
+  ],
+  "inventory": {
+    "homes": {
+      "records": [
+        {
+          "id": "20000000-0000-4000-8000-000000000001",
+          "name": "A-101",
+          "estate_id": "10000000-0000-4000-8000-000000000001",
+          "resident_id": "30000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "20000000-0000-4000-8000-000000000002",
+          "name": "A-102",
+          "estate_id": "10000000-0000-4000-8000-000000000001",
+          "resident_id": "30000000-0000-4000-8000-000000000002"
+        },
+        {
+          "id": "20000000-0000-4000-8000-000000000003",
+          "name": "B-201",
+          "estate_id": "10000000-0000-4000-8000-000000000001",
+          "resident_id": null
+        }
+      ],
+      "error": null
+    },
+    "rooms": {
+      "records": [
+        {
+          "id": "21000000-0000-4000-8000-000000000001",
+          "name": "Living Room",
+          "home_id": "20000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "21000000-0000-4000-8000-000000000002",
+          "name": "Master Bedroom",
+          "home_id": "20000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "21000000-0000-4000-8000-000000000003",
+          "name": "Kitchen",
+          "home_id": "20000000-0000-4000-8000-000000000001"
+        },
+        {
+          "id": "21000000-0000-4000-8000-000000000004",
+          "name": "Study",
+          "home_id": "20000000-0000-4000-8000-000000000001"
+        }
+      ],
+      "error": null
+    },
+    "devices": {
+      "records": [
+        {
+          "id": "40000000-0000-4000-8000-000000000001",
+          "name": "Wave11 Living Light",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "room_id": "21000000-0000-4000-8000-000000000001",
+          "status": "online",
+          "online": true,
+          "last_seen_at": "2026-10-01T06:21:37.911189+00:00"
+        },
+        {
+          "id": "40000000-0000-4000-8000-000000000003",
+          "name": "Wave11 AC",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "room_id": "21000000-0000-4000-8000-000000000002",
+          "status": "online",
+          "online": true,
+          "last_seen_at": "2026-10-01T04:21:37.911189+00:00"
+        },
+        {
+          "id": "40000000-0000-4000-8000-000000000004",
+          "name": "Wave11 Kitchen Light",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "room_id": "21000000-0000-4000-8000-000000000003",
+          "status": "online",
+          "online": true,
+          "last_seen_at": "2026-10-01T06:21:37.911189+00:00"
+        },
+        {
+          "id": "40000000-0000-4000-8000-000000000002",
+          "name": "Wave11 Bedroom Light",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "room_id": "21000000-0000-4000-8000-000000000002",
+          "status": "offline",
+          "online": false,
+          "last_seen_at": "2026-10-01T03:21:37.911189+00:00"
+        }
+      ],
+      "error": null
+    },
+    "maintenance_requests": {
+      "records": [
+        {
+          "id": "50000000-0000-4000-8000-000000000002",
+          "title": "Wave11 resolved light issue",
+          "status": "resolved",
+          "priority": "low",
+          "category": "electrical",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "created_at": "2026-09-24T06:21:37.911189+00:00"
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000001",
+          "title": "Wave11 unresolved water issue",
+          "status": "open",
+          "priority": "high",
+          "category": "plumbing",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "created_at": "2026-09-29T06:21:37.911189+00:00"
+        }
+      ],
+      "error": null
+    },
+    "visitor_access": {
+      "records": [
+        {
+          "id": "60000000-0000-4000-8000-000000000002",
+          "visitor_name": "Wave11 Historical Visitor",
+          "status": "expired",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "expires_at": "2026-09-30T06:21:37.911189+00:00"
+        },
+        {
+          "id": "60000000-0000-4000-8000-000000000001",
+          "visitor_name": "Wave11 Expected Visitor",
+          "status": "active",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "expires_at": "2026-10-02T06:21:37.911189+00:00"
+        }
+      ],
+      "error": null
+    },
+    "wallets": {
+      "records": [
+        {
+          "id": "70000000-0000-4000-8000-000000000001",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "balance": 12500,
+          "currency": "NGN"
+        }
+      ],
+      "error": null
+    },
+    "wallet_transactions": {
+      "records": [
+        {
+          "id": "71000000-0000-4000-8000-000000000001",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "direction": "debit",
+          "type": "electricity",
+          "amount": 2500,
+          "status": "completed"
+        },
+        {
+          "id": "71000000-0000-4000-8000-000000000002",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "direction": "credit",
+          "type": "topup",
+          "amount": 15000,
+          "status": "completed"
+        }
+      ],
+      "error": null
+    },
+    "facility_cameras": {
+      "records": [
+        {
+          "id": "41000000-0000-4000-8000-000000000001",
+          "name": "Wave11 Test Camera",
+          "location": "Tower A Lobby",
+          "home_id": "20000000-0000-4000-8000-000000000001",
+          "status": "offline",
+          "last_seen_at": "2026-10-01T02:21:37.911189+00:00"
+        }
+      ],
+      "error": null
+    }
+  },
+  "ready": true
+}
