@@ -28,7 +28,8 @@ const WORDS: Record<string, string> = { critical: "critical", high: "high", medi
 export function describe(c: Candidate): string[] {
   const out: string[] = [];
   const life = levelOf(c, "lifecycle"); if (life) out.push(life === "historical" ? "resolved or past" : life === "active" ? "open/active" : "status not clear");
-  const imp = levelOf(c, "importance"); out.push(imp ? `recorded ${c.source_key.startsWith("security") ? "severity" : "priority"} ${WORDS[imp] || imp}` : "no priority or severity recorded");
+  const imp = levelOf(c, "importance"), source = c.factors.find(f => f.dimension === "importance")?.source_field;
+  out.push(imp ? `recorded ${source || (c.source_key.startsWith("security") ? "severity" : "priority")} ${WORDS[imp] || imp}` : "no priority or severity recorded");
   const t = levelOf(c, "time_pressure"); if (t && t !== "later") out.push(WORDS[t] || t);
   return out;
 }

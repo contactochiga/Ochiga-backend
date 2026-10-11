@@ -14,6 +14,7 @@ export type ResponseIntent =
 export type YesNoKind = "state" | "inference" | "capability" | "change" | "action_result" | "advice" | "fact" | "submission";
 
 export type AnswerTarget = {
+  requested_fields?: string[];         // safe record facets; derived once, never inferred from answer prose
   response_intent: ResponseIntent;
   subject_tokens: string[];            // content words naming what the question is about
   top_n: number | null;                // an explicit "top three" / "first two"
@@ -369,12 +370,20 @@ export function splitInformationalClauses(text: string): string[] {
 }
 
 export function deriveAnswerTarget(text: string, opts: Parameters<typeof deriveOneTarget>[1] = {}): AnswerTarget {
-  const target = deriveOneTarget(text, opts);
+  const withFields = (s: string) => {
+    const target = deriveOneTarget(s, opts);
+    const tokens = analyse(s).tokens;
+    const concepts: Record<string, string[]> = { owner: ["owner", "owners", "owns"], category: ["category", "categories"], priority: ["priority"], severity: ["severity"], quantity: ["quantity"], location: ["location", "locations", "located"], expires_at: ["expiry", "expires", "expiration"], assigned_to: ["assignee", "assigned"], created_at: ["created"], updated_at: ["updated"], currency: ["currency"] };
+    const fields = Object.entries(concepts).filter(([, words]) => words.some(w => tokens.includes(w))).map(([key]) => key);
+    if (fields.length && tokens.some(w => w === "status" || w === "statuses" || w === "state")) fields.push("status");
+    return fields.length ? { ...target, requested_fields: fields } : target;
+  };
+  const target = withFields(text);
   // a turn whose whole meaning is a refusal, a result/confirmation question, a clarification, a capability question or a safety report is one request, not a list of reads
   if (["REFUSAL", "ACTION_RESULT", "CONFIRMATION_STATE", "CLARIFICATION", "CAPABILITY_DISCOVERY", "LIMITATION", "SAFETY_RISK"].includes(target.response_intent) || target.refusal_kind || target.safety_relevant) return target;
   const parts = splitInformationalClauses(text);
   if (parts.length < 2) return target;
-  const targets = parts.map(c => deriveOneTarget(c, opts));
+  const targets = parts.map(c => withFields(c));
   // an elliptical later clause ("... and which are active?") shares the subject of the first clause; it is never given a subject from another turn
   const first = targets[0];
   const clauses = parts.map((c, i) => {

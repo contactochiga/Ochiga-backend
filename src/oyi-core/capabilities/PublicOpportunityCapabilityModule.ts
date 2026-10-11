@@ -150,7 +150,7 @@ function hasLandSignal(message: string, prior: PublicOpportunityObjective | null
 // ---------------------------------------------------------------------
 /** True when a message states opportunity facts (land, location, size, structure, title...): the public opportunity module owns such a turn, not the assessment planner. */
 export function suppliesOpportunityFacts(message: string): boolean {
-  try { return Object.keys(mergeObjective(null, message, new Date().toISOString()).known_facts).filter((k) => k !== "opportunity_type").length > 0; } catch { return false; }
+  try { const update = mergeObjective(null, message, new Date().toISOString()); return update.constraints.includes("no_sale") || Object.keys(update.known_facts).filter((k) => k !== "opportunity_type").length > 0; } catch { return false; }
 }
 
 function mergeObjective(prior: PublicOpportunityObjective | null, message: string, now: string): PublicOpportunityObjective {
@@ -169,7 +169,8 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
   if (area) knownFacts[objectiveType === "development_partnership" ? "land_size" : "size"] = area;
 
   const structure = extractStructurePreference(message);
-  if (structure) knownFacts.structure_offered = structure;
+  if (structure && !(structure === "sale" && assertsNoSale(message))) knownFacts.structure_offered = structure;
+  if (assertsNoSale(message) && knownFacts.structure_offered === "sale") delete knownFacts.structure_offered;
 
   const propertyKind = extractPropertyKind(message);
   if (propertyKind) knownFacts.opportunity_type = propertyKind;
@@ -408,7 +409,8 @@ export function publicOpportunityReadModule(): CapabilityModule {
         } else if (selection.kind === "selected") {
           prior=opportunityEntityView(prior,selection.selected[0]); selectedPrior=prior;
           const pending=prior.pending_entity_update;
-          const suppliesNewFact=changesBetween(prior,mergeObjective(prior,message0,new Date().toISOString()).known_facts).length>0;
+          const proposedUpdate=mergeObjective(prior,message0,new Date().toISOString());
+          const suppliesNewFact=changesBetween(prior,proposedUpdate.known_facts).length>0 || proposedUpdate.constraints.some(c=>!prior?.constraints.includes(c));
           if (pending && pending.candidate_ids.includes(prior.active_entity_id!) && Date.now()-Date.parse(pending.created_at)<30*60000 && !transition && !suppliesNewFact) {
             const next={...prior.known_facts,...pending.fields};
             const changes=changesBetween(prior,next);
@@ -423,7 +425,7 @@ export function publicOpportunityReadModule(): CapabilityModule {
           }
           if (transition || suppliesNewFact) prior={...prior,pending_entity_update:null};
           const proposed=mergeObjective(prior,message0,new Date().toISOString());
-          if (!transition && changesBetween(prior,proposed.known_facts).length===0 && !extractTitleStatus(message0)
+          if (!transition && !suppliesNewFact && changesBetween(prior,proposed.known_facts).length===0 && !extractTitleStatus(message0)
             && /^(?:tell|show|list|the|and|can we|what about|go back|return)/i.test(message0.trim())) {
             return result(`Based on the details you supplied, not independent verification:\n${summary(selection.selected)}`,prior);
           }

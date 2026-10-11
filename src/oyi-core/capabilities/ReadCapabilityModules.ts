@@ -43,13 +43,18 @@ function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 // Totals the capability itself computes from the transaction facts it holds (money out = debits, money in = credits). `partial` when the read hit its limit.
-function walletMeasures(facts: IntelligenceFact[]) {
+export function walletMeasures(facts: IntelligenceFact[]) {
   const tx = facts.filter((f) => f.fact_type === "wallet_transaction");
   if (!tx.length) return [];
-  let out = 0, inn = 0, nOut = 0, nIn = 0, currency = "NGN";
-  for (const f of tx) { const v = recordOf(f.value), amt = Math.abs(Number(v.amount || 0)), dir = text(v.direction).toLowerCase(); currency = text(v.currency) || currency; if (dir === "debit") { out += amt; nOut++; } else if (dir === "credit") { inn += amt; nIn++; } }
-  const partial = tx.length >= 100;
-  return [{ key: "wallet_out", label: "money out (debits)", amount: out, currency, direction: "out", n: nOut, partial }, { key: "wallet_in", label: "money in (credits)", amount: inn, currency, direction: "in", n: nIn, partial }];
+  const groups = new Map<string, { out: number; inn: number; nOut: number; nIn: number }>();
+  for (const f of tx) {
+    const v = recordOf(f.value), currency = text(v.currency), dir = text(v.direction).toLowerCase();
+    if (typeof v.amount !== "number" || !Number.isFinite(v.amount) || !currency || !["debit", "credit"].includes(dir)) return []; // cannot certify the aggregate
+    const g = groups.get(currency) || { out: 0, inn: 0, nOut: 0, nIn: 0 };const amount = Math.abs(v.amount);
+    if (dir === "debit") { g.out += amount; g.nOut++; } else { g.inn += amount; g.nIn++; } groups.set(currency, g);
+  }
+  const partial = tx.length >= 50;
+  return [...groups].flatMap(([currency, g]) => [{ key: "wallet_out", label: "money out (debits)", amount: g.out, currency, direction: "out", n: g.nOut, partial }, { key: "wallet_in", label: "money in (credits)", amount: g.inn, currency, direction: "in", n: g.nIn, partial }]);
 }
 
 export { evidenceFromFact, factsFromEvidence } from "../evidence/sources/evidenceFromFact";
@@ -308,7 +313,12 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const unavailable = facts.filter((fact) => text(recordOf(fact.value).overall) === "unavailable");
         const unknown = facts.filter((fact) => text(recordOf(fact.value).overall) === "unknown");
         const detail = facts.map((fact) => fact.statement.trim()).join(" ");
-        return { status: facts.length ? "answered" : "empty", answer: `${facts.length} accessible camera${facts.length === 1 ? " is" : "s are"} registered. ${unavailable.length} have a recent failed acquisition; ${unknown.length} have unknown current video state. Neither status proves physical disconnection.${detail ? ` ${detail}` : ""}`, presentation_policy: resultPresentation("list"), metadata: { result_facts: { state_facts: { unobserved: unknown.length + unavailable.length } } } };
+        const records = facts.map(f => ({ id: f.object?.canonical_id, label: f.object?.label || "Camera", status: text(recordOf(f.value).overall) || "unknown",
+          time: f.occurred_at, scope: f.scope, freshness: f.freshness, truth_state: f.truth_state,
+          provenance: { source_type: f.source_type, source_id: f.source_id, fact_id: f.fact_id },
+          fields: { location: text(recordOf(f.value).location) || null, observed_at: f.occurred_at },
+        }));
+        return { status: facts.length ? "answered" : "empty", answer: `${facts.length} accessible camera${facts.length === 1 ? " is" : "s are"} registered. ${unavailable.length} have a recent failed acquisition; ${unknown.length} have unknown current video state. Neither status proves physical disconnection.${detail ? ` ${detail}` : ""}`, presentation_policy: resultPresentation("list"), metadata: { result_facts: { records, state_facts: { unobserved: unknown.length + unavailable.length }, limitations: [{ kind: "PARTIAL", label: "authorized camera registry; current video availability is a separate observation" }] } } };
       },
       primary: "list",
     }),
@@ -482,7 +492,7 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
         const balanceOk = balanceFacts.filter((fact) => fact.fact_type === "wallet_balance" && fact.truth_state !== "unavailable");
         const balanceMissing = balanceFacts.length > 0 && !balanceOk.length;
         const bv = balanceOk.length ? recordOf(balanceOk[0].value) : null;
-        const balanceMeta = bv ? { value: { amount: Number(bv.balance || 0), currency: text(bv.currency) || "NGN", label: "Current wallet balance", frozen: Boolean(bv.is_frozen), as_of: balanceOk[0].occurred_at ? String(balanceOk[0].occurred_at).slice(0, 10) : undefined } } : balanceMissing ? { limitations: [{ kind: "UNAVAILABLE", label: "current wallet balance" }] } : {};
+        const balanceMeta = bv && typeof bv.balance === "number" && Number.isFinite(bv.balance) && text(bv.currency) ? { value: { amount: bv.balance, currency: text(bv.currency), label: "Current wallet balance", frozen: Boolean(bv.is_frozen), as_of: balanceOk[0].occurred_at || undefined } } : balanceMissing || bv ? { limitations: [{ kind: "UNAVAILABLE", label: "current wallet balance" }] } : {};
         if (facts.some((fact) => fact.truth_state === "unavailable")) {
           return {
             status: "unavailable",
@@ -515,7 +525,8 @@ export function buildPhaseBReadCapabilities(): CapabilityModule[] {
           return { status: "unavailable", answer: "Wallet balance evidence is unavailable right now. I did not treat that as a zero balance.", presentation_policy: resultPresentation("text") };
         }
         const wv = facts.length ? recordOf(facts[0].value) : null;
-        return { status: facts.length ? "answered" : "empty", answer: buildWalletBalanceAnswer(facts), presentation_policy: resultPresentation("text"), metadata: wv ? { result_facts: { value: { amount: Number(wv.balance || 0), currency: text(wv.currency) || "NGN", label: "Wallet balance", frozen: Boolean(wv.is_frozen) } } } : undefined };
+        const valid = wv && typeof wv.balance === "number" && Number.isFinite(wv.balance) && text(wv.currency);
+        return { status: wv && !valid ? "unavailable" : facts.length ? "answered" : "empty", answer: buildWalletBalanceAnswer(facts), presentation_policy: resultPresentation("text"), metadata: valid ? { result_facts: { value: { amount: wv.balance, currency: text(wv.currency), label: "Wallet balance", frozen: Boolean(wv.is_frozen), as_of: facts[0].occurred_at } } } : undefined };
       },
     }),
     readModule({

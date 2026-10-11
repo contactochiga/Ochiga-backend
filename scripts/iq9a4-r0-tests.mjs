@@ -54,7 +54,7 @@ await ok('attention-yes-needs-a-record', () => {
     const p = projectResponse(T('consumer', q), open, {asked: q, raw: q}); if (!p) continue; assert.doesNotMatch(p.primary, /^Yes/, q); assert.match(p.primary, /can't confirm that anyone/, q);
   }
   const progress = env([{label: 'Water issue', status: 'in progress', state: null}], {}, 'maintenance requests', 'maintenance request', 'maintenance.requests.read', 'maintenance', 'maintenance_request');
-  const yes = projectResponse(T('consumer', 'Is somebody dealing with the water issue?'), progress, {asked: 'q', raw: 'Is somebody dealing with the water issue?'}); assert.match(yes.primary, /^Yes — recorded as in progress or assigned/); // a recorded progress status licenses the YES
+  const yes = projectResponse(T('consumer', 'Is somebody dealing with the water issue?'), progress, {asked: 'q', raw: 'Is somebody dealing with the water issue?'}); assert.match(yes.primary, /^Yes — recorded as in progress:/); // IQ-10D: progress licenses YES; assignment alone does not prove work started.
   const st = projectResponse(T('consumer', 'Is my water issue still open?'), open, {asked: 'q', raw: 'Is my water issue still open?'}); assert.match(st.primary, /^Yes/); // ordinary state questions are unchanged
 });
 // 5 financial disclosure and constraints

@@ -8,7 +8,11 @@ export type Availability = "answered" | "empty" | "unavailable" | "unsupported" 
 export type CapabilityStatus = "enabled" | "declared";
 export type LimitationKind = "UNAVAILABLE" | "MISSING_CAPABILITY" | "UNSUPPORTED_SCOPE" | "INSUFFICIENT_SCOPE" | "PARTIAL" | "PROVIDER_REQUIRED" | "AUTHORITY_DENIED" | "AMBIGUOUS" | "STALE" | "UNOBSERVED";
 export type Limitation = { kind: LimitationKind; label?: string };
-export type EnvelopeRecord = { id?: string | null; label: string; status?: string | null; state?: StateConcept | null; detail?: string | null; time?: string | null; age_days?: number | null; fields?: Record<string, string | number | boolean | null> };
+export type EnvelopeRecord = { id?: string | null; label: string; status?: string | null; state?: StateConcept | null; detail?: string | null; time?: string | null; age_days?: number | null; fields?: Record<string, string | number | boolean | null>;
+  entity_type?: string; scope?: { estate_id?: string | null; home_id?: string | null; room_id?: string | null };
+  freshness?: string; truth_state?: string;
+  provenance?: { source_type: string; source_id: string | null; fact_id?: string };
+};
 
 export type ResultEnvelope = {
   v: 1;

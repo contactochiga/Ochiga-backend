@@ -44,6 +44,7 @@ export function factorsFor(m: Record<string, unknown>, eref: string, evidenceCla
   if (text(m.status || m.stage)) add("lifecycle", lifecycleOf(m));
   const importance = LEVELS[text(m.severity).toLowerCase()] || LEVELS[text(m.priority).toLowerCase()];
   add("importance", importance || null);
+  if (importance) out[out.length - 1].source_field = LEVELS[text(m.severity).toLowerCase()] ? "severity" : "priority";
   add("time_pressure", timePressureOf(m, now));
   if (["crm", "office_development"].includes(evidenceClass)) {
     const s = text(m.status || m.stage).toLowerCase();

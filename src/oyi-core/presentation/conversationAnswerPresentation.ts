@@ -201,14 +201,15 @@ function walletTransactionRows(facts: IntelligenceFact[]) {
     .filter((fact) => fact.fact_type === "wallet_transaction")
     .map((fact) => {
       const value = recordOf(fact.value);
-      const amount = Number(value.amount || 0);
+      const amount = typeof value.amount === "number" && Number.isFinite(value.amount) ? value.amount : null;
+      const currency = text(value.currency);
       const direction = text(value.direction).toLowerCase();
       const sign = direction === "debit" ? "-" : direction === "credit" ? "+" : "";
       return {
         date: safeDateLabel(fact.occurred_at, "Time unavailable", "date_time"),
         description: residentSafeLabel(value.description || fact.object?.label, "Wallet transaction"),
         type: cleanLabel(value.type, "transaction"),
-        amount: `${sign}₦${Math.abs(amount).toLocaleString()}`,
+        amount: amount === null ? "Amount unavailable" : `${sign}${currency || "Currency unavailable"} ${Math.abs(amount).toLocaleString()}`,
         status: cleanLabel(value.status, "recorded"),
       };
     });
@@ -433,8 +434,9 @@ export function buildWalletBalanceAnswer(facts: IntelligenceFact[]) {
   if (!facts.length) return "I do not see a wallet on record for this home.";
   const wallet = facts[0];
   const value = recordOf(wallet.value);
-  const balance = Number(value.balance || 0);
-  const currency = text(value.currency) || "NGN";
+  const balance = typeof value.balance === "number" && Number.isFinite(value.balance) ? value.balance : null;
+  const currency = text(value.currency);
+  if (balance === null || !currency) return "The wallet record is available, but its balance or currency is not established. I am not treating that as zero.";
   const frozen = Boolean(value.is_frozen);
   return `Wallet balance: ${currency} ${balance.toLocaleString()}${frozen ? ". This wallet is currently frozen." : "."}`;
 }
@@ -592,15 +594,36 @@ export function tableBlockForContract(contract: IntelligenceRequestContract, fac
 // IQ-8: compact structured views of what a read capability found, for answer targeting (list / count / status / yes-no). Same safe labels
 // the tables use; visitor access codes are never part of them.
 export function maintenanceAnswerRows(facts: IntelligenceFact[]) {
-  return { noun: "maintenance requests", singular: "maintenance request", rows: maintenanceRequestRows(facts).map((r) => ({ label: r.title, status: r.status, detail: `${r.priority} priority` })) };
+  const source = facts.filter(f => f.fact_type === "maintenance_request" && f.truth_state !== "unavailable");
+  return { noun: "maintenance requests", singular: "maintenance request", truncated: source.length >= 50, rows: source.map(f => {
+    const v = recordOf(f.value);
+    return { ...answerRecordIdentity(f), label: residentSafeLabel(v.title || f.object?.label, "Maintenance request"), status: text(v.status) || "unknown",
+      detail: v.priority ? `${text(v.priority)} priority` : null,
+      fields: answerFields(v, ["category", "priority", "assigned_to", "created_at", "updated_at"]) };
+  }) };
 }
 export function visitorAnswerRows(facts: IntelligenceFact[]) {
-  return { noun: "visitor access records", singular: "visitor access record", rows: visitorAccessRows(facts).map((r) => ({ label: r.visitor, status: r.status, detail: r.purpose === "Not specified" ? undefined : r.purpose })) };
+  const source = facts.filter(f => f.fact_type === "visitor_access" && f.truth_state !== "unavailable");
+  return { noun: "visitor access records", singular: "visitor access record", truncated: source.length >= 50, rows: source.map(f => {
+    const v = recordOf(f.value);
+    return { ...answerRecordIdentity(f), label: residentSafeLabel(v.visitor_name || f.object?.label, "Visitor"), status: text(v.status) || "unknown",
+      detail: text(v.purpose) || null, fields: answerFields(v, ["purpose", "pass_state", "expires_at", "created_at"]) };
+  }) };
+}
+// Same authorized fact, with a deliberately small material-field allowlist.
+// Scope/provenance stay structural; IDs and access credentials are not prose.
+function answerRecordIdentity(f: IntelligenceFact) {
+  return { id: f.object?.canonical_id ?? null, entity_type: f.object?.object_type, scope: f.scope,
+    time: f.occurred_at, freshness: f.freshness, truth_state: f.truth_state,
+    provenance: { source_type: f.source_type, source_id: f.source_id, fact_id: f.fact_id } };
+}
+function answerFields(value: Record<string, unknown>, keys: string[]) {
+  return Object.fromEntries(keys.map(k => { const v = value[k]; return [k, typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)) ? v : null]; }));
 }
 export function walletAnswerRows(facts: IntelligenceFact[]) {
   const tx = facts.filter(f => f.fact_type === "wallet_transaction");
-  return { noun: "wallet transactions", singular: "wallet transaction", rows: walletTransactionRows(facts).map((r, i) => {
+  return { noun: "wallet transactions", singular: "wallet transaction", truncated: tx.length >= 50, rows: walletTransactionRows(facts).map((r, i) => {
     const v = recordOf(tx[i].value);
-    return { label: `${r.description} ${r.amount}`, status: r.status, fields: { amount: typeof v.amount === "number" ? Math.abs(v.amount) : null, currency: typeof v.currency === "string" ? v.currency : "NGN", direction: v.direction === "credit" ? "in" : v.direction === "debit" ? "out" : null } };
+    return { ...answerRecordIdentity(tx[i]), label: `${r.description} ${r.amount}`, status: r.status, fields: { amount: typeof v.amount === "number" && Number.isFinite(v.amount) ? Math.abs(v.amount) : null, currency: typeof v.currency === "string" ? v.currency : null, direction: v.direction === "credit" ? "in" : v.direction === "debit" ? "out" : null } };
   }) };
 }

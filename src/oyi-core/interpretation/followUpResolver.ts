@@ -40,6 +40,7 @@ export type FollowUpIntent =
   | { type: "comparison" }
   | { type: "prioritize" }
   | { type: "temporal_followup" }
+  | { type: "collection_read" }
   | { type: "filter"; keyword: string }
   | { type: "attribute"; attribute: "unresolved" | "failed" | "expensive" | "highest" | "open" | "active" | "inactive" | "resolved" }
   | { type: "other" }
@@ -113,6 +114,12 @@ export function parseDomainSwitchIntent(message: string): DomainSwitchIntent {
 export function parseFollowUpIntent(message: string): FollowUpIntent | null {
   const m = text(message).toLowerCase();
   if (!m) return null;
+  // A plural possessive + factual facet refers to the current collection,
+  // not whichever one record was selected most recently. Restrict to a
+  // closed grammatical shape so an explicit new subject/action cannot leak in.
+  const collectionWords = m.replace(/[^a-z ]/g, " ").split(/\s+/).filter(Boolean);
+  if (collectionWords.includes("their") && collectionWords.some(w => ["status", "statuses", "owners", "categories", "locations"].includes(w))
+    && collectionWords.every(w => ["what", "are", "is", "show", "list", "tell", "me", "their", "recorded", "current", "the", "status", "statuses", "owners", "categories", "locations", "and", "please"].includes(w))) return { type: "collection_read" };
 
   if (/\bwhich (one )?(was|is)\s+(higher|lower|more|less|bigger|smaller)\b/.test(m) || /\bcompare\b/.test(m) || /\bhigher or lower\b/.test(m)) {
     return { type: "comparison" };

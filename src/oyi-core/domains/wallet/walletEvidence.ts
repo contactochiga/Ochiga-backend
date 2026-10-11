@@ -86,13 +86,14 @@ function walletFromRow(row: Record<string, unknown>, scope: ReturnType<typeof cu
     fact_type: "wallet_transaction",
     scope: { estate_id: scope.estate_id, home_id: text(row.home_id) || scope.home_id, room_id: null },
     object: { object_type: "transaction", canonical_id: String(row.id), label: description },
-    statement: `${description}: ${row.direction || "transaction"} ${row.amount || 0}.`,
+    statement: `${description}: ${row.direction || "transaction"} ${row.amount ?? "amount unavailable"}.`,
     value: {
       date: row.created_at || row.updated_at || null,
       description,
       type: text(row.type || category) || "transaction",
       direction: text(row.direction) || null,
-      amount: Number(row.amount || 0),
+      amount: row.amount !== null && row.amount !== undefined && Number.isFinite(Number(row.amount)) ? Number(row.amount) : null,
+      currency: text(row.currency) || null,
       status: text(row.status) || "recorded",
       category,
       reference: text(row.reference) || null,
@@ -143,7 +144,7 @@ export async function loadWalletTransactionFacts(
     const applyTemporalBounds = boundedTemporalModes.has(contract.temporal_scope.mode);
     const walletResult = await supabaseAdmin
       .from("wallets")
-      .select("id")
+      .select("id,currency")
       .eq("home_id", scope.home_id)
       .limit(50);
     if (walletResult.error) throw walletResult.error;
@@ -163,7 +164,8 @@ export async function loadWalletTransactionFacts(
     const { data, error } = await query;
     if (error) throw error;
     const rows = Array.isArray(data) ? data : [];
-    const facts = rows.map((row: any) => walletFromRow(row, scope));
+    const currencies = new Map((walletResult.data || []).map((w: any) => [String(w.id), text(w.currency)]));
+    const facts = rows.map((row: any) => walletFromRow({ ...row, currency: currencies.get(String(row.wallet_id)) || null }, scope));
     logger.info("oyi_wallet_transaction_evidence_loaded", {
       ...diagnosticBase,
       query_wallet_count: walletIds.length,
@@ -237,8 +239,8 @@ export async function loadWalletBalanceFacts(
     if (error) throw error;
     const rows = Array.isArray(data) ? data : [];
     const facts = rows.map((row: any): IntelligenceFact => {
-      const balance = Number(row.balance || 0);
-      const currency = text(row.currency) || "NGN";
+      const balance = row.balance !== null && row.balance !== undefined && Number.isFinite(Number(row.balance)) ? Number(row.balance) : null;
+      const currency = text(row.currency) || null;
       const frozen = Boolean(row.is_frozen);
       return {
         fact_id: `wallet-balance:${row.id}`,
@@ -246,7 +248,7 @@ export async function loadWalletBalanceFacts(
         fact_type: "wallet_balance",
         scope: { estate_id: scope.estate_id, home_id: text(row.home_id) || scope.home_id, room_id: null },
         object: { object_type: "wallet", canonical_id: String(row.id), label: "Wallet" },
-        statement: `Wallet balance: ${balance} ${currency}${frozen ? " (frozen)" : ""}.`,
+        statement: `Wallet balance: ${balance ?? "amount unavailable"} ${currency ?? "currency unavailable"}${frozen ? " (frozen)" : ""}.`,
         value: { balance, currency, is_frozen: frozen },
         previous_value: null,
         occurred_at: text(row.updated_at) || null,

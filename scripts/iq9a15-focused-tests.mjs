@@ -25,6 +25,9 @@ const wallet={v:1,capability_key:'wallet.transactions.read',availability:'answer
 const q='Which was larger, the meter purchase or salary funding?',t=parseSemanticFrame(q,{surface:'consumer'}).answerTarget;
 const p=projectResponse(t,wallet,{asked:q,raw:q});ok(p.primary.includes('90')&&p.primary.includes('40')&&p.primary.includes('money in')&&p.primary.includes('money out'),'typed comparison');
 const small='Which was smaller, the meter purchase or salary funding?';ok(projectResponse(t,wallet,{asked:small,raw:small}).primary.includes('Meter purchase is smaller'),'comparison direction');
-ok(!projectResponse(t,{...wallet,records:[wallet.records[0],{...wallet.records[1],fields:{...wallet.records[1].fields,currency:'USD'}}]},{asked:q,raw:q}),'no cross currency comparison');
+// IQ-10D makes the unsupported facet explicit instead of dropping projection.
+// Preserve the safety expectation: no conversion, ordering, or comparison.
+const unlike=projectResponse(t,{...wallet,records:[wallet.records[0],{...wallet.records[1],fields:{...wallet.records[1].fields,currency:'USD'}}]},{asked:q,raw:q});
+ok(unlike?.shape==='LIMITATION'&&unlike.primary.includes('currencies differ')&&!/is (?:larger|smaller)|By recorded amounts only/.test(unlike.primary),'no cross currency comparison');
 ok(!projectResponse(t,{...wallet,availability:'unavailable'},{asked:q,raw:q}).primary.includes('90'),'unavailable not projected');
 console.log(JSON.stringify({status:'PASS',assertions}));

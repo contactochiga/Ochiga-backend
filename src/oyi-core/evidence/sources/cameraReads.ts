@@ -41,13 +41,14 @@ async function readFacilityCameras(context: CapabilityContext): Promise<Facility
     const authorised = rows.filter((row: any) => canAccessCamera(row, accessActor).ok);
     const states = await resolveCameraCurrentStates(estateId, authorised.map((row: any) => row.id), accessActor, {}, db);
     const names = new Map(authorised.map((row: any) => [String(row.id), text(row.name) || "Camera"]));
+    const locations = new Map(authorised.map((row: any) => [String(row.id), text(row.location) || null]));
     const facts = states.map((state) => ({
       fact_id: `camera-current-state:${state.cameraId}`,
       domain: "cameras", fact_type: "camera_current_state",
       scope: { estate_id: estateId, home_id: null, room_id: null },
       object: { object_type: "camera", canonical_id: state.cameraId, label: names.get(state.cameraId) || "Camera" },
       statement: `${names.get(state.cameraId) || "Camera"}: ${cameraStateExplanation(state)} `,
-      value: { overall: state.overall, video_evidence: state.videoEvidence, observed_at: state.observedAt },
+      value: { overall: state.overall, video_evidence: state.videoEvidence, observed_at: state.observedAt, location: locations.get(state.cameraId) ?? null },
       previous_value: null, occurred_at: state.observedAt, observed_at: new Date().toISOString(),
       source_type: "database", source_id: state.cameraId, truth_state: "confirmed",
       confidence: state.overall === "unknown" ? 0.4 : 0.9,
@@ -102,4 +103,3 @@ export async function facilityCameraOutcome(context: CapabilityContext, scope: E
     freshness: records.some(r => r.freshness === "unobservable") ? "unknown" : "current",
   });
 }
-

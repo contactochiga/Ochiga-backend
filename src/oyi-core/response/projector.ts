@@ -23,7 +23,8 @@ function matches(r: EnvelopeRecord, q: string): boolean {
   const st = norm(r.status ?? ""), hay = norm(`${r.status ?? ""} ${r.detail ?? ""} ${r.fields ? Object.values(r.fields).join(" ") : ""}`);
   // IQ-9A4: a pass recorded active whose recorded expiry has passed is not "active" for a validity question (see visitorPassState)
   if (/^(?:active|valid|current|open)$/.test(q) && /past its recorded expiry/.test(st)) return false;
-  if (q === "open") return !/\b(?:resolved|closed|completed|cancelled|canceled|expired|done|inactive)\b/.test(st) && (r.state ? r.state === "open" || r.state === "overdue" || r.state === "stale" : true);
+  if (q === "open") return !/\b(?:resolved|closed|completed|cancelled|canceled|expired|done|inactive)\b/.test(st) && (r.state ? r.state === "open" || r.state === "overdue" || r.state === "stale" : /\b(?:open|pending|in_progress|acknowledged)\b/.test(st));
+  if (q === "active" || q === "inactive") return st === q;
   if (q === "resolved") return r.state === "resolved" || /\b(?:resolved|closed|completed|done)\b/.test(st);
   if (q === "stale") return r.state === "stale" || /\b(?:stale|expired|outdated|old)\b/.test(hay);
   if (q === "overdue") return r.state === "overdue" || /\boverdue|\blate\b/.test(hay);
@@ -39,6 +40,8 @@ function qualifiers(t: AnswerTarget, e: ResultEnvelope) {
 }
 const label = (r: EnvelopeRecord) => `${r.label}${r.status ? ` (${r.status}${r.detail ? `; ${r.detail}` : ""})` : r.detail ? ` (${r.detail})` : ""}`;
 const list = (rs: EnvelopeRecord[], max = 8) => rs.slice(0, max).map(label).join(", ") + (rs.length > max ? `, and ${rs.length - max} more` : "");
+const fieldValue = (v: unknown) => v === undefined || v === null || v === "" ? "not recorded in this evidence"
+  : typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(v) ? "recorded, but a display name is unavailable" : String(v);
 
 function narrow(t: AnswerTarget, e: ResultEnvelope) {
   const all = e.records || [], scope = scopeTokens(e);
@@ -50,7 +53,8 @@ function narrow(t: AnswerTarget, e: ResultEnvelope) {
   const named = subjectNamed.length ? subjectNamed : all.filter(r => wordsOf(r).some(w => qualifierNames.has(w) && !GENERIC.has(w)));
   let rows = named.length && named.length < all.length ? named : all;
   const q = qualifiers(t, e);
-  const applicable = q.all.filter(x => rows.some(r => matches(r, x)) && !q.inPopulation.includes(x));
+  const stateFilters = new Set(["open", "resolved", "stale", "overdue", "active", "inactive", "online", "offline", "pending", "closed", "completed"]);
+  const applicable = q.all.filter(x => (stateFilters.has(x) || rows.some(r => matches(r, x))) && !q.inPopulation.includes(x));
   if (applicable.length) rows = rows.filter(r => applicable.every(x => matches(r, x)));
   const unmatched = q.all.filter(x => !applicable.includes(x) && !q.inPopulation.includes(x));
   return { rows, named, applicable, inPopulation: q.inPopulation, unmatched, all, asked: q.all };
@@ -90,6 +94,8 @@ function measureText(e: ResultEnvelope, ms: NonNullable<ResultEnvelope["measures
 
 export function projectResponse(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; raw?: string }): Projection | null {
   let p = projectCore(t, e, ctx);
+  if (p && e.availability === "partial" && !/partial|truncat/i.test(p.primary)) p = { ...p, primary: `${p.primary} This is partial evidence, not the complete population.` };
+  if (p && e.subject.object_class === "camera" && e.limitations?.some(l => l.kind === "UNOBSERVED") && !/unknown|unobserv|can't tell/i.test(p.primary)) p = { ...p, primary: `${p.primary} Current video state is unobserved for some registered cameras; registry facts do not verify a live stream.` };
   // Every visitor projection retains the population's epistemic limit, including lists and named-record replies.
   if (p && e.hints?.permission_only && !/permission.*(?:presence|arrival|arrived)/i.test(p.primary)) {
     p = { ...p, primary: `${p.primary} These are permission records, not proof of arrival, presence or departure.` };
@@ -117,15 +123,34 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
   // Like-unit recorded amounts are comparable without strategic judgment.
   if (intent === "COMPARISON" && e.records?.length && /\b(?:bigger|larger|greater|smaller|less|more|highest|lowest)\b/i.test(ctx.raw || ctx.asked)) {
     const named = narrow(t,e).named;
-    const ms = named.filter(r => typeof r.fields?.amount === "number" && typeof r.fields.currency === "string").map(r => ({label:r.label,amount:r.fields!.amount as number,currency:r.fields!.currency as string,direction:r.fields!.direction,partial:e.truncated}));
-    if (ms.length >= 2 && new Set(ms.map(m => m.currency)).size === 1 && ms.every(m => Number.isFinite(m.amount))) {
+    const ms = named.filter(r => typeof r.fields?.amount === "number" && Number.isFinite(r.fields.amount) && typeof r.fields.currency === "string" && r.fields.currency.trim()).map(r => ({label:r.label,amount:r.fields!.amount as number,currency:r.fields!.currency as string,direction:r.fields!.direction,partial:e.truncated}));
+    if (ms.length >= 2 && ms.length === named.length && new Set(ms.map(m => m.currency)).size === 1 && ms.every(m => Number.isFinite(m.amount))) {
       const smaller = /\b(?:smaller|less|lowest)\b/i.test(ctx.raw || ctx.asked);
       const sorted = [...ms].sort((a,b) => smaller ? a.amount-b.amount : b.amount-a.amount);
       return done("COMPARISON", `By recorded amounts only: ${sorted.map(m => `${m.label}: ${money(m.currency,m.amount)}${m.direction ? ` (money ${m.direction})` : ""}`).join("; ")}. ${sorted[0].amount === sorted[1].amount ? `The ${smaller ? "smallest" : "largest"} recorded amounts are equal.` : `${cap(sorted[0].label)} is ${smaller ? "smaller" : "larger"}.`}${ms.some(m => m.partial) ? " This is a bounded partial view, not a complete-period total." : ""} This is not a recommendation or a financial action.`);
     }
+    if (named.length >= 2 && ms.length) return done("LIMITATION", `I cannot compare all the requested amounts: a value or currency is missing, or the currencies differ. Recorded amounts: ${ms.map(m => `${m.label}: ${money(m.currency, m.amount)}`).join("; ")}. I have not converted currencies or substituted a different record.`);
   }
   // 2. held (public) facts
   if (e.held_facts) return projectHeld(t, e, ctx);
+  // Requested material fields belong to the carried target. Only factual read
+  // shapes enter this branch: not strategic rankings, actions or truth claims.
+  if (t.requested_fields?.length && e.records?.length && ["STATUS", "DIRECT_ANSWER", "LIST", "SUMMARY"].includes(intent)) {
+    const n = narrow(t, e);
+    const fieldGrammar = new Set(["their", "recorded", "details", "owners", "categories", "locations", "located", "expiry", "expiration", "expires", "assignee", "owns"]);
+    if (n.named.length || !t.subject_tokens.some(w => !fieldGrammar.has(w) && !GENERIC.has(w) && !scopeTokens(e).has(w) && !t.requested_fields!.some(k => k.split("_").includes(w)))) {
+      const rows = n.rows;
+      if (!rows.length) return done("LIMITATION", "No matching record was returned by this read, so I cannot give its requested fields. This does not establish that no such record exists.");
+      const fields = t.requested_fields;
+      const answer = rows.slice(0, 8).map(r => `${r.label}: ${fields.map(k => {
+        const v = k === "status" ? r.status : r.fields?.[k];
+        const label = k === "expires_at" ? "expiry" : k.replace(/_/g, " ");
+        return `${label}: ${fieldValue(v)}`;
+      }).join("; ")}`).join(". ");
+      return done("DETAIL", `${answer}.${e.truncated || e.availability === "partial" || rows.length > 8 ? " This is a partial view of the returned records." : ""}`, legacy);
+    }
+    return done("CLARIFICATION", "Which record do you mean? I could not match the requested subject to the authorized records, so I am not substituting another record's fields.");
+  }
   if (t.facet === "owner" && e.records?.length) {
     const rows = narrow(t, e).rows;
     return done("DETAIL", rows.map(r => `${r.label}: ${r.status ?? "recorded"}${r.age_days != null ? `; ${r.age_days} days since activity` : ""}; owner: ${r.fields?.owner ?? "not recorded"}`).join(". ") + ". This read has not contacted anyone.");
@@ -153,9 +178,12 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
   if (!e.records) return null;
   const n = narrow(t, e), rows = n.rows, noun = e.subject.noun, one = e.subject.singular;
   const askedN = (c: number) => `${c} ${c === 1 ? one : noun}`;
-  const trunc = e.truncated || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
+  const trunc = e.truncated || e.availability === "partial" || (e.total_count != null && !e.total_qualifier && e.total_count > (e.count ?? 0));
   const support = sup(legacy);
   const eff = intent === "DIRECT_ANSWER" || intent === "SUMMARY" || (intent === "LIST" && !t.top_n) ? (n.named.length === 1 ? "STATUS" : intent === "LIST" ? "LIST" : "LIST") : intent;
+  if (!rows.length && n.applicable.length && e.records.length && e.limitations?.some(l => l.kind === "STALE" || l.kind === "UNOBSERVED") && ["LIST", "COUNT", "YES_NO_WITH_REASON"].includes(eff)) {
+    return done("LIMITATION", `I cannot establish the current ${n.applicable.join(" and ")} ${noun} or their count from stale or unobserved evidence. Last recorded: ${list(e.records)}. These records are not confirmed matches for the requested current state.`, ...support);
+  }
   // IQ-9A11 R7: a validity/active question about ONE named permission record is answered from that record, not from the other records
   if (e.hints?.permission_only && n.named.length === 1 && /\b(?:valid|active|current(?:ly)?|usable|in\s+date)\b/i.test(ctx.raw || "") && ["YES_NO_WITH_REASON", "STATUS", "DIRECT_ANSWER"].includes(intent)) {
     const r = n.named[0];
@@ -179,23 +207,23 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
       }
   switch (eff) {
     case "COUNT": {
-      const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && !n.applicable.includes("open");
+      const useTotal = e.total_count != null && e.total_qualifier === "open" && n.asked.includes("open") && n.asked.every(q => q === "open") && !n.named.length;
       const c = useTotal ? e.total_count! : rows.length;
       const qual = [...n.applicable, ...n.inPopulation].join(" and ");
-      if (c === 0) { const zq = [qual, ...(e.records!.length ? [] : n.unmatched)].filter(Boolean).join(" and "); return done("COUNT", noRecords(e, zq ? `${zq} ` : ""), ...support); }
-      if (useTotal) return done("COUNT", `There ${c === 1 ? "is" : "are"} ${c} open ${c === 1 ? one : noun}; ${rows.length} of them ${rows.length === 1 ? "needs" : "need"} attention.`, ...support);
+      if (useTotal) return done("COUNT", `There ${c === 1 ? "is" : "are"} ${c} open ${c === 1 ? one : noun}. This read returned ${e.records.length} ${e.records.length === 1 ? one : noun}${e.subject.population ? ` ${e.subject.population}` : ""}.`, ...support);
+      if (c === 0) { const zq = [qual, ...(e.records!.length ? [] : n.unmatched)].filter(Boolean).join(" and "); return done("COUNT", trunc ? `No matching ${zq ? zq + " " : ""}${noun} were returned in this partial view; the complete count is not established.` : noRecords(e, zq ? `${zq} ` : ""), ...support); }
       return done("COUNT", `There ${c === 1 ? "is" : "are"} ${trunc ? "at least " : ""}${c} ${qual ? qual + " " : ""}${c === 1 ? one : noun}${e.subject.population && !n.applicable.length && !n.inPopulation.length ? ` ${e.subject.population}` : ""}.`, ...support);
     }
     case "LIST": {
-      if (!e.records.length) return done("LIST", `${cap(noRecords(e, ""))}`, ...support);
+      if (!e.records.length) return done("LIST", trunc ? `No ${noun} were returned in this partial view; that does not establish an empty population.` : `${cap(noRecords(e, ""))}`, ...support);
       if (!rows.length) return done("LIST", `None of the ${noun} I read match that.`, ...support);
       const head = cap(e.subject.population ? `${noun} ${e.subject.population}` : noun);
-      const note = n.unmatched.length && !n.applicable.length ? ` I could not filter by "${n.unmatched.join(", ")}" from the records I read, so this is the full list.` : "";
-      return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a truncated view${e.total_count != null ? ` (${e.total_count} in total)` : ""}.` : ""}${e.limitations?.some(l => l.kind === "STALE") ? " These readings are stale, so none of them shows a current condition (including whether anything is offline)." : ""}${note}`, ...support);
+      const note = n.unmatched.length && !n.applicable.length ? ` I could not filter by "${n.unmatched.join(", ")}" from the records I read, so these are the available unfiltered records.` : "";
+      return done("LIST", `${head}${n.applicable.length ? ` (${n.applicable.join(", ")})` : ""}: ${list(rows)}.${trunc ? ` This is a ${e.truncated ? "truncated" : "partial"} view${e.total_count != null ? ` (${e.total_count}${e.total_qualifier ? ` ${e.total_qualifier}` : ""} in total)` : ""}.` : ""}${e.limitations?.some(l => l.kind === "STALE") ? " These readings are stale, so none of them shows a current condition (including whether anything is offline)." : ""}${note}`, ...support);
     }
     case "STATUS": {
       if (!e.records.length) return done("STATUS", `I do not see any ${noun} on record in what I read — that is what the records show, not proof that nothing is wrong.`, ...support);
-      if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).slice(0, 3).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
+      if (n.named.length === 1) { const r = n.named[0]; const extra = r.fields ? Object.entries(r.fields).filter(([k, v]) => v !== null && v !== "" && !["name", "title", "id", "status", "stage", "reason"].includes(k)).map(([k, v]) => `${k.replace(/_/g, " ")} ${fieldValue(v)}`) : []; return done("DETAIL", `${r.label}: ${r.status ?? "recorded"}${r.detail ? `; ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}${extra.length ? ` (${extra.join(", ")})` : ""}.`, ...support); }
       const by = new Map<string, EnvelopeRecord[]>(); for (const r of rows) by.set(norm(r.status || "recorded"), [...(by.get(norm(r.status || "recorded")) || []), r]);
       const parts = [...by].map(([s, rs]) => `${rs.length} ${s}${rs.length <= 3 ? ` (${rs.map(r => `${r.label}${r.detail ? `: ${r.detail}` : ""}`).join(", ")})` : ""}`);
       const fresh = e.limitations?.some(l => l.kind === "STALE") ? " The readings behind this are stale, so they show no current condition." : "";
@@ -215,6 +243,7 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
       }
       if (n.named.length === 1 && (t.state_concept === "open" || t.state_concept === "resolved")) {
         const r = n.named[0], closed = r.state === "resolved" || /resolved|closed|completed|done/i.test(r.status || ""), yes = t.state_concept === "resolved" ? closed : !closed;
+        if (!closed && !matches(r, "open")) return done("LIMITATION", `${r.label}: ${r.status ?? "status unavailable"}. I cannot establish whether it is open or resolved from this evidence.`, ...support);
         if (/\b(?:open|unresolved|pending|still\s+open)\s+or\s+(?:resolved|closed|done|fixed)\b|\b(?:resolved|closed|done|fixed)\s+or\s+(?:still\s+)?(?:open|unresolved|pending)\b/i.test(ctx.raw || "")) return done("YES_NO", `${cap(r.label)} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
         return done("YES_NO", `${yes ? "Yes" : "No"} — ${r.label} is ${closed ? "resolved" : "still open"}${r.detail ? ` (${r.detail})` : ""}.`, ...support);
       }
@@ -222,8 +251,10 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
       // IQ-9A4: a YES that someone is attending to / working on / handling a record needs a record that says so (progress status, acknowledgement or
       // assignment). The existence of the request licenses nothing about attendance; unknown stays unknown.
       if (/\b(?:looked\s+(?:at|into|after)|looking\s+(?:at|into|after)|attend(?:ed|ing)\s+to|working\s+on|worked\s+on|dealt\s+with|dealing\s+with|being\s+(?:handled|addressed|actioned|fixed|seen\s+to)|(?:started|begun)\s+(?:work(?:ing)?|on)|taken\s+care\s+of|picked\s+up|acknowledged|assigned\s+to)\b/i.test(ctx.raw || "")) {
-        const attended = rows.filter(r => /\b(?:in[ _]progress|acknowledged|assigned|dispatched|attending|started)\b/i.test(`${r.status ?? ""} ${r.detail ?? ""}`) || Boolean(r.fields && (r.fields as Record<string, unknown>).assigned_to));
-        if (attended.length) return done("YES_NO", `Yes — recorded as in progress or assigned: ${list(attended, 4)}.`, ...support);
+        const attended = rows.filter(r => /\b(?:in[ _]progress|attending|started)\b/i.test(r.status ?? ""));
+        if (attended.length) return done("YES_NO", `Yes — recorded as in progress: ${list(attended, 4)}. This is recorded progress, not verification of completed work.`, ...support);
+        const assigned = rows.filter(r => /\b(?:acknowledged|assigned|dispatched)\b/i.test(r.status ?? "") || Boolean(r.fields?.assigned_to));
+        if (assigned.length) return done("LIMITATION", `Assignment or acknowledgement is recorded for ${assigned.map(r => r.label).join(", ")}. That does not establish that work has started.`, ...support);
         return done("LIMITATION", `I can't confirm that anyone is working on ${rows.length === 1 ? "it" : "them"}. ${rows.length ? `What is recorded: ${list(rows, 4)}. ` : ""}A recorded ${one} doesn't show that anyone has picked it up, and these records carry no acknowledgement or assignment — so whether it is being looked at is unknown, not a no.`, ...support);
       }
       // IQ-9A truth licence: a YES must be licensed by the records. Presence of unrelated records licenses nothing, and a permission-only record
@@ -234,7 +265,10 @@ function projectCore(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string; r
       return done("YES_NO", rows.length ? `Yes — ${askedN(rows.length)}${n.applicable.length ? ` ${n.applicable.join(" and ")}` : ""}: ${list(rows, 4)}.` : `No — I found no ${n.applicable.length ? n.applicable.join(" and ") + " " : ""}${noun} in what I read.`, ...support);
     }
     case "EXPLANATION": {
-      if (n.named.length === 1) { const r = n.named[0]; if (r.detail || r.status) return done("EXPLANATION", `${r.label} is ${r.status ?? "on record"}${r.detail ? `: ${r.detail}` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}.`, ...support); }
+      if (n.named.length === 1) { const r = n.named[0];
+        if (typeof r.fields?.reason === "string" && r.fields.reason.trim()) return done("EXPLANATION", `${r.label}: recorded reason — ${r.fields.reason}.`, ...support);
+        if (r.detail || r.status) return done("LIMITATION", `${r.label} is ${r.status ?? "on record"}${r.detail ? ` (${r.detail})` : ""}${r.age_days != null ? `; ${r.age_days} days since its last recorded activity` : ""}. Those are recorded facts, but this evidence does not establish why.`, ...support);
+      }
       return done("LIMITATION", `I can't give a reason for that from these records: they show each ${one} and its recorded status, but not why.`, ...support);
     }
     case "RANKING": case "COMPARISON": case "ADVICE": case "NEXT_STEP": {
@@ -285,7 +319,7 @@ function projectHeld(t: AnswerTarget, e: ResultEnvelope, ctx: { asked: string })
     return done("RECALL", have.length ? `${have.map(k => `${cap(nice(k))}: ${h.known[k]}`).join("; ")}.` : `You haven't told me ${joinList(lack.map(nice))} yet.`);
   }
   if (t.ask_facet === "missing" && modelled) return done("LIST", missing.length ? `What I still need from you: ${joinList(missing.map(nice))}.` : "I don't need anything further for a first look.");
-  if (t.ask_facet === "recall" || (t.response_intent === "SUMMARY")) return done("RECALL", Object.keys(h.known).length ? `So far you have told me: ${knownText}.` : "You haven't given me any opportunity details yet.");
+  if (t.ask_facet === "recall" || (t.response_intent === "SUMMARY")) return done("RECALL", (Object.keys(h.known).length ? `So far you have told me: ${knownText}.` : "You haven't given me any opportunity details yet.") + (h.constraints.length ? ` Your constraints: ${joinList(h.constraints)}.` : ""));
   if (t.response_intent === "RANKING") return modelled && missing.length ? done("RANKING", `The most important thing I still need is ${nice(missing[0])}.`) : null;
   if (t.response_intent === "COMPARISON") {
     if (t.subject_tokens.includes("versus") || (t.subject_tokens.includes("know") && t.subject_tokens.some(w => ["check", "need", "missing", "unknown"].includes(w)))) return done("LIST", `What I know: ${knownText || "very little so far"}. What still needs checking: ${modelled && missing.length ? joinList(missing.map(nice)) : "nothing further for a first look"}.`);

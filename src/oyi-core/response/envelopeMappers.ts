@@ -10,7 +10,7 @@ type Family = { domain: string | null; object_class: string | null; noun: string
 const F = (domain: string | null, object_class: string | null, noun: string, singular: string, facets: string[], extra: Partial<Family> = {}): Family => ({ domain, object_class, noun, singular, facets, ...extra });
 const REGISTRY: Record<string, Family> = {
   "crm.leads.read": F("crm", "lead", "leads", "lead", ["status", "list"], { population: "needing attention", total_qualifier: "open", requires_judgment: true }),
-  "crm.opportunities.read": F("crm", "opportunity", "opportunities", "opportunity", ["status", "list", "history"], { population: "that have gone stale", requires_judgment: true }),
+  "crm.opportunities.read": F("crm", "opportunity", "opportunities", "opportunity", ["status", "list", "history"], { population: "that have gone stale", total_qualifier: "open", requires_judgment: true }),
   "reports.approvals.read": F("office_reports", "report", "reports awaiting approval", "report awaiting approval", ["status", "list"], { requires_judgment: true }),
   "development.status.read": F("office_development", "project", "development projects", "development project", ["status", "list"], { requires_judgment: true }),
   "office_tasks.query.read": F("office_tasks", "task", "tasks", "task", ["status", "list"]),
@@ -52,7 +52,7 @@ function recordsFromBlock(b: Record<string, unknown> | undefined): EnvelopeRecor
     const detail = detailKeys.filter(k => r[k] !== undefined && r[k] !== null && r[k] !== "").map(k => k === "priority" ? `${clean(r[k])} priority` : clean(r[k])).join("; ");
     const fields: Record<string, string | number | boolean | null> = {};
     for (const c of cols) { const v = r[c]; if (v === null || ["string", "number", "boolean"].includes(typeof v)) fields[c] = v as string | number | boolean | null; }
-    return { id: r.id ? String(r.id) : null, label: clean(r[labelKey] ?? "item"), status, state: stateOfStatus(status), detail: detail ? detail.slice(0, 240) : null, time: clean(r.due_at ?? r.date ?? r.last_observed_at ?? "") || null, fields };
+    return { id: r.id || r.device_id ? String(r.id || r.device_id) : null, label: clean(r[labelKey] ?? "item"), status, state: stateOfStatus(status), detail: detail ? detail.slice(0, 240) : null, time: clean(r.due_at ?? r.date ?? r.last_observed_at ?? "") || null, fields };
   });
 }
 
@@ -63,8 +63,13 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
   const title = clean(block?.title).toLowerCase();
   const noun = fam?.noun ?? (title || "records"), singular = fam?.singular ?? noun.replace(/ies$/, "y").replace(/s$/, "");
   const meta = (result.metadata || {}) as Record<string, any>;
-  const rows = meta.answer_rows?.rows as Array<{ label: string; status?: string; detail?: string; fields?: EnvelopeRecord["fields"] }> | undefined;
-  let records: EnvelopeRecord[] | undefined = rows ? rows.map(r => ({ label: clean(r.label), status: r.status ?? null, state: stateOfStatus(r.status), detail: r.detail ?? null, ...(r.fields ? { fields:r.fields } : {}) })) : recordsFromBlock(block);
+  const rows = meta.answer_rows?.rows as EnvelopeRecord[] | undefined;
+  // Explicit structured members only: never spread an arbitrary source payload.
+  let records: EnvelopeRecord[] | undefined = rows ? rows.map(r => ({ label: clean(r.label), status: r.status ?? null, state: stateOfStatus(r.status), detail: r.detail ?? null,
+    id: r.id ?? null, time: r.time ?? null, age_days: r.age_days ?? null,
+    ...(r.entity_type ? { entity_type: r.entity_type } : {}), ...(r.scope ? { scope: r.scope } : {}),
+    ...(r.freshness ? { freshness: r.freshness } : {}), ...(r.truth_state ? { truth_state: r.truth_state } : {}),
+    ...(r.provenance ? { provenance: r.provenance } : {}), ...(r.fields ? { fields:r.fields } : {}) })) : recordsFromBlock(block);
   const facts = (meta.result_facts || {}) as Record<string, any>;
   if (!records && Array.isArray(facts.records)) records = facts.records as EnvelopeRecord[];
   // structured per-record facts a capability already holds (activity age ...), merged by record id; never derived from prose
@@ -82,12 +87,13 @@ export function mapResultEnvelope(key: string, result: DomainResult, ctx: { capa
   const stateFacts = facts.state_facts as ResultEnvelope["state_facts"] | undefined;
   if (stateFacts?.unobserved) limitations.push({ kind: "UNOBSERVED", label: key === "facility.cameras.read" ? "camera state" : undefined });
   if (records && records.length && records.every(r => r.state === "stale")) limitations.push({ kind: "STALE" });
+  const partial = Boolean(block?.truncated || meta.answer_rows?.truncated || limitations.some(l => l.kind === "PARTIAL"));
   const env: ResultEnvelope = {
-    v: 1, capability_key: key, availability, capability_status: ctx.capability_status, truth_state: availability === "answered" ? "observed" : availability === "empty" ? "confirmed" : availability,
+    v: 1, capability_key: key, availability: partial && (availability === "answered" || availability === "empty") ? "partial" : availability, capability_status: ctx.capability_status, truth_state: availability === "answered" ? "observed" : availability === "empty" ? "confirmed" : availability,
     subject: { domain: fam?.domain ?? null, object_class: fam?.object_class ?? null, noun, singular, population: fam?.population ?? (/^(overdue|stale|open|pending|expired)\b/i.exec(title)?.[1] ? `that are ${/^(overdue|stale|open|pending|expired)\b/i.exec(title)![1].toLowerCase()}` : null), facets: fam?.facets ?? ["list"] },
     ...(records ? { records, count: records.length } : availability === "empty" ? { records: [], count: 0 } : {}),
     ...(typeof block?.total_count === "number" ? { total_count: block.total_count as number, total_qualifier: fam?.total_qualifier ?? null } : {}),
-    ...(block?.truncated ? { truncated: true } : {}),
+    ...(block?.truncated || meta.answer_rows?.truncated ? { truncated: true } : {}),
     ...(facts.value ? { value: facts.value } : {}), ...(stateFacts ? { state_facts: stateFacts } : {}),
     ...(limitations.length ? { limitations } : {}),
     ...(Array.isArray(facts.measures) && facts.measures.length ? { measures: facts.measures } : {}),

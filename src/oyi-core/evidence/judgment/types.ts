@@ -19,7 +19,7 @@ export type EvidenceEntry = {
   caller_supplied: boolean;
 };
 
-export type Factor = { dimension: Dimension; level: Level; basis: "typed"; eref: string };
+export type Factor = { dimension: Dimension; level: Level; basis: "typed"; eref: string; source_field?: "priority" | "severity" };
 
 export type Candidate = {
   cid: string;                 // c1..

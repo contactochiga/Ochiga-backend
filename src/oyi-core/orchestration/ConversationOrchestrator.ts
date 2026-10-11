@@ -3214,7 +3214,7 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   }
 
   if (intent.type === "comparison") return handleUtilityComparisonFollowUp(context, resolvedTurn, resultSet, tracer);
-  if (intent.type === "temporal_followup") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
+  if (intent.type === "temporal_followup" || intent.type === "collection_read") return handleTemporalFollowUp(context, resolvedTurn, resultSet, tracer);
   if (intent.type === "filter") return handleFilterFollowUp(context, resolvedTurn, resultSet, intent.keyword, tracer);
   if (intent.type === "prioritize") return handlePrioritizeFollowUp(context, resolvedTurn, resultSet, tracer);
 

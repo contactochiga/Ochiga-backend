@@ -1,0 +1,48 @@
+// Additional discovered source/answer defects. Frozen pre-implementation tests
+// remain unchanged. This is maintainer development coverage, not a sealed grade.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+process.env.SUPABASE_URL ||= 'http://127.0.0.1:1';process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'x';
+const {walletMeasures}=await import('../dist/oyi-core/capabilities/ReadCapabilityModules.js');
+const {parseFollowUpIntent}=await import('../dist/oyi-core/interpretation/followUpResolver.js');
+const {mapResultEnvelope}=await import('../dist/oyi-core/response/envelopeMappers.js');
+const {projectResponse}=await import('../dist/oyi-core/response/projector.js');
+const {parseSemanticFrame}=await import('../dist/oyi-core/interpretation/SemanticFrameParser.js');
+const {factorsFor}=await import('../dist/oyi-core/evidence/judgment/evidenceIndex.js');
+const {describe}=await import('../dist/oyi-core/evidence/judgment/dominance.js');
+const checks=[];function check(id,fn){try{fn();checks.push({id,status:'PASS'});}catch(e){checks.push({id,status:'FAIL',error:e.message});}}
+const tx=(amount,currency,direction='debit')=>({fact_type:'wallet_transaction',value:{amount,currency,direction}});
+check('mixed-currency-not-added',()=>{const m=walletMeasures([tx(3,'USD'),tx(7,'NGN')]);assert.equal(m.find(x=>x.currency==='USD'&&x.direction==='out').amount,3);assert.equal(m.find(x=>x.currency==='NGN'&&x.direction==='out').amount,7);});
+check('50-bound-partial',()=>assert(walletMeasures(Array.from({length:50},()=>tx(1,'USD'))).every(m=>m.partial)));
+check('missing-currency-no-aggregate',()=>assert.equal(walletMeasures([tx(4,null)]).length,0));
+check('missing-amount-no-aggregate',()=>assert.equal(walletMeasures([tx(null,'USD')]).length,0));
+check('unknown-direction-no-aggregate',()=>assert.equal(walletMeasures([tx(4,'USD','unknown')]).length,0));
+check('zero-is-real-value',()=>assert.equal(walletMeasures([tx(0,'USD')])[0].amount,0));
+for(const q of ['What are their statuses?','List their recorded statuses.','Please show their categories and locations.'])check('plural-collection:'+q,()=>assert.equal(parseFollowUpIntent(q)?.type,'collection_read'));
+for(const q of ['Change their status.','What are their wallet balances?','Show the status of another household.'])check('no-collection-widening:'+q,()=>assert.notEqual(parseFollowUpIntent(q)?.type,'collection_read'));
+const e=mapResultEnvelope('crm.opportunities.read',{status:'answered',answer:'',blocks:[{type:'record_list',title:'Stale opportunities',columns:[{key:'name'},{key:'stage'},{key:'owner'}],rows:[{id:'x',name:'Jasper',stage:'review',owner:'Ari'}],total_count:9,truncated:true}]},{capability_status:'enabled'});
+check('total-population-labelled',()=>assert.equal(e.total_qualifier,'open'));
+check('list-total-not-stale-total',()=>assert.match(projectResponse(parseSemanticFrame('List stale opportunities').answerTarget,e,{asked:'List stale opportunities'})?.primary,/9 open in total/));
+check('count-stale-not-open-total',()=>assert.doesNotMatch(projectResponse(parseSemanticFrame('How many stale opportunities?').answerTarget,e,{asked:'How many stale opportunities?'})?.primary,/There are 9/));
+check('known-open-count-not-lost-to-record-filter',()=>assert.match(projectResponse(parseSemanticFrame('How many open opportunities?').answerTarget,e,{asked:'How many open opportunities?'})?.primary,/There are 9 open opportunities/));
+check('known-zero-total-preserved',()=>assert.match(projectResponse(parseSemanticFrame('How many open opportunities?').answerTarget,{...e,total_count:0,records:[]},{asked:'How many open opportunities?'})?.primary,/There are 0 open opportunities/));
+check('unknown-lifecycle-not-open',()=>{const q='Is Jasper still open?';const t={...parseSemanticFrame(q).answerTarget,response_intent:'YES_NO_WITH_REASON',yes_no:{kind:'state'},state_concept:'open'};const a=projectResponse(t,{...e,records:[{label:'Jasper',status:'unknown'}]},{asked:q,raw:q})?.primary;assert.doesNotMatch(a,/^Yes|is still open/);assert.match(a,/cannot establish.*open or resolved/);});
+check('source-partial-not-invented-pagination',()=>{const x={...e,truncated:false,availability:'partial'};const a=projectResponse(parseSemanticFrame('List opportunities').answerTarget,x,{asked:'List opportunities'})?.primary;assert.match(a,/partial view/);assert.doesNotMatch(a,/truncated/);});
+check('unmatched-subject-not-substituted',()=>{const t={...parseSemanticFrame('Show Maple owner').answerTarget,requested_fields:['owner']};assert.match(projectResponse(t,e,{asked:'Show Maple owner'})?.primary,/Which record|could not match/);});
+check('device-id-retained',()=>{const x=mapResultEnvelope('devices.status.read',{status:'answered',answer:'',blocks:[{type:'table',columns:[{key:'name'},{key:'status'}],rows:[{device_id:'d1',name:'Synthetic lamp',status:'online'}]}]},{capability_status:'enabled'});assert.equal(x.records[0].id,'d1');});
+check('severity-not-mislabelled-priority',()=>{const factors=factorsFor({status:'open',priority:'high',severity:'medium'},'e1','office_support',Date.now());const copy=describe({factors,source_key:'office_support.query.read'}).join(' ');assert.match(copy,/severity medium/);assert.doesNotMatch(copy,/priority medium/);});
+check('priority-provenance-retained',()=>{const factors=factorsFor({status:'open',priority:'high'},'e1','maintenance',Date.now());assert.match(describe({factors,source_key:'maintenance.requests.read'}).join(' '),/priority high/);});
+for(const q of ['List their owners.','What are their owners?'])check('plural-fields:'+q,()=>assert.match(projectResponse(parseSemanticFrame(q).answerTarget,e,{asked:q})?.primary,/owner: Ari/));
+const moneyEnv={...e,records:[{label:'Opal',fields:{amount:5,currency:'USD'}},{label:'Topaz',fields:{amount:8,currency:'NGN'}}]};
+const comparison={...parseSemanticFrame('Which is larger, Opal or Topaz?').answerTarget,response_intent:'COMPARISON'};
+check('unlike-currency-comparison-limited',()=>assert.match(projectResponse(comparison,moneyEnv,{asked:'Which is larger, Opal or Topaz?'})?.primary,/currencies differ/));
+check('like-currency-recorded-comparison',()=>assert.match(projectResponse(comparison,{...moneyEnv,records:moneyEnv.records.map(r=>({...r,fields:{...r.fields,currency:'USD'}}))},{asked:'Which is larger, Opal or Topaz?'})?.primary,/Topaz is larger/));
+check('explanation-not-status-substitution',()=>{const t={...parseSemanticFrame('Why Jasper?').answerTarget,response_intent:'EXPLANATION'};assert.match(projectResponse(t,e,{asked:'Why Jasper?'})?.primary,/does not establish why/);});
+check('explanation-recorded-reason',()=>{const t={...parseSemanticFrame('Why Jasper?').answerTarget,response_intent:'EXPLANATION'};assert.match(projectResponse(t,{...e,records:[{...e.records[0],fields:{reason:'Awaiting title review'}}]},{asked:'Why Jasper?'})?.primary,/recorded reason.*Awaiting title review/);});
+check('generic-detail-no-internal-id',()=>{const x={...e,records:[{label:'Jasper',status:'open',fields:{assigned_to:'11111111-1111-4111-8111-111111111111'}}]};const a=projectResponse(parseSemanticFrame('Show Jasper').answerTarget,x,{asked:'Show Jasper'})?.primary;assert.doesNotMatch(a,/11111111/);assert.match(a,/display name is unavailable/);});
+check('status-and-field-both-covered',()=>{const q='What are Jasper category and status?';const x={...e,records:[{label:'Jasper',status:'open',fields:{category:'plumbing'}}]};const a=projectResponse(parseSemanticFrame(q).answerTarget,x,{asked:q})?.primary;assert.match(a,/category: plumbing/);assert.match(a,/status: open/);});
+check('named-field-filter-preserved',()=>{const q='Show active Jasper owner';const x={...e,records:[{label:'Jasper',status:'inactive',fields:{owner:'Ari'}}]};const a=projectResponse(parseSemanticFrame(q).answerTarget,x,{asked:q})?.primary;assert.doesNotMatch(a,/owner: Ari/);assert.match(a,/No matching/);});
+check('assignment-does-not-prove-work-started',()=>{const q='Is anyone working on Jasper?';const x={...e,records:[{label:'Jasper',status:'open',fields:{assigned_to:'11111111-1111-4111-8111-111111111111'}}]};const t={...parseSemanticFrame(q).answerTarget,response_intent:'YES_NO_WITH_REASON',yes_no:{kind:'state'}};const a=projectResponse(t,x,{asked:q,raw:q})?.primary;assert.match(a,/does not establish.*work.*started/);assert.doesNotMatch(a,/^Yes|11111111/);});
+check('recorded-progress-positive-control',()=>{const q='Is anyone working on Jasper?';const x={...e,records:[{label:'Jasper',status:'in_progress'}]};const t={...parseSemanticFrame(q).answerTarget,response_intent:'YES_NO_WITH_REASON',yes_no:{kind:'state'}};assert.match(projectResponse(t,x,{asked:q,raw:q})?.primary,/recorded as in progress/i);});
+const out={tests:checks.length,pass:checks.filter(c=>c.status==='PASS').length,fail:checks.filter(c=>c.status==='FAIL').length,checks};
+if(process.env.WAVE11_HARNESS_OUT)fs.writeFileSync(process.env.WAVE11_HARNESS_OUT+'.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out,null,2));process.exitCode=out.fail?1:0;
