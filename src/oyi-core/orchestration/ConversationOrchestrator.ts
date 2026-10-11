@@ -123,7 +123,7 @@ import {
 } from "../context/personContext";
 import { resolveRecipientByQuery } from "../../services/recipientResolutionService";
 import type { ResolvedRecipient } from "../../contracts/recipientResolution";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { goalRuntime } from "../../services/goalRuntime/GoalRuntime";
 import { GOAL_DUE_STATUSES, GOAL_TERMINAL_STATUSES, type GoalRecord, type GoalPlanStep, type GoalTargetEntities } from "../../contracts/goal";
 import {
@@ -3559,12 +3559,54 @@ export class ConversationOrchestrator {
   // persistence can neither block nor break the conversation response or
   // its canonical persistence (which has already completed by now).
   async run(context: CanonicalConversationRequestContext): Promise<ConversationRunResult> {
+    const suppliedRequestId = String((context.input.context as any)?.request_id || "");
+    const requestId = suppliedRequestId.length > 180 ? createHash("sha256").update(suppliedRequestId).digest("hex") : suppliedRequestId || randomUUID();
+    const startedAt = Date.now();
+    const captures: import("../observability/conversationTraceProjection").TraceProjectionInput[] = [];
+    let response: ConversationRunResult | null = null, failure: unknown = null;
+    // Server-stamped correlation is shared by subturns; each subturn has a
+    // distinct persistence identity. It never grants scope or authority.
+    const scoped = { ...context, input: { ...context.input, context: { ...(context.input.context || {}), request_id: requestId, canonical_trace_request_id: requestId } } };
+    try {
+      response = await this.runObserved(scoped, captures);
+      if (captures.some(c => c.response?.persistence_saved === false)) {
+        response.persistence_saved = false;
+        (response as any).persistence_warning = "The full answer's save could not be confirmed; conversation history may be incomplete.";
+      }
+      return response;
+    } catch (error) { failure = error; throw error; }
+    finally {
+      const latest = new Map(captures.map(c => [c.requestId, c]));
+      const receipt = recordConversationTrace({ events: [...latest.values()].flatMap(c => c.events).slice(0, 256),
+        startedAt, completedAt: Date.now(), requestId, surface: context.input.surface,
+        threadId: response?.thread_id || context.input.thread_id || null, actor: context.actor as any,
+        response: response as any, error: failure });
+      if (response) response.execution = { ...response.execution, durable_trace: receipt };
+    }
+  }
+
+  private async runObserved(context: CanonicalConversationRequestContext, captures: import("../observability/conversationTraceProjection").TraceProjectionInput[]): Promise<ConversationRunResult> {
     const traceHolder: { tracer: ConversationTracer | null } = { tracer: null };
     const startedAt = Date.now();
+    let part = 0;
+    const runPart = (partContext: CanonicalConversationRequestContext) => {
+      const root = String((context.input.context as any).canonical_trace_request_id);
+      const requestId = ++part === 1 ? root : `${root}:part:${part}`;
+      return this.runTurn({ ...partContext, input: { ...partContext.input, context: { ...(partContext.input.context || {}), request_id: requestId, canonical_trace_request_id: root } } }, traceHolder);
+    };
+    const collapse = async (result: ConversationRunResult, turns: ConversationRunResult[], originalMessage: string, combinedAnswer: string, keepLastTurn: boolean) => {
+      const saved = turns.every(t => t.persistence_saved === true);
+      const outcome = saved ? await collapseMultipartExchange({ threadId: String(result.thread_id || ""), turns: turns.length,
+        requestIds: turns.map(t => String((t as any).persistence_request_id || "")), originalMessage, combinedAnswer, keepLastTurn }) : { collapsed: false };
+      if (!outcome.collapsed) {
+        result.persistence_saved = false;
+        (result as any).persistence_warning = "The combined answer's save could not be confirmed; conversation history may be incomplete.";
+      }
+    };
     const finalize = (response: ConversationRunResult | null, error: unknown) => {
       try {
         const tracer = traceHolder.tracer;
-        recordConversationTrace({
+        captures.push({
           events: tracer ? tracer.events() : [],
           startedAt: tracer ? tracer.startedAt : startedAt,
           completedAt: Date.now(),
@@ -3611,17 +3653,18 @@ export class ConversationOrchestrator {
       // fresh governed turn with its own target resolution, authorization and confirmation. Nothing is inherited from the cancelled action.
       const compound = context.input?.message ? splitCompoundWithdrawal(context.input.message) : null;
       if (compound) {
-        const first = await this.runTurn({ ...context, input: { ...context.input, message: compound.withdrawal } }, traceHolder);
+        const first = await runPart({ ...context, input: { ...context.input, message: compound.withdrawal } });
         finalize(first, null);
         if (compound.remainder_kind === "statement") {
           const text = /^(?:keep|save|remember|retain|hold)\b/i.test(compound.remainder)
             ? `${first.answer} What you've told me stays in this conversation only; nothing has been submitted or passed on.`
             : `${first.answer} Nothing else has been started from the rest of your message; tell me when you want it handled.`;
           (first as any).answer = (first as any).reply = (first as any).message = (first as any).summary = text;
+          await collapse(first, [first], String(context.input.message), text, false);
           return first;
         }
         traceHolder.tracer = null;
-        const second = await this.runTurn({ ...context, input: { ...context.input, message: compound.remainder, thread_id: (first as any).thread_id || context.input.thread_id } }, traceHolder);
+        const second = await runPart({ ...context, input: { ...context.input, message: compound.remainder, thread_id: (first as any).thread_id || context.input.thread_id } });
         // The new request is a separate governed intent. Its own result is shown whenever it produced a pending state (a proposal awaiting
         // approval, or a draft awaiting clarification) or is a question; typed fields only (requiresConfirmation, confirmations, execution.workflow_id).
         const awaitingApproval = second.requiresConfirmation === true || (second.confirmations?.length ?? 0) > 0;
@@ -3630,6 +3673,7 @@ export class ConversationOrchestrator {
           ? `${first.answer}\n\nSeparately — ${second.answer}${awaitingApproval ? " This is a new proposal awaiting your approval; it has not been done, and the cancelled request was not carried over." : ""}`
           : `${first.answer}\n\nYour other request (“${compound.remainder.slice(0, 120)}”) is separate and has not been started or proposed. Tell me the exact device or item and the action, and I'll prepare it for your confirmation.`;
         (second as any).answer = (second as any).reply = (second as any).message = (second as any).summary = combined;
+        await collapse(second, [first, second], String(context.input.message), combined, awaitingApproval || pendingDraft);
         finalize(second, null);
         return second;
       }
@@ -3643,7 +3687,7 @@ export class ConversationOrchestrator {
         const subTurns: any[] = [];
         const runOne = async (text: string) => {
           traceHolder.tracer = null;
-          const r = await this.runTurn({ ...context, input: { ...context.input, message: text, thread_id: threadId } }, traceHolder);
+          const r = await runPart({ ...context, input: { ...context.input, message: text, thread_id: threadId } });
           finalize(r, null);
           threadId = (r as any).thread_id || threadId;
           subTurns.push(r);
@@ -3675,7 +3719,10 @@ export class ConversationOrchestrator {
         (final as any).answer = (final as any).reply = (final as any).message = (final as any).summary = combined;
         // one user message leaves one exchange in the thread (the message typed and the answer shown); the sub-turns' result sets and workflow state are untouched
         if (subTurns.length === multipart.fragments.filter((x, i, a) => a.findIndex(y => y.key === x.key) === i).length && subTurns.every(t => t.persistence_saved !== false)) {
-          await collapseMultipartExchange({ threadId: String(threadId || ""), turns: subTurns.length, originalMessage: String(context.input.message), combinedAnswer: combined, keepLastTurn: Boolean(actionTurn) });
+          await collapse(final, subTurns, String(context.input.message), combined, Boolean(actionTurn));
+        } else {
+          final.persistence_saved = false;
+          final.persistence_warning = "The combined answer's save could not be confirmed; conversation history may be incomplete.";
         }
         return final;
       }
@@ -3689,15 +3736,15 @@ export class ConversationOrchestrator {
         const noun = pf ? OWN_NOUN[String(pf.concepts?.head_domain ?? pf.domain ?? "")] : undefined;
         if (pf && noun && pf.answerTarget && pf.answerTarget.subject_scope !== "own") {
           traceHolder.tracer = null;
-          const r = await this.runTurn({ ...context, input: { ...context.input, message: `Show my ${noun}` } }, traceHolder);
+          const r = await runPart({ ...context, input: { ...context.input, message: `Show my ${noun}` } });
           finalize(r, null);
           const combined = `Taking “just mine” to mean your own ${noun}, not anyone else's: ${String((r as any).answer ?? "")}`;
           (r as any).answer = (r as any).reply = (r as any).message = (r as any).summary = combined;
-          if ((r as any).persistence_saved !== false) await collapseMultipartExchange({ threadId: String((r as any).thread_id || context.input.thread_id), turns: 1, originalMessage: String(context.input.message), combinedAnswer: combined, keepLastTurn: false });
+          await collapse(r, [r], String(context.input.message), combined, false);
           return r;
         }
       }
-      response = await this.runTurn(context, traceHolder);
+      response = await runPart(context);
       // IQ-9A12: a truthful "nothing was done / nothing was passed on" answer is completed with what the thread's own governed records show about the subject the user named.
       // The companion read is a separate governed turn (its own authority decision); the not-done statement is kept first and is never softened.
       const answerNow = String((response as any)?.answer ?? "");
@@ -3724,9 +3771,13 @@ export class ConversationOrchestrator {
       else if (priorHazardText && surfaceNow === "consumer" && /\b(?:camera|footage|cctv)\b/i.test(rawMsg) && /^Based on the evidence available/.test(answerNow)) plan = { replace: `I can't check camera footage from here: camera access isn't available to residents in this chat, so I can't tell whether anyone was caught on camera or is still there. Nothing has been verified or alerted from this conversation. ${hazardPrecaution(hazardClassIn(priorHazardText))}` };
       if (plan) {
         let combined: string | null = null, base: any = response;
+        const savedParts = [response];
         if (plan.read) {
+          finalize(response, null);
           traceHolder.tracer = null;
-          const r2 = await this.runTurn({ ...context, input: { ...context.input, message: plan.read, thread_id: (response as any).thread_id || context.input.thread_id } }, traceHolder);
+          const r2 = await runPart({ ...context, input: { ...context.input, message: plan.read, thread_id: (response as any).thread_id || context.input.thread_id } });
+          finalize(r2, null);
+          savedParts.push(r2);
           const extra = String((r2 as any).answer ?? "").split("\n\nSupporting detail:")[0].trim();
           if (extra && (r2 as any).persistence_saved !== false && !/not authorised|I can't do that/i.test(extra)) {
             combined = plan.rebuild ? plan.rebuild(extra) : `${answerNow}\n\n${plan.prefix} ${extra}${plan.append ? `\n\n${plan.append}` : ""}`;
@@ -3736,7 +3787,7 @@ export class ConversationOrchestrator {
         else if (plan.append) combined = `${answerNow}\n\n${plan.append}`;
         if (combined) {
           base.answer = base.reply = base.message = base.summary = combined;
-          if (base.persistence_saved !== false) await collapseMultipartExchange({ threadId: String(base.thread_id || context.input.thread_id), turns: plan.read ? 2 : 1, originalMessage: rawMsg, combinedAnswer: combined, keepLastTurn: false });
+          await collapse(base, savedParts, rawMsg, combined, false);
           response = base;
         }
       }

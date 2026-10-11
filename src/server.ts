@@ -44,7 +44,8 @@ import { socketCorsOptions } from "./config/originPolicy";
 import { deviceRuntimeStateService } from "./services/deviceRuntimeStateService";
 import { startAutomationRuntimeV2Scheduler, stopAutomationRuntimeV2Scheduler } from "./routes/scenes";
 import { startGoalRuntimeScheduler, stopGoalRuntimeScheduler } from "./services/goalRuntime/goalScheduler";
-import { flushConversationTraceWrites } from "./oyi-core/observability/conversationTraceRecorder";
+import { flushConversationTraceWrites, conversationTraceRecordingStatus } from "./oyi-core/observability/conversationTraceRecorder";
+import { preflightConversationTrace } from "./oyi-core/observability/conversationTraceSchema";
 
 // ---------------------------
 // HTTP + WEBSOCKET SERVER
@@ -243,7 +244,17 @@ io.on("connection", (socket) => {
 // ---------------------------
 // START FULL BACKEND STACK
 // ---------------------------
-httpServer.listen(PORT, async () => {
+async function startWithTracePreflight() {
+  const status = conversationTraceRecordingStatus();
+  if (status === "active" || process.env.OYI_TRACE_PREFLIGHT_REQUIRED === "true") {
+    if (status !== "active") throw new Error("trace_recording_not_configured");
+    const preflight = await preflightConversationTrace();
+    logger.info("conversation_trace_preflight", preflight);
+    if (preflight.status !== "compatible") throw new Error(`trace_preflight_${preflight.status}`);
+  } else {
+    logger.warn("conversation_trace_preflight_not_active", { recording_status: status });
+  }
+  httpServer.listen(PORT, async () => {
   logger.info("server_listening", { port: PORT });
 
   try {
@@ -285,6 +296,11 @@ httpServer.listen(PORT, async () => {
     process.exit(1);
   }
 });
+}
+void startWithTracePreflight().catch(() => {
+  logger.error("backend_trace_readiness_failed", { reason: "see_trace_preflight_status" });
+  process.exit(1);
+});
 
 let shuttingDown = false;
 async function gracefulShutdown(signal: NodeJS.Signals) {
@@ -306,8 +322,10 @@ async function gracefulShutdown(signal: NodeJS.Signals) {
     await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     // Slice 7 -- give in-flight durable trace writes (fire-and-forget,
     // off the response path) a bounded chance to land before exit. Never
-    // blocks shutdown beyond 2s; a dropped trace is best-effort telemetry.
-    await Promise.race([flushConversationTraceWrites(), new Promise((resolve) => setTimeout(resolve, 2_000).unref?.())]).catch(() => undefined);
+    // Allow both bounded transport attempts; a forced deadline must be visible.
+    let tracesDrained = false;
+    await Promise.race([flushConversationTraceWrites().then(() => { tracesDrained = true; }), new Promise((resolve) => setTimeout(resolve, 6_000).unref?.())]).catch(() => undefined);
+    if (!tracesDrained) logger.warn("conversation_trace_shutdown_incomplete", { reason: "drain_deadline" });
     clearTimeout(deadline);
     logger.info("backend_shutdown_complete", { signal });
     process.exit(0);

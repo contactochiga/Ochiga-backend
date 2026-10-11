@@ -202,6 +202,8 @@ export const TRACE_STAGE_FIELD_ALLOWLIST = [
   "outcome",
   "evidence_count",
   "persistence_saved",
+  "admit",
+  "reason",
 ] as const;
 
 const TOKEN = /^[a-z][a-z0-9_]{0,47}(\.[a-z][a-z0-9_]{0,47}){0,4}$/;
@@ -338,13 +340,15 @@ export function projectConversationTrace(input: TraceProjectionInput): Conversat
   // turn-level authority decision.
   const capAllowed = boolish(lastField(ev, "capability_selected", "authority_allowed"));
   const turnAuthority = lastField(ev, "authority_decided", "authority_result");
-  const authorityResult: "allowed" | "denied" | null = capAllowed === true ? "allowed" : capAllowed === false ? "denied" : turnAuthority === "allowed" || turnAuthority === "denied" ? (turnAuthority as any) : null;
+  const scopeDenied = execution.scope_admission === "denied" || response?.context?.scope_provenance?.decision === "denied";
+  const authorityResult: "allowed" | "denied" | null = scopeDenied ? "denied" : capAllowed === true ? "allowed" : capAllowed === false ? "denied" : turnAuthority === "allowed" || turnAuthority === "denied" ? (turnAuthority as any) : null;
   const tierRaw = lastField(ev, "authority_decided", "tier");
   const authorityTier = typeof tierRaw === "number" && Number.isInteger(tierRaw) && tierRaw >= 0 && tierRaw <= 4 ? tierRaw : null;
   const denialReason = authorityResult === "denied" ? safeToken(lastField(ev, "capability_selected", "authority_reason")) : null;
 
   let terminal: (typeof TRACE_TERMINAL_OUTCOMES)[number];
   if (input.error) terminal = "runtime_error";
+  else if (scopeDenied) terminal = "authority_denied";
   else if (terminalStageOutcome === "business_surface_fallback" || terminalStageOutcome === "capability_no_match" || terminalStageOutcome === "canonical_unsupported") terminal = terminalStageOutcome;
   else if (resolution === "permission_restricted" || resolution === "scope_restricted" || (resolution === "surface_restricted" && authorityResult === "denied")) terminal = "authority_denied";
   else if (resolution === "declared_disabled") terminal = "declared_disabled";
@@ -353,7 +357,7 @@ export function projectConversationTrace(input: TraceProjectionInput): Conversat
   else terminal = "governed_continuation";
 
   const persistenceRaw = response ? response.persistence_saved : undefined;
-  const persistenceSaved = input.error ? null : persistenceRaw === false ? false : response ? true : null;
+  const persistenceSaved = input.error ? null : persistenceRaw === false ? false : persistenceRaw === true ? true : null;
   const responseStatus: (typeof TRACE_RESPONSE_STATUSES)[number] = input.error ? "failed" : persistenceSaved === false ? "returned_unsaved" : "returned";
 
   const workflowStatus = lastField(ev, "workflow_restored", "status");

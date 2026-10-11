@@ -4,7 +4,8 @@
 // threads or any identity table. Expired rows are excluded on every read,
 // independent of whether the retention job has run yet.
 import { supabaseAdmin } from "../../supabase/supabaseClient";
-import { CONVERSATION_TRACE_TABLE, conversationTraceEnabled, conversationTraceRecordingStatus } from "../observability/conversationTraceRecorder";
+import { CONVERSATION_TRACE_TABLE, conversationTraceEnabled, conversationTraceRecordingStatus, conversationTraceWriteHealth } from "../observability/conversationTraceRecorder";
+import { TRACE_COLUMNS, traceSchemaHealth } from "../observability/conversationTraceSchema";
 import {
   OBSERVED_TRACE_STAGES,
   TRACE_RESOLUTION_OUTCOMES,
@@ -178,7 +179,7 @@ export async function getConversationTrace(traceId: string) {
   if (!UUID.test(traceId)) return null;
   const { data, error } = await supabaseAdmin
     .from(CONVERSATION_TRACE_TABLE)
-    .select("*")
+    .select(TRACE_COLUMNS)
     .eq("trace_id", traceId)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle();
@@ -200,6 +201,8 @@ export async function getConversationTrace(traceId: string) {
     authority_tier: row.authority_tier,
     authority_denial_reason: row.authority_denial_reason,
     evidence_planned: row.evidence_planned,
+    planner_admitted: row.planner_admitted ?? null,
+    planner_admission_reason: row.planner_admission_reason ?? null,
     evidence_count: row.evidence_count,
     workflow_restored: row.workflow_restored,
     workflow_state: row.workflow_state,
@@ -217,5 +220,7 @@ export async function getConversationTrace(traceId: string) {
 
 export function conversationTraceStoreConfig() {
   const recording = conversationTraceRecordingStatus();
-  return { write_enabled: conversationTraceEnabled(), recording_status: recording, recording_degraded: recording !== "active", retention_days: traceRetentionDays() };
+  const schema = traceSchemaHealth();
+  const writes = conversationTraceWriteHealth();
+  return { write_enabled: conversationTraceEnabled(), recording_status: recording, recording_degraded: recording !== "active" || schema?.status !== "compatible" || writes.status === "failed", schema_preflight: schema, write_health: writes, retention_days: traceRetentionDays() };
 }

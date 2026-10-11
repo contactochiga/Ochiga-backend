@@ -50,11 +50,26 @@ function isUuid(value: unknown) {
 function safePersistenceError(error: unknown) {
   const err = recordOf(error);
   return {
-    error_code: text(err.code || err.status || err.name) || null,
-    error_message: text(err.message) || "Conversation persistence failed",
-    error_details: text(err.details) || null,
-    error_hint: text(err.hint) || null,
+    error_code: /^[A-Za-z0-9_]{1,40}$/.test(text(err.code || err.status || err.name)) ? text(err.code || err.status || err.name) : "persistence_failed",
+    // Postgres constraint details may contain the failing message row.
+    error_message: "Conversation persistence failed",
   };
+}
+
+// Retrying only this idempotent transaction never reruns an action/capability.
+async function saveCanonicalRows(payload: Record<string, unknown>) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const result = await supabaseAdmin.rpc("oyi_persist_canonical_turn", payload).abortSignal(AbortSignal.timeout(3000));
+      if (result.error) throw result.error;
+      return result.data;
+    } catch (error: any) {
+      const code = String(error?.code || error?.cause?.code || "");
+      const transient = !code || ["20", "23"].includes(code) || /^(?:08|53|57|UND_|ECONN|ETIMEDOUT)/.test(code)
+        || ["AbortError", "TimeoutError"].includes(error?.name);
+      if (attempt || !transient) throw error;
+    }
+  }
 }
 
 function responseIdentifier(response: Record<string, unknown>, conversationRequestId: string) {
@@ -93,66 +108,6 @@ async function currentThreadTitle(threadId: string) {
   return text(data?.title) || null;
 }
 
-async function verifyCanonicalCurrentTurnPersistence(threadId: string, userMessageId: string, assistantMessageId: string, conversationRequestId: string) {
-  const result = await supabaseAdmin
-    .from("oyi_conversation_messages")
-    .select("id,thread_id,role,metadata")
-    .in("id", [userMessageId, assistantMessageId]);
-  if (result.error) return { ok: false, count: 0, error: result.error.message };
-  const rows = Array.isArray(result.data) ? result.data : [];
-  const byId = new Map(rows.map((row: any) => [String(row.id), row]));
-  const user = byId.get(userMessageId) as any;
-  const assistant = byId.get(assistantMessageId) as any;
-  const matchesRequest = (row: any) => text(recordOf(row?.metadata).conversation_request_id) === conversationRequestId;
-  const ok = Boolean(
-    user
-    && assistant
-    && user.thread_id === threadId
-    && assistant.thread_id === threadId
-    && user.role === "user"
-    && assistant.role === "assistant"
-    && matchesRequest(user)
-    && matchesRequest(assistant)
-  );
-  return { ok, count: rows.length, error: ok ? null : "Current conversation turn messages were not persisted with matching request ids" };
-}
-
-async function verifyCanonicalThreadPersistence(threadId: string, minimumMessages = 2) {
-  const countResult = await supabaseAdmin
-    .from("oyi_conversation_messages")
-    .select("id", { count: "exact", head: true })
-    .eq("thread_id", threadId);
-  if (countResult.error) return { ok: false, count: 0, error: countResult.error.message };
-  const count = Number(countResult.count || 0);
-  return { ok: count >= minimumMessages, count, error: count >= minimumMessages ? null : "Conversation messages were not persisted" };
-}
-
-async function cleanupCanonicalOrphanThread(threadId: string) {
-  if (!isUuid(threadId)) return;
-  const summary = await verifyCanonicalThreadPersistence(threadId, 1);
-  if (summary.count > 0) return;
-  const { error } = await supabaseAdmin.from("oyi_conversation_threads").delete().eq("id", threadId);
-  if (error) logger.warn("conversation_orphan_thread_cleanup_failed", { thread_id: threadId, error });
-}
-
-async function cleanupCanonicalTurnRows(input: { threadId: string; userMessageId: string; assistantMessageId: string; deleteThread: boolean }) {
-  if (!isUuid(input.threadId)) return;
-  try {
-    await supabaseAdmin
-      .from("oyi_conversation_messages")
-      .delete()
-      .eq("thread_id", input.threadId)
-      .in("id", [input.userMessageId, input.assistantMessageId]);
-    if (input.deleteThread) await cleanupCanonicalOrphanThread(input.threadId);
-  } catch (error) {
-    logger.warn("conversation_turn_compensation_failed", {
-      thread_id: input.threadId,
-      user_message_id: input.userMessageId,
-      assistant_message_id: input.assistantMessageId,
-      ...safePersistenceError(error),
-    });
-  }
-}
 
 export async function persistCanonicalConversationTurn(input: {
   actor: AuthUser | null;
@@ -207,10 +162,9 @@ export async function persistCanonicalConversationTurn(input: {
     response.confirmations = []; response.requiresConfirmation = false; response.approvalRequired = false;
   }
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
-  const newlyCreatedThread = !isUuid(text(request.thread_id));
   const now = new Date().toISOString();
-  const assistantId = randomUUID();
-  const userMessageId = randomUUID();
+  let assistantId = randomUUID();
+  let userMessageId = randomUUID();
   const canonicalResponseId = responseIdentifier(response, contract.conversation_request_id);
   const existingTitle = await currentThreadTitle(threadId);
   const title = existingTitle && !genericThreadTitle(existingTitle) ? existingTitle : titleFromTurn(request.message, contract, object);
@@ -454,8 +408,8 @@ export async function persistCanonicalConversationTurn(input: {
       intent: contract.intent,
       builder_key: input.builderKey,
     });
-    failedStage = "thread_upsert";
-    const threadWrite = await supabaseAdmin.from("oyi_conversation_threads").upsert({
+    failedStage = "atomic_turn_save";
+    const threadRow = {
       id: threadId,
       user_id: actor?.id || null,
       surface: request.surface,
@@ -465,12 +419,8 @@ export async function persistCanonicalConversationTurn(input: {
       title,
       updated_at: now,
       metadata: threadMetadata,
-    } as any);
-    if (threadWrite.error) throw threadWrite.error;
-    logger.info("conversation_persistence_stage_completed", { stage: "thread_upsert", table: "oyi_conversation_threads", thread_id: threadId, conversation_request_id: contract.conversation_request_id });
-
-    failedStage = "user_message_insert";
-    const userWrite = await supabaseAdmin.from("oyi_conversation_messages").insert({
+    } as any;
+    const userRow = {
       id: userMessageId,
       thread_id: threadId,
       user_id: actor?.id || null,
@@ -489,16 +439,8 @@ export async function persistCanonicalConversationTurn(input: {
         conversation_context_layers: contextLayers,
       },
       created_at: now,
-    } as any);
-    if (userWrite.error) throw userWrite.error;
-    logger.info("conversation_turn_user_persisted", {
-      conversation_request_id: contract.conversation_request_id,
-      thread_id: threadId,
-      user_message_id: userMessageId,
-    });
-
-    failedStage = "assistant_message_insert";
-    const assistantWrite = await supabaseAdmin.from("oyi_conversation_messages").insert({
+    } as any;
+    const assistantRow = {
       id: assistantId,
       thread_id: threadId,
       user_id: actor?.id || null,
@@ -529,42 +471,17 @@ export async function persistCanonicalConversationTurn(input: {
         facts: Array.isArray(response.facts) ? response.facts : [],
       },
       created_at: new Date(Date.now() + 1).toISOString(),
-    } as any);
-    if (assistantWrite.error) throw assistantWrite.error;
-    logger.info("conversation_turn_assistant_persisted", {
-      conversation_request_id: contract.conversation_request_id,
-      thread_id: threadId,
-      assistant_message_id: assistantId,
-    });
-
-    failedStage = "current_turn_verification";
-    const verified = await verifyCanonicalCurrentTurnPersistence(threadId, userMessageId, assistantId, contract.conversation_request_id);
-    if (!verified.ok) throw new Error(verified.error || "Conversation turn persistence could not be verified");
-    logger.info("conversation_turn_persist_verified", {
-      conversation_request_id: contract.conversation_request_id,
-      thread_id: threadId,
-      user_message_id: userMessageId,
-      assistant_message_id: assistantId,
-    });
-
-    failedStage = "thread_summary_update";
-    const messageSummary = await verifyCanonicalThreadPersistence(threadId, 2);
-    const summaryWrite = await supabaseAdmin
-      .from("oyi_conversation_threads")
-      .update({
-        title,
-        updated_at: new Date().toISOString(),
-        metadata: {
-          ...threadMetadata,
-          message_count: messageSummary.count,
-          last_user_message_id: userMessageId,
-          last_assistant_message_id: assistantId,
-          last_conversation_request_id: contract.conversation_request_id,
-        },
-      } as any)
-      .eq("id", threadId);
-    if (summaryWrite.error) throw summaryWrite.error;
-    logger.info("conversation_persistence_stage_completed", { stage: "thread_summary_update", table: "oyi_conversation_threads", thread_id: threadId, conversation_request_id: contract.conversation_request_id });
+    } as any;
+    const traceRequestId = text(recordOf(request.context).canonical_trace_request_id) || contract.conversation_request_id;
+    userRow.metadata.trace_request_id = traceRequestId;
+    assistantRow.metadata.trace_request_id = traceRequestId;
+    const saved = await saveCanonicalRows({ p_thread: threadRow, p_user: userRow, p_assistant: assistantRow, p_request_id: contract.conversation_request_id });
+    if (!saved?.saved) throw { code: "canonical_save_unverified" };
+    assistantId = saved.assistant_message_id;
+    userMessageId = saved.user_message_id;
+    response.persistence_request_id = contract.conversation_request_id;
+    response.persistence_trace_request_id = traceRequestId;
+    response.persistence_duplicate = saved.duplicate === true;
 
     logger.info("conversation_final_answer_selected", {
       response_id: assistantId,
@@ -592,8 +509,12 @@ export async function persistCanonicalConversationTurn(input: {
     });
     return threadId;
   } catch (error) {
-    await cleanupCanonicalTurnRows({ threadId, userMessageId, assistantMessageId: assistantId, deleteThread: newlyCreatedThread });
-    (response as any).persistence_warning = "This answer was not saved to conversation history.";
+    // The transaction either committed the whole pair or rolled back. Never
+    // delete rows after an ambiguous network response: it may have committed.
+    response.persistence_request_id = contract.conversation_request_id;
+    response.persistence_saved = false;
+    response.persistence_failure_stage = failedStage;
+    (response as any).persistence_warning = "This answer's save could not be confirmed; conversation history may be incomplete.";
     logger.warn("conversation_turn_persist_failed", {
       failed_stage: failedStage,
       table: failedStage === "thread_upsert" || failedStage === "thread_summary_update" ? "oyi_conversation_threads" : "oyi_conversation_messages",
@@ -619,31 +540,17 @@ export async function persistCanonicalConversationTurn(input: {
  * state are untouched); this only folds their message rows. When the last sub-turn owns an action (a proposal awaiting approval), that turn's own rows are kept,
  * because the action refers to them. Verifies the rows are exactly the expected alternating run before changing anything; otherwise it changes nothing.
  */
-export async function collapseMultipartExchange(input: { threadId: string; turns: number; originalMessage: string; combinedAnswer: string; keepLastTurn: boolean }): Promise<{ collapsed: boolean; reason?: string }> {
+export async function collapseMultipartExchange(input: { threadId: string; turns: number; requestIds: string[]; originalMessage: string; combinedAnswer: string; keepLastTurn: boolean }): Promise<{ collapsed: boolean; reason?: string }> {
   try {
-    if (!isUuid(input.threadId) || input.turns < 1) return { collapsed: false, reason: "not_applicable" };
-    const fetched = await supabaseAdmin.from("oyi_conversation_messages").select("id,role,created_at,metadata").eq("thread_id", input.threadId).order("created_at", { ascending: false }).limit(input.turns * 2);
-    if (fetched.error || !Array.isArray(fetched.data) || fetched.data.length !== input.turns * 2) return { collapsed: false, reason: "rows_unavailable" };
-    const rows = [...fetched.data].reverse() as Array<{ id: string; role: string; metadata: unknown }>;
-    if (!rows.every((r, i) => r.role === (i % 2 === 0 ? "user" : "assistant"))) return { collapsed: false, reason: "unexpected_row_shape" };
-    const userKeep = input.keepLastTurn ? rows[rows.length - 2] : rows[0];
-    const assistantKeep = rows[rows.length - 1];
-    const drop = rows.filter((r) => r.id !== userKeep.id && r.id !== assistantKeep.id).map((r) => r.id);
-    const mark = (row: { metadata: unknown }) => ({ ...recordOf(row.metadata), multipart: { clauses: input.turns, collapsed: true } });
-    const u = await supabaseAdmin.from("oyi_conversation_messages").update({ content: input.originalMessage, metadata: mark(userKeep) } as any).eq("id", userKeep.id);
-    const a = await supabaseAdmin.from("oyi_conversation_messages").update({ content: input.combinedAnswer, metadata: mark(assistantKeep) } as any).eq("id", assistantKeep.id);
-    if (u.error || a.error) return { collapsed: false, reason: "update_failed" };
-    if (drop.length) {
-      const d = await supabaseAdmin.from("oyi_conversation_messages").delete().eq("thread_id", input.threadId).in("id", drop);
-      if (d.error) return { collapsed: false, reason: "delete_failed" };
-    }
-    const th = await supabaseAdmin.from("oyi_conversation_threads").select("metadata").eq("id", input.threadId).maybeSingle();
-    const meta = recordOf((th.data as any)?.metadata);
-    const count = Number(meta.message_count);
-    await supabaseAdmin.from("oyi_conversation_threads").update({ metadata: { ...meta, message_count: Number.isFinite(count) ? Math.max(2, count - drop.length) : undefined, last_user_message_id: userKeep.id, last_assistant_message_id: assistantKeep.id } } as any).eq("id", input.threadId);
-    return { collapsed: true };
-  } catch (error) {
-    logger.warn("conversation_multipart_collapse_failed", { thread_id: input.threadId, ...safePersistenceError(error) });
-    return { collapsed: false, reason: "error" };
+    if (!isUuid(input.threadId) || input.requestIds.length !== input.turns || new Set(input.requestIds).size !== input.turns) return { collapsed: false, reason: "invalid_request_ids" };
+    const result = await supabaseAdmin.rpc("oyi_collapse_canonical_exchange", {
+      p_thread_id: input.threadId, p_request_ids: input.requestIds, p_original: input.originalMessage,
+      p_answer: input.combinedAnswer, p_keep_last: input.keepLastTurn,
+    }).abortSignal(AbortSignal.timeout(3000));
+    if (result.error) throw result.error;
+    return result.data?.collapsed === true ? { collapsed: true } : { collapsed: false, reason: result.data?.reason || "unverified" };
+  } catch {
+    logger.warn("conversation_multipart_collapse_failed", { reason: "atomic_collapse_failed" });
+    return { collapsed: false, reason: "atomic_collapse_failed" };
   }
 }
