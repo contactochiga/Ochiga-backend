@@ -1,0 +1,75 @@
+{
+  "runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "protocol_commit": "c8c1b7f",
+  "frozen_at": "2026-10-11T09:31:24.073Z",
+  "primary": 320,
+  "paraphrase": 100,
+  "operation_flip": 100,
+  "total": 520,
+  "intents": {
+    "LIST": 20,
+    "COUNT": 20,
+    "STATUS": 20,
+    "DETAIL": 20,
+    "EXPLANATION": 20,
+    "COMPARISON_RANKING": 20,
+    "FOLLOWUP_CONTEXT": 20,
+    "CLARIFICATION": 20,
+    "VALUE_SUM": 20,
+    "LIMITATION": 20,
+    "REFUSAL": 20,
+    "CONSTRAINT": 20,
+    "DISCOVERY": 20,
+    "YES_NO": 20,
+    "SAFETY_RISK": 20,
+    "ACTION_CONFIRMATION": 20
+  },
+  "authorship": {
+    "OMA": {
+      "allowed_inputs": [
+        "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md",
+        "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md",
+        "Worker assignment from parent identifying OMA, output path, counts and protocol commit c8c1b7f."
+      ],
+      "prohibited_inputs_accessed": false,
+      "statement": "I am independent author agent /root/iq10f_author_oma. I authored these questions and bounded expectations using only the two allowed documents and my worker assignment, without inspecting implementation, previous corpora, answers, grading, failures, routing rules, other agents or runtime behavior. I did not call the runtime. All 130 cases were authored before execution. The initially assigned short spec filename was absent; I read only the corrected exact bounded-spec path supplied by the parent. This declaration concerns role/context isolation within the AI agent team, not human or organizational independence."
+    },
+    "OSA": {
+      "allowed_inputs": [
+        "docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md",
+        "docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md",
+        "OSA author assignment and corrected specification filename supplied by coordinator"
+      ],
+      "prohibited_inputs_accessed": false,
+      "statement": "Authored independently by agent /root/iq10f_author_osa using only the bounded protocol, public product specification and worker assignment. The coordinator identified protocol freeze commit c8c1b7f before authorship. I did not inspect source, implementation, earlier corpora, answers, failures, grading, routing rules, runtime state or other existing repository files, and did not call the runtime or consult other authors. A first attempt to read the assigned short spec filename returned file-not-found; the coordinator supplied the correct bounded spec filename. This is role/context isolation within the same model family, not human or organizational independence. All property particulars and reserved contact details in these journeys are synthetic user-supplied, unverified conversational facts. Expectations were completed before runtime execution."
+    },
+    "FACILITY": {
+      "allowed_inputs": [
+        "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md",
+        "/Users/ochigaidoko/Documents/oyi-intelligence-quality/docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md",
+        "Worker assignment from parent: FACILITY, protocol commit c8c1b7f, output path and target counts"
+      ],
+      "prohibited_inputs_accessed": false,
+      "statement": "Authored by isolated agent /root/iq10f_author_facility using only the two bounded protocol/specification files and the worker assignment. No implementation, prior corpora, answers, failures, grading or routing rules inspected; no runtime calls made. The initially supplied abbreviated spec filename did not exist; parent supplied the correct bounded-spec path. Independence is role/context isolation among AI agents, not human or organizational independence."
+    },
+    "CONSUMER": {
+      "allowed_inputs": [
+        "docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md",
+        "docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md",
+        "Worker assignment: CONSUMER; protocol freeze c8c1b7f382701cbd55e4f80d7521818d00c14403"
+      ],
+      "prohibited_inputs_accessed": false,
+      "statement": "Authored independently by /root/iq10f_author_consumer using only the two bounded input documents and worker assignment. I have not inspected implementation, prior corpora, answers, failures, grading, routing rules or any other repository files; I have made no runtime calls. Independence is role/context isolation among AI agents of the same model family, not human or organizational independence."
+    }
+  },
+  "hashes": {
+    "artifacts/intelligence-quality-v1-iq10f-author-OMA.json": "c4852d640b7621dbbf97af60d58809580082ed2c75241047ff024830fa7c607c",
+    "artifacts/intelligence-quality-v1-iq10f-author-OSA.json": "5d113e2754a433cee0c7aa0c80463e83c15e6ca82432144631ca17ce17d356df",
+    "artifacts/intelligence-quality-v1-iq10f-author-FACILITY.json": "f30ec11ddeee0faab8ad2ef090a0365bd785051a65ca2aef9a82a99147e5b48c",
+    "artifacts/intelligence-quality-v1-iq10f-author-CONSUMER.json": "7144979c8cc6eed40a28c5b5bee7a35f0c34729697510145faed003448f97906",
+    "docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md": "9070a11d1cb1da26e2eaf90d8ad25266fe19685010ecd3d3ebfa4f9818765727",
+    "docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md": "96f74661cbe9a3f29acef392e972718321b391dbee53c76a2f398bb4adb45c7c",
+    "scripts/iq10f-run.mjs": "b108a774365d1e41ec0ea7285d4dcc7324ed0cbb6eed3fd5528dfd6411765bdf",
+    "scripts/iq10f-freeze.mjs": "46b6258acffcf78e09a6f44cca9aa6ed97563c47534469fe47154ade92e6a89c"
+  }
+}
