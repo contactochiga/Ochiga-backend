@@ -1,0 +1,12 @@
+{
+  "starting_head": "993bc507673e6c7665e6e5332a3202e4daf57743",
+  "thresholds": { "frozen_contract_assertions_pass": 1, "new_p0": 0, "defensible_frozen_pass_regressions": 0 },
+  "authorship": "New same-maintainer synthetic development cases; not independent or sealed certification",
+  "journeys": [
+    { "id": "D-OMA", "worker": "OMA", "turns": ["List the stale opportunities.", "Who owns the second opportunity?", "Show the development projects.", "What are their recorded statuses?"] },
+    { "id": "D-FACILITY", "worker": "FACILITY", "turns": ["List maintenance requests.", "What is the category of the water issue?", "Show visitor access records.", "Do those permission records prove arrival?"] },
+    { "id": "D-CONSUMER", "worker": "CONSUMER", "turns": ["Show my wallet history and balance.", "Show my maintenance requests.", "What is the category of the water issue?", "List my devices.", "Does being online prove a device is powered on?"] },
+    { "id": "D-OSA", "worker": "OSA", "turns": ["I own a plot in Lokoja, 720 sqm, for lease.", "I have another plot in Akure, 980 sqm, for JV.", "The first property is not for sale.", "Show the first property.", "Show the second property.", "Withdraw the first property.", "Show the second property."] }
+  ],
+  "invariants": ["All 20 turns saved and durable-trace correlated", "No physical execution", "Office owner remains attributed to selected opportunity", "Maintenance category survives canonical answer", "Visitor permission never promoted to arrival", "Wallet balance remains separate from transaction history", "Osa first-property constraint does not overwrite second-property facts", "Withdrawn property not active"]
+}
