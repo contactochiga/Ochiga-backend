@@ -27,6 +27,8 @@ export type ResultSetContext = {
   capability_key: string | null;
   operation: string | null;
   object_refs: ResultSetObjectRef[];
+  // Selection is a view, not destruction of the list whose ordinals the user saw.
+  candidate_refs?: ResultSetObjectRef[];
   timeframe: IntelligenceRequestContract["temporal_scope"] | null;
   filters: Record<string, string>;
   metric: string | null;
@@ -44,6 +46,11 @@ export type ResultSetContext = {
 // issue" — see §10 of the closure spec. active_domain is which one a bare
 // ordinal/pronoun follow-up (no domain cue) resolves against.
 export type ResultSetsByDomain = Record<string, ResultSetContext>;
+export const RESULT_SET_TTL_MS = 30 * 60 * 1000;
+export function validResultSetTime(value: ResultSetContext, now=Date.now()): boolean {
+  const at=Date.parse(value.created_at);
+  return Number.isFinite(at) && at<=now && now-at<RESULT_SET_TTL_MS;
+}
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -176,6 +183,7 @@ export function narrowedResultSetContext(previous: ResultSetContext, selected: R
     ...previous,
     result_set_id: randomUUID(),
     object_refs: [selected],
+    candidate_refs: (previous.candidate_refs || previous.object_refs).slice(0, 50),
     result_count: 1,
     selected_object_ref: selected,
     source_request_id: input.contract.conversation_request_id,
@@ -194,6 +202,7 @@ export function filteredResultSetContext(previous: ResultSetContext, matched: Re
     ...previous,
     result_set_id: randomUUID(),
     object_refs: matched,
+    candidate_refs: matched.slice(0, 50),
     result_count: matched.length,
     selected_object_ref: matched.length === 1 ? matched[0] : null,
     filters: { ...previous.filters, [filterKey]: filterValue },
@@ -212,6 +221,7 @@ export function prioritizedResultSetContext(previous: ResultSetContext, ordered:
     ...previous,
     result_set_id: randomUUID(),
     object_refs: ordered,
+    candidate_refs: ordered.slice(0, 50),
     result_count: ordered.length,
     selected_object_ref: ordered.length === 1 ? ordered[0] : null,
     source_request_id: input.contract.conversation_request_id,
@@ -224,7 +234,7 @@ export function prioritizedResultSetContext(previous: ResultSetContext, ordered:
 function parseResultSetsByDomain(metadata: Record<string, unknown>): { resultSets: ResultSetsByDomain; activeDomain: string | null } {
   const stored = metadata.result_sets;
   if (stored && typeof stored === "object" && !Array.isArray(stored)) {
-    const resultSets = stored as ResultSetsByDomain;
+    const resultSets = Object.fromEntries(Object.entries(stored).filter(([,v])=>v && Array.isArray((v as ResultSetContext).object_refs) && validResultSetTime(v as ResultSetContext))) as ResultSetsByDomain;
     const activeDomain = text(metadata.active_domain) || null;
     return { resultSets, activeDomain: activeDomain && resultSets[activeDomain] ? activeDomain : null };
   }
@@ -234,7 +244,7 @@ function parseResultSetsByDomain(metadata: Record<string, unknown>): { resultSet
   const legacy = metadata.last_result_set;
   if (legacy && typeof legacy === "object") {
     const parsed = legacy as ResultSetContext;
-    if (Array.isArray(parsed.object_refs) && parsed.object_refs.length && parsed.domain) {
+    if (Array.isArray(parsed.object_refs) && parsed.object_refs.length && parsed.domain && validResultSetTime(parsed)) {
       return { resultSets: { [parsed.domain]: parsed }, activeDomain: parsed.domain };
     }
   }

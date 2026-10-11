@@ -27,7 +27,7 @@ import type { OyiEvidence } from "../contracts/evidence";
 import { publicOpportunityOutcome } from "../evidence/sources/publicReads";
 import type { SemanticFrame } from "../contracts/semanticFrame";
 import { isAssessmentObjective } from "../context/conversationAssessmentContext";
-import { correctedPublicFacts, extractTitleStatus } from "../context/publicOpportunityObjective";
+import { correctedPublicFacts, extractTitleStatus, opportunityEntities, opportunityEntityView, retainOpportunityEntities, selectOpportunityEntity } from "../context/publicOpportunityObjective";
 import { evidenceEnvelope } from "../evidence/EvidenceEnvelope";
 import { readModule, resultPresentation } from "./ReadCapabilityModules";
 import { canonicalCorporateAnswer } from "./corporateKnowledgeAnswer";
@@ -55,12 +55,12 @@ function extractLocation(message: string): string | null {
   // a NEW sentence, not a continuation of the place name (found live:
   // "I own land in VI. What is..." was misread as location "VI. What").
   const sentence = message.split(/(?<=[.!?])\s+/)[0] || message;
-  const match = sentence.match(/\bin\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2})/);
+  const match = sentence.match(/\b(?:in|location\s+to)\s+([A-Z][A-Za-z]*(?:\s+[A-Z][A-Za-z]*){0,2})/);
   return match ? match[1].replace(/[.,]+$/, "").trim() : null;
 }
 
 function extractArea(message: string): string | null {
-  const area = message.match(/(\d[\d,]*\s*(?:sqm|square\s*meters?|hectares?|acres?))/i);
+  const area = message.match(/(\d[\d,]*(?:\.\d+)?\s*(?:sqm|m²|m2\b|square\s*m(?:etres?|eters?)|hectares?|acres?))/i);
   if (area) return area[1].replace(/\s+/g, " ").trim();
   const units = message.match(/(\d+[\s-]*units?)/i);
   return units ? units[1].replace(/\s+/g, " ").trim() : null;
@@ -82,7 +82,7 @@ function extractStructurePreference(message: string): string | null {
 // specifically imply an existing physical structure being offered stay
 // in this list.
 function extractPropertyKind(message: string): "land" | "existing_building" | null {
-  const land = message.search(/\b(?:land|plots?)\b/i), building = message.search(/\b(?:building|property|house|estate)\b/i);
+  const land = message.search(/\b(?:land|plots?)\b/i), building = message.search(/\b(?:building|house)\b/i);
   // IQ-9A8: in a correction ("actually, a different plot: a building in Asaba") the kind named LAST is the corrected one
   if (land >= 0 && building >= 0 && /\b(?:actually|different|instead|rather|correction|i\s+mean)\b/i.test(message)) return building > land ? "existing_building" : "land";
   if (land >= 0) return "land";
@@ -93,7 +93,12 @@ function extractPropertyKind(message: string): "land" | "existing_building" | nu
 /** Records the caller's stated contact preference into the thread's opportunity objective (conversation-scoped note; no facts are invented). */
 export function recordContactPreference(prior: PublicOpportunityObjective | null, message: string): PublicOpportunityObjective | null {
   if (contactConstraintsIn(message).length === 0) return null;
-  return mergeObjective(prior, message, new Date().toISOString());
+  if (prior?.entities?.length) {
+    const selection=selectOpportunityEntity(prior,message);
+    if (selection.kind === "selected") prior=opportunityEntityView(prior,selection.selected[0]);
+    else if (selection.kind !== "none" || !prior.active_entity_id) return prior;
+  }
+  return retainOpportunityEntities(mergeObjective(prior, message, new Date().toISOString()),prior);
 }
 
 /** Contact-channel preferences stated by the caller (kept as objective constraints; conversation-scoped notes, not enforced rules). */
@@ -171,10 +176,13 @@ function mergeObjective(prior: PublicOpportunityObjective | null, message: strin
   else if (assertsOwnership(message) && !knownFacts.opportunity_type) knownFacts.opportunity_type = "land";
 
   const titleStatus = extractTitleStatus(message); if (titleStatus) knownFacts.title_document_status = titleStatus;
+  if (/\bi\s+own\b/i.test(message)) knownFacts.ownership_status = "personal ownership stated by caller, unverified";
+  if (/\b(?:belongs?\s+to|owned\s+by)\s+(?:my\s+|the\s+)?family\b|\bfamily\s+(?:property|land|ownership)\b/i.test(message)) knownFacts.ownership_status = "family ownership stated by caller; authority not verified";
   if (assertsNoSale(message) && !constraints.includes("no_sale")) constraints.push("no_sale");
   for (const c of contactConstraintsIn(message)) if (!constraints.includes(c)) constraints.push(c);
 
   return {
+    ...prior,
     objective_type: objectiveType,
     known_facts: knownFacts,
     constraints,
@@ -371,7 +379,65 @@ export function publicOpportunityReadModule(): CapabilityModule {
       return [publicOpportunityEvidence(read.status === "found" ? read.objective : null, read.status === "error")];
     },
     answer: async (context, evidence): Promise<DomainResult> => {
-      const prior = (evidence[0]?.payload as { objective: PublicOpportunityObjective | null } | undefined)?.objective || null;
+      let prior = (evidence[0]?.payload as { objective: PublicOpportunityObjective | null } | undefined)?.objective || null;
+      const original = prior;
+      const transition = context.resolvedTurn.semantic_frame?.concepts?.entity_transition;
+      let entityMode: "update" | "introduce" = "update";
+      let selectedPrior = prior;
+      const message0 = text(context.input.message);
+      // Narrow only the existing public-owned objective. No Office lookup,
+      // action authority or new writer is introduced by entity selection.
+      // A failed callback is not an opportunity edit or a context migration.
+      // Keep legacy single-opportunity identity intact on that path (IQ-1).
+      if (prior && !(evidence[0]?.payload as any)?.load_failed && (prior.entities?.length || !isCallbackRequest(message0))) {
+        prior = {...prior,entities:opportunityEntities(prior)};
+        selectedPrior = prior;
+        const selection = selectOpportunityEntity(prior,message0);
+        const summary = (items: typeof selection.entities) => items.map(e=>`Property ${e.ordinal}${e.known_facts.location?` (${e.known_facts.location})`:""}: ${Object.entries(e.known_facts).map(([k,v])=>`${k.replace(/_/g," ")}: ${v}`).join("; ") || "no details supplied"}${e.constraints.length?`; constraints: ${e.constraints.join(", ")}`:""}.`).join("\n");
+        const result = (answer:string,updated:PublicOpportunityObjective=prior!,status:DomainResult["status"]="answered"): DomainResult => ({status,answer,presentation_policy:resultPresentation("text"),metadata:{public_opportunity_objective:updated}});
+        if (transition === "introduce") {
+          if (prior.entities!.length >= 8) return result("This conversation already holds eight opportunities. Please select one to update or start a new conversation; I haven't replaced any details.");
+          entityMode="introduce"; prior=null;
+        } else if (selection.kind === "ambiguous" || selection.kind === "missing") {
+          const fields=transition==="correct"?mergeObjective(null,message0,new Date().toISOString()).known_facts:{};
+          const updated={...prior,pending_entity_update:Object.keys(fields).length?{candidate_ids:selection.selected.map(e=>e.id),fields,created_at:new Date().toISOString()}:prior.pending_entity_update};
+          return result(`Which property do you mean? ${selection.entities.filter(e=>e.status==="active").map(e=>`Property ${e.ordinal}${e.known_facts.location?` (${e.known_facts.location})`:""}`).join("; ")}. I haven't changed any details.`,updated,"draft");
+        } else if (selection.kind === "multiple") {
+          if (transition === "correct" || transition === "withdraw") return result("Please identify one property to change. I haven't changed either opportunity.",prior,"draft");
+          return result(`Based only on the details you supplied, not independent verification:\n${summary(selection.selected)}\nThese are separate opportunities; this is not a commercial recommendation or a submission.`);
+        } else if (selection.kind === "selected") {
+          prior=opportunityEntityView(prior,selection.selected[0]); selectedPrior=prior;
+          const pending=prior.pending_entity_update;
+          const suppliesNewFact=changesBetween(prior,mergeObjective(prior,message0,new Date().toISOString()).known_facts).length>0;
+          if (pending && pending.candidate_ids.includes(prior.active_entity_id!) && Date.now()-Date.parse(pending.created_at)<30*60000 && !transition && !suppliesNewFact) {
+            const next={...prior.known_facts,...pending.fields};
+            const changes=changesBetween(prior,next);
+            const applied=retainOpportunityEntities({...prior,known_facts:next,pending_entity_update:null,last_changes:changes,
+              superseded:[...(prior.superseded||[]),...changes.filter(c=>c.from).map(c=>({field:c.field,value:c.from!}))].slice(-12)},prior);
+            return result(`Property ${selection.selected[0].ordinal}: ${describeChanges(changes,prior.known_facts,next)}`,applied);
+          }
+          if (transition === "withdraw") {
+            const id=prior.active_entity_id;
+            const updated={...prior,entities:prior.entities!.map(e=>e.id===id?{...e,status:"withdrawn" as const}:e),active_entity_id:null,known_facts:{},constraints:[],handoff_stage:undefined,last_changes:[]};
+            return result(`Property ${selection.selected[0].ordinal} is withdrawn from this conversation's active opportunities. No external record or previous handoff has been cancelled; no new request was sent.`,updated);
+          }
+          if (transition || suppliesNewFact) prior={...prior,pending_entity_update:null};
+          const proposed=mergeObjective(prior,message0,new Date().toISOString());
+          if (!transition && changesBetween(prior,proposed.known_facts).length===0 && !extractTitleStatus(message0)
+            && /^(?:tell|show|list|the|and|can we|what about|go back|return)/i.test(message0.trim())) {
+            return result(`Based on the details you supplied, not independent verification:\n${summary(selection.selected)}`,prior);
+          }
+        } else if (!prior.entities!.some(e => e.status === "active")) {
+          return result("There is no active property in this conversation. The withdrawn opportunity remains withdrawn. Please introduce a new opportunity if you want to discuss one; I haven't attached new details or sent a request.",prior,"draft");
+        } else if (prior.entities!.length>1 && !prior.active_entity_id) {
+          return result("Which active property do you mean? Please identify it by number or location; I haven't attached this information to either.",prior,"draft");
+        }
+        if (prior && transition==="correct" && /\bdifferent\s+(?:property|plot|opportunity)\b/i.test(message0)) {
+          prior={...prior,known_facts:{},constraints:[],handoff_stage:undefined,last_changes:[],
+            superseded:[...(prior.superseded||[]),...Object.entries(prior.known_facts).map(([field,value])=>({field,value}))].slice(-12)};
+        }
+      }
+      const answerOne = async (): Promise<DomainResult> => {
       // A failed objective load is not "no earlier details": answering as if the caller had
       // supplied nothing would merge this turn over, and so overwrite, what they already gave.
       if ((evidence[0]?.payload as { load_failed?: boolean } | undefined)?.load_failed) {
@@ -380,8 +446,11 @@ export function publicOpportunityReadModule(): CapabilityModule {
       const message = text(context.input.message);
       const corrected = correctedPublicFacts(prior, message);
       if (prior && corrected) {
-        const changes = changesBetween(prior, corrected);
-        const updated = { ...prior, known_facts: corrected, current_subject: corrected.location || prior.current_subject, updated_at: new Date().toISOString(), turns: prior.turns + 1, last_changes: changes };
+        const merged=mergeObjective(prior,message,new Date().toISOString());
+        const next={...merged.known_facts,...Object.fromEntries(Object.entries(corrected).filter(([k,v])=>v!==prior!.known_facts[k]))};
+        const changes = changesBetween(prior, next);
+        const updated = { ...merged, known_facts: next, current_subject: next.location || prior.current_subject, last_changes: changes,
+          superseded:[...(prior.superseded||[]),...changes.filter(c=>c.from).map(c=>({field:c.field,value:c.from!}))].slice(-12) };
         return { status: "answered", answer: `${changes.length ? describeChanges(changes, prior.known_facts, corrected) : "I have replaced the earlier detail with your correction. These remain details supplied by you, not independently verified."} ${composeJvRequirementsAnswer(updated)}`,
           presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: updated } };
       }
@@ -472,6 +541,10 @@ export function publicOpportunityReadModule(): CapabilityModule {
           const supporting = prior.objective_type === "development_partnership" ? composeJvRequirementsAnswer(prior) : composeGenericRequirementsAnswer(prior);
           return { status: "answered", answer: `${asked}\n\nSupporting detail: ${supporting}`, presentation_policy: resultPresentation("text"), metadata: { public_opportunity_objective: prior } };
         }
+        const target=context.resolvedTurn.semantic_frame.answerTarget;
+        if (target?.response_intent==="LIST" && target.subject_tokens.some(t=>["details","facts","information"].includes(t))) {
+          return {status:"answered",answer:`Based on the details you supplied, not independent verification: ${Object.entries(prior.known_facts).map(([k,v])=>`${k.replace(/_/g," ")}: ${v}`).join("; ") || "no current details are held"}.`,presentation_policy:resultPresentation("text"),metadata:{public_opportunity_objective:prior}};
+        }
       }
       // Otherwise: this turn supplies or updates a fact. Merge and
       // acknowledge without re-asking for anything already known.
@@ -489,6 +562,14 @@ export function publicOpportunityReadModule(): CapabilityModule {
         presentation_policy: resultPresentation("text"),
         metadata: { public_opportunity_objective: updated },
       };
+      };
+      const result = await answerOne();
+      const updated = result.metadata?.public_opportunity_objective as PublicOpportunityObjective | undefined;
+      if (updated === original && !original?.entities?.length && result.metadata?.office_handoff_ok === false) return result;
+      if (updated) {
+        result.metadata = {...result.metadata,public_opportunity_objective:retainOpportunityEntities(updated,entityMode==="introduce"?selectedPrior:selectedPrior || original,entityMode)};
+      }
+      return result;
     },
     primary: "text",
   });

@@ -4,6 +4,38 @@ function text(value: unknown) {
   return String(value ?? "").trim();
 }
 
+// One reference selector shared by governed result sets and caller-supplied
+// public entities. It chooses identities only: it never loads or authorizes.
+export type ReferenceCandidate = { id: string; label: string; location?: string; ordinal?: number };
+export function selectConversationReferences<T extends ReferenceCandidate>(message: string, candidates: T[], selectedId: string | null = null): { kind: "none" | "selected" | "multiple" | "ambiguous" | "missing"; candidates: T[] } {
+  const normal = (s: string) => s.toLowerCase().replace(/[’']/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const m = ` ${normal(message)} `;
+  const names = candidates.filter(c => c.label && m.includes(` ${normal(c.label)} `));
+  if (names.length) return { kind: names.length === 1 ? "selected" : /\b(?:both|compare|and)\b/.test(m) ? "multiple" : "ambiguous", candidates: names };
+  const ordinals = [...m.matchAll(/\b(?:the\s+)?(first|second|third)\s+(?:one|property|opportunity|record|project|device|incident|visitor|task|lead)|\b(?:property|opportunity|record|project|device|incident|visitor|task|lead)\s+(one|two|three|1|2|3)\b/g)];
+  if (ordinals.length) {
+    const indices = [...new Set(ordinals.map(x => ({ first: 1, second: 2, third: 3, one: 1, two: 2, three: 3 }[x[1] || x[2]] || Number(x[2]))))];
+    const found = candidates.filter((c, i) => indices.includes(c.ordinal ?? i + 1));
+    return { kind: found.length !== indices.length ? "missing" : found.length === 1 ? "selected" : "multiple", candidates: found };
+  }
+  const places = candidates.filter(c => c.location && m.includes(` ${normal(c.location)} `));
+  if (places.length) return { kind: places.length === 1 ? "selected" : "ambiguous", candidates: places };
+  // Without visit history, "earlier" is only unique for an ordered pair
+  // whose second member is active. It is not a synonym for ordinal first.
+  if (/\b(?:earlier|previous)\s+(?:one|property|opportunity|record|project|device|incident|visitor|task|lead)\b/.test(m)) {
+    return candidates.length === 2 && candidates[1].id === selectedId
+      ? { kind: "selected", candidates: [candidates[0]] }
+      : { kind: "ambiguous", candidates };
+  }
+  if (/\b(?:the|that)\s+(?:one|property|opportunity)\s+in\s+\p{L}/u.test(m)) return {kind:"missing",candidates:[]};
+  if (/\bboth\b/.test(m)) return { kind: candidates.length === 2 ? "multiple" : "ambiguous", candidates };
+  if (/\bother\s+(?:one|property|opportunity|record|project|device|incident|visitor|task|lead)\b/.test(m)) {
+    const rest = candidates.filter(c => c.id !== selectedId);
+    return { kind: selectedId && rest.length === 1 ? "selected" : "ambiguous", candidates: rest };
+  }
+  return { kind: "none", candidates: [] };
+}
+
 export type FollowUpIntent =
   | { type: "comparison" }
   | { type: "prioritize" }
@@ -331,8 +363,20 @@ function resolvePronoun(resultSet: ResultSetContext): FollowUpResolution {
 // PREVIOUS turn's result set only — never an arbitrary broad re-query (see
 // §6 of the programme spec: "not rerun a broad unrelated query unless
 // necessary").
-export function resolveFollowUpReference(resultSet: ResultSetContext | null, intent: FollowUpIntent): FollowUpResolution {
+export function resolveFollowUpReference(resultSet: ResultSetContext | null, intent: FollowUpIntent, message?: string): FollowUpResolution {
   if (!resultSet) return { status: "unresolved" };
+  // A comparator is not the answer's subject. In "that device versus the
+  // first", preserve the selected subject; the projector still owns whether
+  // comparative judgment is available. Do not turn the right operand into
+  // a single-target selection merely because it contains an ordinal.
+  const relation = message?.split(/\b(?:rather\s+than|than|versus|vs\.?)\b/i);
+  if (relation && relation.length > 1 && /\b(?:that|this|it)\b/i.test(relation[0])) return resolvePronoun(resultSet);
+  const population = resultSet.candidate_refs || resultSet.object_refs;
+  const selection = message ? selectConversationReferences(message, population.map(r => ({...r, id:r.canonical_id, location:r.attributes?.location})), resultSet.selected_object_ref?.canonical_id) : null;
+  if (selection?.kind === "selected") return {status:"resolved",ref:selection.candidates[0]};
+  if (selection && ["multiple","ambiguous"].includes(selection.kind)) return {status:"ambiguous",candidates:selection.candidates};
+  if (selection?.kind === "missing") return {status:"unresolved"};
+  if (intent.type === "ordinal" || intent.type === "other") resultSet = {...resultSet,object_refs:population};
   if (intent.type === "ordinal") return resolveOrdinal(resultSet, intent.ordinal);
   if (intent.type === "other") return resolveOther(resultSet);
   if (intent.type === "attribute") return resolveAttribute(resultSet, intent.attribute);

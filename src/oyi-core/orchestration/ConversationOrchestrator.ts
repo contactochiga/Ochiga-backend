@@ -30,6 +30,7 @@ import { judgeAssessment } from "../evidence/judgment/judge";
 import { providerFromEnv } from "../evidence/judgment/provider";
 import type { JudgmentOutcome } from "../evidence/judgment/types";
 import { loadPublicOpportunityObjective, correctedPublicFacts } from "../context/publicOpportunityObjective";
+import { refineAnswerTarget } from "../response/answerTarget";
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, ScopeMode } from "../interpretation/conversationIntentRouting";
 import { ConversationTracer } from "../observability/ConversationTracer";
@@ -2898,6 +2899,13 @@ function followUpCapabilityFor(resultSet: ResultSetContext): CapabilityModule {
   return capability || syntheticFollowUpCapability(resultSet.domain);
 }
 
+function resultSetCurrentlyAuthorised(context: CanonicalConversationRequestContext, set: ResultSetContext): boolean {
+  if (!set.capability_key || !capabilityService.canUse(set.capability_key,{actor:context.actor,oisContext:context.oisContext,surface:context.input.surface}).allowed) return false;
+  const estate=context.oisContext?.estate_id || context.actor?.estate_id;
+  const home=context.oisContext?.home_id || context.actor?.home_id;
+  return !(set.source_scopes || []).some(s=>(s.estate_id && s.estate_id!==estate) || (s.home_id && (context.input.surface === "consumer" || Boolean(home)) && s.home_id!==home));
+}
+
 async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequestContext, resolvedTurn: ResolvedTurn, resultSet: ResultSetContext, referenceType: string, candidateRefs: import("../context/resultSetContext").ResultSetObjectRef[], tracer: ConversationTracer): Promise<ConversationRunResult> {
   const candidates = clarificationCandidatesFromRefs(candidateRefs);
   const names = candidates.map((c) => c.label).filter(Boolean).slice(0, 4).join("; ");
@@ -3138,6 +3146,7 @@ async function handleDomainSwitchFollowUp(context: CanonicalConversationRequestC
   }
   const targetResultSet = resultSets[switchIntent.domain];
   if (!targetResultSet) return null;
+  if (!resultSetCurrentlyAuthorised(context,targetResultSet)) return null;
   // IQ-9A8: "what about the wallet one?" re-reads that domain with the current actor's authority instead of replaying a stored line (an explicit "go back" keeps the stored set)
   if (!/\bgo back\b|\bback to\b|\bswitch back\b/i.test(context.input.message) && targetResultSet.capability_key && capabilityRegistry.get(targetResultSet.capability_key)) {
     const fresh = await handleTemporalFollowUp(context, resolvedTurn, targetResultSet, tracer).catch(() => null);
@@ -3183,6 +3192,7 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
     fallback_used: !resultSet,
   });
   if (!resultSet) return null;
+  if (!resultSetCurrentlyAuthorised(context,resultSet)) return null;
 
   // Milestone 2 -- production bug found in live verification: "pause
   // the second one" / "move the first one to 3pm" parse as a genuine
@@ -3208,7 +3218,7 @@ async function attemptFollowUpResolution(context: CanonicalConversationRequestCo
   if (intent.type === "filter") return handleFilterFollowUp(context, resolvedTurn, resultSet, intent.keyword, tracer);
   if (intent.type === "prioritize") return handlePrioritizeFollowUp(context, resolvedTurn, resultSet, tracer);
 
-  const resolution = resolveFollowUpReference(resultSet, intent);
+  const resolution = resolveFollowUpReference(resultSet, intent, context.input.message);
   if (resolution.status === "unresolved") {
     if (intent.type === "ordinal" && ["first", "second", "third"].includes(intent.ordinal)) return buildOutOfRangeOrdinalResponse(context, resolvedTurn, resultSet, intent.ordinal, tracer);
     return null;
@@ -3810,9 +3820,10 @@ export class ConversationOrchestrator {
     const publicObjective = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id) : null;
     // IQ-7: inside an established public qualification, a statement or question that is not a private probe, a company-knowledge question or a
     // capability inquiry is about the visitor's own opportunity, whatever its wording.
+    const publicEntityTransition = Boolean(publicObjective) && /\b(?:propert(?:y|ies)|plot|land|opportunity)\b/i.test(parsedFrame.rawText) && parsedFrame.concepts?.entity_transition;
     const publicContinuation = Boolean(publicObjective) && !parsedFrame.mutationIntent && parsedFrame.operation !== "cancel" && isOpportunityContinuation(parsedFrame.rawText, parsedFrame, true);
     const publicAssessment = context.input.surface === "public_corporate"
-      && (publicCorrection || publicContinuation || ((isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent))
+      && (publicEntityTransition || publicCorrection || publicContinuation || ((isAssessmentObjective(parsedFrame.cognitiveObjective) || parsedFrame.cognitiveObjective === "summarize") && !parsedFrame.mutationIntent))
       && !isPrivateProbe(parsedFrame.rawText)
       && publicObjective;
     const planReview = context.input.surface === "office_internal" && normalizePlanReviewContext((context.input.context as any)?.plan_review_context);
@@ -3823,14 +3834,15 @@ export class ConversationOrchestrator {
     const frame = planReview ? { ...parsedFrame, domain: "office_development" as const, operation: "plan.review" as const, mutationIntent: false, references: [], primaryEntity: null }
       : automationSuggestion ? { ...parsedFrame, domain: "automations" as const, operation: "automation.suggest" as any, mutationIntent: false, references: [], primaryEntity: null }
       : memoryRecall ? { ...parsedFrame, domain: "global" as const, operation: "memory.recall" as const, mutationIntent: false, references: [], primaryEntity: null }
-      : publicAssessment ? { ...parsedFrame, domain: "corporate_opportunity" as const, operation: "inspect" as const, ...(publicCorrection ? { mutationIntent: false } : {}) } : parsedFrame;
+      : publicAssessment ? { ...parsedFrame, domain: "corporate_opportunity" as const, operation: "inspect" as const, ...(publicCorrection || publicEntityTransition ? { mutationIntent: false } : {}),
+        ...(publicEntityTransition && parsedFrame.answerTarget ? {answerTarget:refineAnswerTarget(parsedFrame.answerTarget,"conversation_entity_transition",{confirmation_kind:undefined,response_intent:"DIRECT_ANSWER"})}: {}) } : parsedFrame;
     const tracer = new ConversationTracer({
       requestId: String((context.input.context as any)?.request_id || "") || undefined,
       correlationId: String((context.input.context as any)?.correlation_id || "") || undefined,
     });
     traceHolder.tracer = tracer;
     tracer.stage("request_received", { surface: context.input.surface, thread_id: context.input.thread_id || null });
-    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, cognitive_objective: frame.cognitiveObjective || null, correction_count: frame.corrections.length, mutation_intent: Boolean(frame.mutationIntent) });
+    tracer.stage("turn_normalized", { domain: frame.domain, operation: frame.operation, cognitive_objective: frame.cognitiveObjective || null, correction_count: frame.corrections.length, mutation_intent: Boolean(frame.mutationIntent), context_transition:frame.concepts?.entity_transition || null });
     if (isDeviceActionFrame(frame)) {
       deviceActionOrchestratorTrace("oyi_device_action_workflow_restore_started", context, null, tracer, {
         semantic_operation: frame.operation,

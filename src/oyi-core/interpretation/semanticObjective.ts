@@ -169,6 +169,9 @@ export function scoreUtterance(u: Utterance, opts: {activeAssessment?: boolean} 
   if (ask && has(u, "chase", "tackle", "face", "handle", "attack", "target", "look", "start", "begin", "address", "call", "phone", "ring", "contact", "pursue") && has(u, "which", "what", "who") && has(u, "first", "hardest", "most", "next", "top", "best", "strongest", "hottest")) s.prioritize += 5;
   if (has(u, "most") && u.wh) s.prioritize += 2;
   if (has(u, "choose", "pick", "select") && (has(u, "which", "what")) && (has(u, "you", "i", "we"))) s.prioritize += 5;
+  // Selecting an attention target from a stated candidate population is an
+  // ordering job, not generic advice; no domain or benchmark phrase is needed.
+  if (lead === "which" && has(u,"these","those","them") && has(u,"should","must","ought") && has(u,"focus","attention","concentrate")) s.prioritize += 5;
   if (has(u, "matter", "matters") && has(u, "most")) s.prioritize += 4;
   else if (has(u, "matter", "matters") && u.wh) s.assess += 3;
   if (has(u, "worth") && has(u, "pursuing", "time", "chasing", "focus", "effort", "my", "our")) s.prioritize += 3;

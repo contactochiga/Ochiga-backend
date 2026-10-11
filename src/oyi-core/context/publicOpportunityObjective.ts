@@ -24,6 +24,8 @@
 // this key.
 import { supabaseAdmin } from "../../supabase/supabaseClient";
 import { logger } from "../../observability/logger";
+import { randomUUID } from "crypto";
+import { selectConversationReferences } from "../interpretation/followUpResolver";
 
 // "development_partnership" reuses the existing JV assessment engine
 // (developmentJv.ts's assessJvOpportunity) for known_facts reasoning.
@@ -34,6 +36,11 @@ import { logger } from "../../observability/logger";
 export type PublicOpportunityType = "development_partnership" | "technology_inquiry";
 
 export type PublicOpportunityObjective = {
+  // Bounded entities inside the SAME canonical thread metadata. The legacy
+  // fields below are the selected-entity view, never a second authoritative copy.
+  entities?: PublicOpportunityEntity[];
+  active_entity_id?: string | null;
+  pending_entity_update?: { candidate_ids: string[]; fields: Record<string,string>; created_at: string } | null;
   objective_type: PublicOpportunityType;
   known_facts: Record<string, string>;
   constraints: string[];
@@ -49,6 +56,58 @@ export type PublicOpportunityObjective = {
   created_at: string;
   updated_at: string;
 };
+
+export type PublicOpportunityEntity = {
+  id: string; ordinal: number; type: PublicOpportunityType;
+  known_facts: Record<string,string>; constraints: string[];
+  status: "active" | "withdrawn";
+  provenance: "caller_supplied_unverified";
+  superseded: Array<{field:string;value:string}>;
+  handoff_stage?: PublicOpportunityObjective["handoff_stage"];
+  created_at: string; updated_at: string;
+};
+
+export function opportunityEntities(prior: PublicOpportunityObjective): PublicOpportunityEntity[] {
+  if (prior.entities?.length) return prior.entities;
+  return [{id:randomUUID(),ordinal:1,type:prior.objective_type,known_facts:{...prior.known_facts},constraints:[...prior.constraints],
+    status:"active",provenance:"caller_supplied_unverified",superseded:prior.superseded || [],handoff_stage:prior.handoff_stage,
+    created_at:prior.created_at,updated_at:prior.updated_at}];
+}
+
+export function selectOpportunityEntity(prior: PublicOpportunityObjective, message: string) {
+  const entities = opportunityEntities(prior);
+  const active = entities.filter(e => e.status === "active");
+  const result = selectConversationReferences(message, active.map(e => ({id:e.id,ordinal:e.ordinal,label:`Property ${e.ordinal}`,location:e.known_facts.location})), prior.active_entity_id || entities[0]?.id || null);
+  const ids = result.candidates.map(c=>c.id);
+  return {kind:result.kind, entities, selected:active.filter(e=>ids.includes(e.id))};
+}
+
+export function opportunityEntityView(prior: PublicOpportunityObjective, entity: PublicOpportunityEntity): PublicOpportunityObjective {
+  return {...prior,active_entity_id:entity.id,objective_type:entity.type,known_facts:{...entity.known_facts},constraints:[...entity.constraints],
+    current_subject:entity.known_facts.location || null,superseded:entity.superseded,handoff_stage:entity.handoff_stage,
+    last_changes:prior.active_entity_id === entity.id ? prior.last_changes : [],created_at:entity.created_at};
+}
+
+// Canonical persistence writes the returned objective once. No database writes
+// happen here; entity withdrawal cannot create, cancel or approve an action.
+export function retainOpportunityEntities(updated: PublicOpportunityObjective, prior: PublicOpportunityObjective | null, mode: "update" | "introduce" = "update"): PublicOpportunityObjective {
+  const entities = prior ? opportunityEntities(prior).map(e=>({...e})) : [];
+  // An ordinary update cannot resurrect a withdrawn slot. Only an explicit
+  // introduction creates a new identity; it inherits no prior handoff state.
+  if (mode === "update" && entities.length && !entities.some(e => e.status === "active" && (!prior?.active_entity_id || e.id === prior.active_entity_id))) return prior!;
+  const id = mode === "introduce" || !entities.length ? randomUUID() : prior?.active_entity_id || entities[0].id;
+  const before = entities.find(e=>e.id===id);
+  if (mode === "update" && before?.status === "withdrawn") return prior!;
+  const entity: PublicOpportunityEntity = {id,ordinal:before?.ordinal || Math.max(0,...entities.map(e=>e.ordinal))+1,type:updated.objective_type,
+    known_facts:{...updated.known_facts},constraints:[...updated.constraints],status:before?.status || "active",provenance:"caller_supplied_unverified",
+    superseded:updated.superseded || [],handoff_stage:updated.handoff_stage,created_at:before?.created_at || updated.created_at,updated_at:updated.updated_at};
+  return {...updated,active_entity_id:id,entities:before?entities.map(e=>e.id===id?entity:e):[...entities,entity]};
+}
+
+export function validPublicOpportunityTime(value: PublicOpportunityObjective, now=Date.now()): boolean {
+  const at=Date.parse(value.updated_at);
+  return Number.isFinite(at) && at<=now && now-at<PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS;
+}
 
 export const PUBLIC_OPPORTUNITY_OBJECTIVE_TTL_MS = 30 * 60 * 1000;
 // Caller-supplied correction, never verified ownership/title evidence.
@@ -112,7 +171,7 @@ export async function loadPublicOpportunityObjective(threadId: string | null | u
     if (text((data as any).surface) !== "public_corporate") return null;
     const stored = recordOf((data as any).metadata).public_opportunity_objective;
     if (!isValidPublicOpportunityObjective(stored)) return null;
-    if (!stored.updated_at || Date.now() - Date.parse(stored.updated_at) > TTL_MS) return null;
+    if (!validPublicOpportunityTime(stored)) return null;
     return stored;
   } catch (error) {
     logger.warn("oyi_public_opportunity_objective_load_failed", { thread_id: threadId, error });
@@ -144,7 +203,7 @@ export async function readPublicOpportunityObjective(threadId: string | null | u
     if (text((data as any).surface) !== "public_corporate" || text((data as any).user_id) !== actorId) return { status: "not_owned" };
     const stored = recordOf((data as any).metadata).public_opportunity_objective;
     if (!isValidPublicOpportunityObjective(stored)) return { status: "none" };
-    if (!stored.updated_at || Date.now() - Date.parse(stored.updated_at) > TTL_MS) return { status: "expired" };
+    if (!validPublicOpportunityTime(stored)) return { status: "expired" };
     return { status: "found", objective: stored };
   } catch (error) {
     logger.warn("oyi_public_opportunity_objective_read_failed", { thread_id: threadId, error });

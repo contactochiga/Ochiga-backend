@@ -171,7 +171,7 @@ export type ConversationTraceRecord = {
   persistence_saved: boolean | null;
   error_class: string | null;
   lineage: Record<string, string>;
-  stages: Array<{ stage: ObservedTraceStage; offset_ms: number; duration_ms: number }>;
+  stages: Array<{ stage: ObservedTraceStage; offset_ms: number; duration_ms: number; context_transition?: "introduce" | "correct" | "withdraw" }>;
   started_at: string;
   completed_at: string;
   total_latency_ms: number;
@@ -185,6 +185,7 @@ export type TraceStageEvent = { stage: string; at: number; duration_ms: number; 
 // Metadata keys the tracer may retain from a stage call (scalars only).
 // Anything else -- thread_id, labels, ids -- is dropped at capture time.
 export const TRACE_STAGE_FIELD_ALLOWLIST = [
+  "context_transition",
   "surface",
   "domain",
   "operation",
@@ -372,7 +373,8 @@ export function projectConversationTrace(input: TraceProjectionInput): Conversat
   const started = input.startedAt;
   const stages = ev
     .filter((e) => (OBSERVED_TRACE_STAGES as readonly string[]).includes(e.stage))
-    .map((e) => ({ stage: e.stage as ObservedTraceStage, offset_ms: Math.max(0, e.at - started), duration_ms: Math.max(0, Math.round(e.duration_ms)) }));
+    .map((e) => ({ stage: e.stage as ObservedTraceStage, offset_ms: Math.max(0, e.at - started), duration_ms: Math.max(0, Math.round(e.duration_ms)),
+      ...(e.stage === "turn_normalized" && ["introduce","correct","withdraw"].includes(String(e.fields.context_transition)) ? {context_transition:e.fields.context_transition as "introduce"|"correct"|"withdraw"}: {}) }));
 
   return {
     trace_id: randomUUID(),

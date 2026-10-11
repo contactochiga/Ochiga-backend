@@ -10,6 +10,7 @@ import type { OyiDomain } from "../runtime/languageUnderstanding";
 export type ObjectClass = "lead" | "opportunity" | "report" | "task" | "project" | "document" | "wallet" | "visitor" | "device" | "camera" | "maintenance_request" | "incident" | "utility" | "room";
 export type Facet = "balance" | "transactions" | "spending" | "usage" | "history" | "age" | "status" | "owner" | null;
 export type SemanticConcepts = {
+  entity_transition?: "introduce" | "correct" | "withdraw" | null;
   domains: Array<{ domain: string; at: number }>;   // governed domain nouns by position (IQ-7 vocabulary)
   head_domain: string | null;                       // the domain of the head noun (a modifier noun does not decide)
   object: ObjectClass | null;                       // what kind of record is being asked about
@@ -38,7 +39,8 @@ const FACET_TOKENS: Record<Exclude<Facet, null>, string[]> = {
 };
 
 export function resolveConcepts(text: string): SemanticConcepts {
-  const T = analyse(text).tokens, hits = domainHits(T).filter(h => h.domain !== "environment");
+  const utterance = analyse(text);
+  const T = utterance.tokens, hits = domainHits(T).filter(h => h.domain !== "environment");
   // head noun: in a compound ("light issue", "water leak") the LAST governed noun decides when the later one is a fault/record noun
   let head = hits[0]?.domain ?? null;
   // in a noun compound the LAST noun is the head ("VI Development opportunity" is an opportunity; "light issue" is an issue)
@@ -77,7 +79,16 @@ export function resolveConcepts(text: string): SemanticConcepts {
   // state concepts in priority order; arrival/departure only count for visitor language ("the deal has gone cold" is not a departure)
   const found = new Set(T.map(conceptOf).filter(Boolean));
   const state = (["stale", "overdue", "open", "resolved"] as StateConcept[]).find(c => found.has(c)) ?? (head === "visitors" || object === "visitor" ? (["arrived", "departed"] as StateConcept[]).find(c => found.has(c)) ?? null : null);
-  return { domains: hits, head_domain: head, object, facet, quantity, state };
+  // A discourse relation is distinct from a capability mutation. Only explicit
+  // record subjects qualify; withdrawal of a command/workflow is not this relation.
+  const entityNoun = T.some(t=>["property","properties","plot","land","opportunity","project","lead","task","incident","device","visitor"].includes(t));
+  const factField = T.some(t=>["location","size","area","owner","title"].includes(t));
+  const correction = T.some(t=>["correct","correction","meant"].includes(t)) || factField && (T.includes("change") || T.includes("should") && T.includes("be"));
+  const additionAt = T.findIndex(t=>t==="another" || t==="second");
+  const negatedAddition = additionAt>=0 && T.slice(Math.max(0,additionAt-4),additionAt).some(t=>["not","no","never"].includes(t));
+  const introducing = entityNoun && !correction && utterance.declarative && !negatedAddition && !T.includes("if") && (T.includes("another") || T.includes("second") && (T.includes("have") || /:\s*\d/.test(text)));
+  const withdrawal = entityNoun && T.includes("withdraw") && (utterance.imperative || T[0]==="withdraw") && !utterance.negImperative && !T.some(t=>["action","request","command","draft","callback","call"].includes(t));
+  return { domains: hits, head_domain: head, object, facet, quantity, state, entity_transition:introducing?"introduce":withdrawal?"withdraw":entityNoun&&correction&&!utterance.wh&&!utterance.auxLead&&!utterance.negImperative?"correct":null };
 }
 
 // Governed domain for a concept view. Used to reconcile the legacy lexical domain: a missing domain is filled from the vocabulary, and a SOFT
