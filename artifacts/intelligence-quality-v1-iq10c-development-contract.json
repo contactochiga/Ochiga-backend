@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "starting_head": "a80779256d40594539e5300124b6ea7a06561bf7",
+  "authorship": "Maintainer-authored before runtime changes; alternate wording frozen independently of implementation rules, not independently authored/blinded certification",
+  "thresholds": {"mandatory_invariants": 1, "new_p0": 0, "defensible_regressions": 0},
+  "journeys": [
+    {"id":"C-PUBLIC-PAIR","worker":"OSA","turns":["I own a plot in Minna, 750 square metres, for a lease.","I have another property in Calabar, 1800 m², for a JV.","For the first property, correct the size to 820 sqm.","The second property belongs to my family, not me personally.","Show both properties.","Tell me about the one in Minna.","The other property has no title documents yet.","Withdraw the first property.","Show the second property."],"must":["two stable identities","independent areas, locations, ownership, structures","targeted correction","both retained","withdrawn entity not revived","caller-supplied provenance"]},
+    {"id":"C-PUBLIC-AMBIGUITY","worker":"OSA","turns":["I own land in Akure, 650 sqm.","I have another plot in Akure, 950 sqm.","Correct the Akure property's size to 1000 sqm.","I mean the second property.","Compare both properties."],"must":["ambiguous correction changes neither","clarification alternatives","no strategic ranking fabricated"]},
+    {"id":"C-PUBLIC-REPLACEMENT","worker":"OSA","turns":["I own land in Bauchi, 600 sqm.","I meant a different property in Uyo, 1250 sqm.","What details do you have?","Can someone call me?"],"must":["replacement not addition","old facts superseded","handoff outcome truthful","no Office access"]},
+    {"id":"C-OMA-REFERENCES","worker":"OMA","turns":["Show leads.","Tell me about the first one.","Tell me about the other one.","Show financial summary.","Go back to the leads.","Tell me about the second one."],"must":["selected record does not erase candidates","domain return","current authorization"]},
+    {"id":"C-FACILITY-REFERENCES","worker":"FACILITY","turns":["Show maintenance requests.","Tell me about the second one.","Tell me about the first one.","Show visitors.","Go back to maintenance."],"must":["no candidate loss","no cross-domain reference theft","same estate scope"]},
+    {"id":"C-CONSUMER-REFERENCES","worker":"CONSUMER","turns":["Show devices.","Tell me about the first one.","Tell me about the second one.","Show my wallet.","Go back to devices.","Turn off the second one.","Cancel that.","Yes."],"must":["correct candidate or clarification","fresh confirmation","no cancellation revival","no physical execution"]}
+  ],
+  "paraphrase_partition": [
+    {"family":"addition","texts":["There is another plot in Ilorin, 420 sqm.","A second property: 1600 square metres in Makurdi."]},
+    {"family":"correction","texts":["For property one, the area should be 930 sqm.","Change the second property's location to Birnin Kebbi."]},
+    {"family":"selection","texts":["The earlier property, please.","Can we return to the one in Minna?","And the other opportunity?","Both of them, please."]},
+    {"family":"ambiguity","texts":["That property's title is disputed.","Correct its size."]},
+    {"family":"objective","texts":["What status does the second project have?","Which of these should I focus on?","Why that recommendation?","Here is a correction, not a request to stop."]}
+  ],
+  "structural_cases":["same labels different IDs","explicit label wins recency","location ambiguity","multiple simultaneous targets","expiry","invalid timestamp","surface mismatch","actor mismatch","scope revoked","cancelled references","partial evidence","unsupported scope","restore thread metadata","trace contains no held facts","idempotent persistence"]
+}
