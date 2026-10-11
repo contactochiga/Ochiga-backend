@@ -1,0 +1,12 @@
+{
+  "starting_head": "6ed093ed914121275c3c89a80c2a20d3a1128622",
+  "authorship": "maintainer-authored synthetic development, not independent certification",
+  "thresholds": {"mandatory_assertions": 1, "new_p0": 0, "unintended_execution": 0, "saved_traced_turns": 1, "defensible_regressions": 0},
+  "journeys": [
+    {"id":"E-OMA","worker":"OMA","turns":["Show today's leads.","What are their statuses?","Which opportunity should receive the investment first?","Why?","What information is missing?"]},
+    {"id":"E-OSA","worker":"OSA","turns":["I own land in Minna, about 780 sqm, for a lease.","What information is missing?","I also have another property in Makurdi, 620 sqm, for a JV.","What have I told you about the first property?","I have not verified the title of the second property.","What should I do next?"]},
+    {"id":"E-FACILITY","worker":"FACILITY","turns":["Show maintenance requests.","What are their statuses?","What needs attention first?","Why the second one?","What can we verify?"]},
+    {"id":"E-CONSUMER","worker":"CONSUMER","turns":["Show my devices.","Does being online prove the light is on?","What should I check next?","Show my visitors.","Does that prove they have arrived?"]}
+  ],
+  "paraphrases": ["What needs checking?", "What should I verify next?", "What information is missing?", "Explain the reason for that item.", "Why that one?"]
+}
