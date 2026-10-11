@@ -1,0 +1,413 @@
+{
+  "audited_at": "2026-10-11T09:35:38.656Z",
+  "method": "Exact-ID read only; no replay, trace reconstruction or backfill",
+  "gaps": [
+    {
+      "worker": "FACILITY",
+      "id": "IQ10F-FACILITY-F09",
+      "run_id": "IQ10F-FACILITY-F09",
+      "scored": true,
+      "request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad",
+      "thread_id": "23bb3dfe-afe3-4ad2-b6ae-e2406987cdfd",
+      "original_error": null,
+      "original_trace_receipt": {
+        "attempted": true,
+        "trace_id": "c599f990-83b1-48d8-a3c7-a3cae3e989b1",
+        "status": "failed",
+        "error_code": "trace_write_failed"
+      },
+      "reconciled_trace": [],
+      "trace_query_error": null,
+      "message_rows": [
+        {
+          "id": "f6208c63-f5a7-4986-8e05-ac595bf26ebc",
+          "role": "user",
+          "metadata": {
+            "action": {},
+            "module": null,
+            "surface": "facility",
+            "workflow": {},
+            "normalized_turn": {},
+            "trace_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad",
+            "resolved_oyi_turn": {},
+            "turn_interpretation": {
+              "intent": "current_state",
+              "confidence": 0.72,
+              "rawMessage": "Give me the exact expiry date on the Historical Visitor record; that's all I need for this line.",
+              "temporalScope": {
+                "to": null,
+                "from": null,
+                "mode": "current"
+              },
+              "operationClass": "read",
+              "requestedScope": "estate_scope",
+              "pronounReference": {
+                "used": true,
+                "phrase": "that",
+                "resolvedFrom": "thread_memory"
+              },
+              "desiredPresentation": "status",
+              "interpretationSource": "canonical_backend",
+              "requiresConfirmation": false,
+              "requiresLiveEvidence": false,
+              "explicitObjectReferences": []
+            },
+            "conversation_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad",
+            "canonical_request_contract": {
+              "intent": "current_state",
+              "target": {
+                "label": null,
+                "parent_id": null,
+                "object_type": null,
+                "canonical_id": null,
+                "channel_code": null
+              },
+              "surface": "facility",
+              "mutation": {
+                "command": null,
+                "confirmed": false,
+                "requested": false,
+                "risk_class": "read",
+                "desired_state": null
+              },
+              "thread_id": "23bb3dfe-afe3-4ad2-b6ae-e2406987cdfd",
+              "confidence": 0.72,
+              "scope_mode": "estate_scope",
+              "truth_policy": "evidence_required",
+              "answer_builder": "general_help",
+              "report_builder": null,
+              "temporal_scope": {
+                "to": null,
+                "from": null,
+                "mode": "current"
+              },
+              "operation_class": "read",
+              "evidence_requirements": {
+                "permissions": true,
+                "audit_history": false,
+                "current_state": false,
+                "recent_events": false,
+                "relationships": false,
+                "access_records": true,
+                "provider_state": false,
+                "financial_ledger": false,
+                "execution_history": false
+              },
+              "conversation_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad"
+            },
+            "conversation_context_layers": {
+              "pageLaunchContext": null,
+              "liveEvidenceContext": {
+                "required": false,
+                "freshness": "stale",
+                "truth_state": "observed",
+                "evidence_count": 2
+              },
+              "threadMemoryContext": null,
+              "currentTurnInterpretation": {
+                "intent": "current_state",
+                "confidence": 0.72,
+                "rawMessage": "Give me the exact expiry date on the Historical Visitor record; that's all I need for this line.",
+                "temporalScope": {
+                  "to": null,
+                  "from": null,
+                  "mode": "current"
+                },
+                "operationClass": "read",
+                "requestedScope": "estate_scope",
+                "pronounReference": {
+                  "used": true,
+                  "phrase": "that",
+                  "resolvedFrom": "thread_memory"
+                },
+                "desiredPresentation": "status",
+                "interpretationSource": "canonical_backend",
+                "requiresConfirmation": false,
+                "requiresLiveEvidence": false,
+                "explicitObjectReferences": []
+              }
+            }
+          }
+        },
+        {
+          "id": "90941e57-b2bd-4b52-9308-f63dbc908566",
+          "role": "assistant",
+          "metadata": {
+            "facts": [
+              {
+                "scope": {
+                  "home_id": "20000000-0000-4000-8000-000000000001",
+                  "room_id": null,
+                  "estate_id": "10000000-0000-4000-8000-000000000001"
+                },
+                "value": {
+                  "status": "active, past its recorded expiry",
+                  "purpose": "fixture meeting",
+                  "created_at": "2026-10-01T06:21:37.911189+00:00",
+                  "expires_at": "2026-10-02T06:21:37.911189+00:00",
+                  "pass_state": "active_past_expiry",
+                  "access_code": "[redacted access credential]",
+                  "visitor_name": "Wave11 Expected Visitor"
+                },
+                "domain": "visitors",
+                "object": {
+                  "label": "Wave11 Expected Visitor",
+                  "object_type": "visitor_access",
+                  "canonical_id": "60000000-0000-4000-8000-000000000001"
+                },
+                "fact_id": "visitor-access:60000000-0000-4000-8000-000000000001",
+                "evidence": [
+                  {
+                    "id": "60000000-0000-4000-8000-000000000001",
+                    "type": "visitor_access",
+                    "status": "active, past its recorded expiry"
+                  }
+                ],
+                "fact_type": "visitor_access",
+                "freshness": "2026-10-01T06:21:37.911189+00:00",
+                "source_id": "60000000-0000-4000-8000-000000000001",
+                "statement": "Wave11 Expected Visitor: active, past its recorded expiry (fixture meeting).",
+                "confidence": 0.9,
+                "observed_at": "2026-10-11T09:33:52.508Z",
+                "occurred_at": "2026-10-01T06:21:37.911189+00:00",
+                "permissions": [
+                  "visitors.read"
+                ],
+                "source_type": "database",
+                "truth_state": "confirmed",
+                "privacy_class": "security_sensitive",
+                "previous_value": null
+              },
+              {
+                "scope": {
+                  "home_id": "20000000-0000-4000-8000-000000000001",
+                  "room_id": null,
+                  "estate_id": "10000000-0000-4000-8000-000000000001"
+                },
+                "value": {
+                  "status": "inactive",
+                  "purpose": "fixture history",
+                  "created_at": "2026-09-29T06:21:37.911189+00:00",
+                  "expires_at": "2026-09-30T06:21:37.911189+00:00",
+                  "pass_state": "inactive",
+                  "access_code": "[redacted access credential]",
+                  "visitor_name": "Wave11 Historical Visitor"
+                },
+                "domain": "visitors",
+                "object": {
+                  "label": "Wave11 Historical Visitor",
+                  "object_type": "visitor_access",
+                  "canonical_id": "60000000-0000-4000-8000-000000000002"
+                },
+                "fact_id": "visitor-access:60000000-0000-4000-8000-000000000002",
+                "evidence": [
+                  {
+                    "id": "60000000-0000-4000-8000-000000000002",
+                    "type": "visitor_access",
+                    "status": "inactive"
+                  }
+                ],
+                "fact_type": "visitor_access",
+                "freshness": "2026-09-29T06:21:37.911189+00:00",
+                "source_id": "60000000-0000-4000-8000-000000000002",
+                "statement": "Wave11 Historical Visitor: inactive (fixture history).",
+                "confidence": 0.9,
+                "observed_at": "2026-10-11T09:33:52.508Z",
+                "occurred_at": "2026-09-29T06:21:37.911189+00:00",
+                "permissions": [
+                  "visitors.read"
+                ],
+                "source_type": "database",
+                "truth_state": "confirmed",
+                "privacy_class": "security_sensitive",
+                "previous_value": null
+              }
+            ],
+            "truth": {
+              "body": "Wave11 Historical Visitor: expiry: 2026-09-30T06:21:37.911189+00:00. These are permission records, not proof of arrival, presence or departure.\n\nSupporting detail: 2 visitor access records are on file. Access codes are never shared in conversation.",
+              "title": "visitors.pending.read",
+              "object": null,
+              "target": null,
+              "severity": "normal",
+              "freshness": "stale",
+              "confidence": null,
+              "occurred_at": "2026-10-11T09:33:52.508Z",
+              "truth_state": "observed",
+              "source_event": "60000000-0000-4000-8000-000000000001",
+              "active_execution": null,
+              "technical_details": {
+                "result_status": "answered",
+                "capability_key": "visitors.pending.read",
+                "rollout_status": "enabled"
+              },
+              "recommended_actions": []
+            },
+            "action": {},
+            "warnings": [],
+            "workflow": {},
+            "response_id": "79a1ae35-e476-43eb-b912-095a375640bb",
+            "resolved_turn": {},
+            "normalized_turn": {},
+            "trace_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad",
+            "persistence_saved": true,
+            "resolved_oyi_turn": {},
+            "operational_object": null,
+            "presentation_policy": {
+              "primary": "list",
+              "snapshot_mode": "current_state_snapshot",
+              "auto_navigation": false,
+              "suppress_awareness": true,
+              "allowed_action_types": [],
+              "suppress_context_chips": true,
+              "allowed_supporting_blocks": [
+                "text",
+                "list"
+              ],
+              "suppress_duplicate_status": true
+            },
+            "turn_interpretation": {
+              "intent": "current_state",
+              "confidence": 0.72,
+              "rawMessage": "Give me the exact expiry date on the Historical Visitor record; that's all I need for this line.",
+              "temporalScope": {
+                "to": null,
+                "from": null,
+                "mode": "current"
+              },
+              "operationClass": "read",
+              "requestedScope": "estate_scope",
+              "pronounReference": {
+                "used": true,
+                "phrase": "that",
+                "resolvedFrom": "thread_memory"
+              },
+              "desiredPresentation": "status",
+              "interpretationSource": "canonical_backend",
+              "requiresConfirmation": false,
+              "requiresLiveEvidence": false,
+              "explicitObjectReferences": []
+            },
+            "assistant_message_id": "90941e57-b2bd-4b52-9308-f63dbc908566",
+            "conversation_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad",
+            "canonical_request_contract": {
+              "intent": "current_state",
+              "target": {
+                "label": null,
+                "parent_id": null,
+                "object_type": null,
+                "canonical_id": null,
+                "channel_code": null
+              },
+              "surface": "facility",
+              "mutation": {
+                "command": null,
+                "confirmed": false,
+                "requested": false,
+                "risk_class": "read",
+                "desired_state": null
+              },
+              "thread_id": "23bb3dfe-afe3-4ad2-b6ae-e2406987cdfd",
+              "confidence": 0.72,
+              "scope_mode": "estate_scope",
+              "truth_policy": "evidence_required",
+              "answer_builder": "general_help",
+              "report_builder": null,
+              "temporal_scope": {
+                "to": null,
+                "from": null,
+                "mode": "current"
+              },
+              "operation_class": "read",
+              "evidence_requirements": {
+                "permissions": true,
+                "audit_history": false,
+                "current_state": false,
+                "recent_events": false,
+                "relationships": false,
+                "access_records": true,
+                "provider_state": false,
+                "financial_ledger": false,
+                "execution_history": false
+              },
+              "conversation_request_id": "4b698c6b-1bc2-45c7-9433-0fa846f205ad"
+            },
+            "conversation_context_layers": {
+              "pageLaunchContext": null,
+              "liveEvidenceContext": {
+                "required": false,
+                "freshness": "stale",
+                "truth_state": "observed",
+                "evidence_count": 2
+              },
+              "threadMemoryContext": null,
+              "currentTurnInterpretation": {
+                "intent": "current_state",
+                "confidence": 0.72,
+                "rawMessage": "Give me the exact expiry date on the Historical Visitor record; that's all I need for this line.",
+                "temporalScope": {
+                  "to": null,
+                  "from": null,
+                  "mode": "current"
+                },
+                "operationClass": "read",
+                "requestedScope": "estate_scope",
+                "pronounReference": {
+                  "used": true,
+                  "phrase": "that",
+                  "resolvedFrom": "thread_memory"
+                },
+                "desiredPresentation": "status",
+                "interpretationSource": "canonical_backend",
+                "requiresConfirmation": false,
+                "requiresLiveEvidence": false,
+                "explicitObjectReferences": []
+              }
+            },
+            "single_authoritative_response": true,
+            "canonical_response_authoritative": true
+          }
+        }
+      ],
+      "message_query_error": null,
+      "classification": "UNRESOLVED_DURABLE_TRACE_LOSS"
+    },
+    {
+      "worker": "CONSUMER",
+      "id": "CONSUMER-J10-T07",
+      "run_id": "CONSUMER-J10",
+      "scored": true,
+      "request_id": "1a00afb3-87a9-46f8-9a24-b82992b935c5",
+      "thread_id": "ce27e685-b971-4956-a6ab-00efc134a285",
+      "original_error": {
+        "name": "Error",
+        "message": "conversation_access_denied",
+        "code": null
+      },
+      "original_trace_receipt": null,
+      "reconciled_trace": [],
+      "trace_query_error": null,
+      "message_rows": [],
+      "message_query_error": null,
+      "classification": "PRE_ADMISSION_OWNERSHIP_REJECTION"
+    },
+    {
+      "worker": "CONSUMER",
+      "id": "CONSUMER-P25",
+      "run_id": "CONSUMER-P25",
+      "scored": true,
+      "request_id": "ef6719e3-1a8d-4e1e-acf6-57f990c9373c",
+      "thread_id": "05ea0585-b707-47ab-aad4-46c1d865461a",
+      "original_error": {
+        "name": "Error",
+        "message": "conversation_access_denied",
+        "code": null
+      },
+      "original_trace_receipt": null,
+      "reconciled_trace": [],
+      "trace_query_error": null,
+      "message_rows": [],
+      "message_query_error": null,
+      "classification": "PRE_ADMISSION_OWNERSHIP_REJECTION"
+    }
+  ]
+}

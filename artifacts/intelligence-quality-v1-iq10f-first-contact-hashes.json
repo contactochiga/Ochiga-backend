@@ -1,0 +1,34 @@
+{
+  "OMA": {
+    "raw_sha256": "ee16dff7482123b692c4bdc33dd9d42c2c0fcd5c07dd09949b481858b9d91f31",
+    "gzip_sha256": "941cd3c2643aaec175a418cc8e9d0cf855718d85f4a9fb3ee06cdd658eb85cde",
+    "raw_bytes": 7968625,
+    "artifact": "artifacts/intelligence-quality-v1-iq10f-first-OMA.jsonl.gz",
+    "attempted": 299,
+    "scored": 130
+  },
+  "OSA": {
+    "raw_sha256": "8a239b59d14297c28812bca52fa3d40af598f07d799835c535e9e2785bc5a3a5",
+    "gzip_sha256": "fae5667272793286981f5d3250c1d6cfaee9540da2b5d8c30b6b1b1fdefb22d8",
+    "raw_bytes": 6945447,
+    "artifact": "artifacts/intelligence-quality-v1-iq10f-first-OSA.jsonl.gz",
+    "attempted": 324,
+    "scored": 130
+  },
+  "FACILITY": {
+    "raw_sha256": "cd23f881ed5e39d30d1bab595f726fab7046e6da8784869cf387fd327ab0a224",
+    "gzip_sha256": "f65d460eb312271063f6a0c1b49aec0d2be86fcae6ffc0d633580969fdf3631f",
+    "raw_bytes": 8408597,
+    "artifact": "artifacts/intelligence-quality-v1-iq10f-first-FACILITY.jsonl.gz",
+    "attempted": 344,
+    "scored": 130
+  },
+  "CONSUMER": {
+    "raw_sha256": "f90487c9d544e53120bbff1768bc8eb3d06041080403091310e233051f005fa4",
+    "gzip_sha256": "2e1203e59ca1482eaff4c8f7764701c7c2478a91f85c85c00fce8af6c4f650b9",
+    "raw_bytes": 8827618,
+    "artifact": "artifacts/intelligence-quality-v1-iq10f-first-CONSUMER.jsonl.gz",
+    "attempted": 318,
+    "scored": 130
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "worker": "FACILITY",
+  "runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "preflight": {
+    "status": "compatible",
+    "stage": "complete",
+    "code": null,
+    "elapsed_ms": 84
+  },
+  "counts": {
+    "attempted": 344,
+    "scored": 130,
+    "setup": 214,
+    "saved": 344,
+    "traced": 343,
+    "paired": 344,
+    "exceptions": 0,
+    "duplicates": 0
+  },
+  "execution_attempts": 0,
+  "raw_path": "/tmp/iq10f-first-FACILITY.jsonl",
+  "finished_at": "2026-10-11T09:34:01.152Z"
+}
