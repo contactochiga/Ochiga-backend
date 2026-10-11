@@ -54,6 +54,8 @@ export type ContributionStatus = EvidenceReadOutcome["status"] | "not_run_fan_ou
 export type CompactRef = { t: string | null; id: string | null; l: string | null };
 
 export type Contribution = {
+  // Actual collector outcome, not the plan's requested scope.
+  effective_scope?: import("../../contracts/evidence").EvidenceReadScope | null;
   source_key: string;
   evidence_class: string;
   necessity: Necessity;

@@ -198,6 +198,14 @@ export async function persistCanonicalConversationTurn(input: {
   publicOpportunityObjective?: Record<string, unknown> | null;
 }) {
   const { actor, contract, object, request, response, truth } = input;
+  // Follow-up composers may attach stored facts after projection. A denied
+  // scope must not re-enter the response or next result set through that path.
+  const sourceProvenance = recordOf(recordOf(response.context).scope_provenance);
+  if (sourceProvenance.decision === "denied") {
+    response.facts = []; response.result_set = null;
+    response.cards = []; response.sources = []; response.suggested_actions = [];
+    response.confirmations = []; response.requiresConfirmation = false; response.approvalRequired = false;
+  }
   const threadId = text(response.thread_id) || text(request.thread_id) || randomUUID();
   const newlyCreatedThread = !isUuid(text(request.thread_id));
   const now = new Date().toISOString();
@@ -268,6 +276,7 @@ export async function persistCanonicalConversationTurn(input: {
     const derivedResultSet = explicitResultSetRaw !== undefined
       ? explicitResultSetRaw
       : buildResultSetContext({
+        sourceScopes: Array.isArray(sourceProvenance.retrieved) ? sourceProvenance.retrieved as NonNullable<ResultSetContext["source_scopes"]> : undefined,
         domain: (Array.isArray(response.facts) && response.facts[0] ? (response.facts[0] as IntelligenceFact).domain : null) || null,
         capabilityKey: text(response.capability_key) || null,
         operation: contract.intent,

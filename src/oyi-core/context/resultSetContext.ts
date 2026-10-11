@@ -20,6 +20,7 @@ export type ResultSetObjectRef = {
 };
 
 export type ResultSetContext = {
+  source_scopes?: import("../response/scopeProvenance").AnswerScopeProvenance["retrieved"];
   version: 1;
   result_set_id: string;
   domain: string;
@@ -129,6 +130,7 @@ export function objectRefFromFact(fact: IntelligenceFact): ResultSetObjectRef | 
 // and every evidence loader in this codebase already applies an explicit
 // .order() clause, so presentation order is deterministic by construction).
 export function buildResultSetContext(input: {
+  sourceScopes?: import("../response/scopeProvenance").AnswerScopeProvenance["retrieved"];
   domain: string | null;
   capabilityKey: string | null;
   operation: string | null;
@@ -147,6 +149,7 @@ export function buildResultSetContext(input: {
   return {
     version: 1,
     result_set_id: randomUUID(),
+    source_scopes: input.sourceScopes,
     domain,
     capability_key: input.capabilityKey,
     operation: input.operation,

@@ -362,12 +362,15 @@ const PRONOUN_OBJECT = new Set(["it", "that", "this", "those", "these", "them", 
 const CORRECTION_FRAME = /\b(?:i am|i will|i meant|i mean|talking about|asking about|instead|rather)\b/;
 export function isCancellationSentence(u: Utterance): boolean {
   const T = u.tokens, text = T.join(" ");
-  if (!T.length || T.length > 9) return false;
+  // Withdrawal is a speech act applied to an object, not a short-name pattern.
+  // Hyphen expansion and descriptive device names must not change its polarity.
+  if (["cancel", "abort", "revoke", "withdraw", "retract"].includes(T[0]) && !u.wh && (!u.q || u.request)) return true;
+  if (!T.length) return false;
   if (T[0] === "no" && T.length === 1) return true;
   if (/^(?:nope|nah|no)(?:\s+(?:thanks|thank you))?$/.test(text)) return true;
   if (/^(?:no|nope|nah)?\s*(?:not (?:any ?more|anymore|now|needed|necessary|today)|no longer)\b/.test(text) && T.length <= 5) return true;
   // "no, I did not say/ask/want ... (to) do it"
-  if (/^(?:no\s+)?(?:i|we) (?:did not|was not|were not|never|do not|am not) (?:say|said|ask|asked|asking|want|tell|told|mean|meant|request|order)\b/.test(text) && (/\b(?:do|it|that|this|call|send|contact|switch|turn|book|proceed|act|ring|approve|confirm|execute|authori[sz]e|submit)\b/.test(text) || /\b(?:you|to)\s+[a-z]+/.test(text.replace(/^.*?\b(?:ask|asked|asking|tell|told|want|request|order)\b/, "")))) return true;
+  if (/^(?:no\s+)?(?:i|we) (?:did not|was not|were not|never|do not|am not) (?:say|said|ask|asked|asking|want|tell|told|mean|meant|request|order)\b/.test(text) && (/\b(?:it|that|this|call|send|contact|switch|turn|book|proceed|act|ring|approve|confirm|execute|authori[sz]e|submit)\b/.test(text) || /\byou\s+[a-z]+/.test(text.replace(/^.*?\b(?:ask|asked|asking|tell|told|want|request|order)\b/, "")))) return true;
   if (CORRECTION_FRAME.test(text) && !/^(?:never mind|nevermind)\b/.test(text)) return false;
   if (/^let us (?:leave|drop|skip|forget|stop|hold|park|shelve|ditch|scrap|cancel)\b/.test(text)) return true;
   if (/^let us not\b/.test(text) && !COGNITIVE_ACT.has(T[3] ?? "")) return true;
@@ -377,6 +380,9 @@ export function isCancellationSentence(u: Utterance): boolean {
   const first = T[0];
   if (u.negImperative) {
     const verb = T.find((t, i) => i > 0 && !["not", "ever", "just", "to", "even", "again", "need", "bother"].includes(t) ) ?? "bother";
+    // A prohibition on asserting completion remains a truth constraint even
+    // when its object mentions a call/send. The governing verb owns polarity.
+    if (["claim", "promise", "pretend", "guarantee", "assume", "state", "imply", "say", "describe"].includes(verb)) return false;
     if (COGNITIVE_ACT.has(verb) && !/\bsend|contact|call|ring\b/.test(text)) return false;
     // IQ-9A4: "do not share/disclose/reveal <something specific>" is a standing disclosure constraint, not the withdrawal of an action. Only a bare
     // pronoun object ("don't share it") can withdraw a pending share.

@@ -235,6 +235,7 @@ export type CanonicalConversationResponse = {
     target_resolution?: Record<string, unknown>;
     module_facts?: Record<string, unknown>;
     request_contract?: IntelligenceRequestContract;
+    scope_provenance?: import("../response/scopeProvenance").AnswerScopeProvenance;
   };
   resolved_turn?: ResolvedConversationTurn;
   execution: Record<string, unknown>;

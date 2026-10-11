@@ -8,6 +8,7 @@ import { mapResultEnvelope } from "../response/envelopeMappers";
 import { responseContract } from "../response/resultEnvelope";
 import { projectResponse, projectionRequired } from "../response/projector";
 import { denialAnswer, isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
+import { evidenceScopeProvenance, scopeDenialAnswer } from "../response/scopeProvenance";
 
 // IQ-8D: read capabilities return structured truth; the ONE AnswerTarget carried on the semantic frame decides the shape. Core maps the result into
 // a ResultEnvelope (mapResultEnvelope) and projects it (projectResponse). The capability's own prose stays as supporting detail and as the fallback.
@@ -136,7 +137,15 @@ export function capabilityDomainResultToConversationResponse(input: {
   capability: CapabilityModule;
   result: DomainResult;
   evidence: OyiEvidence[];
+  sourceScopes?: import("../response/scopeProvenance").AnswerScopeProvenance["retrieved"];
 }): CanonicalConversationResponse {
+  const scopeProvenance = evidenceScopeProvenance(input.context, input.capability.key, input.evidence, input.sourceScopes);
+  if (scopeProvenance.decision === "denied") {
+    input = { ...input, evidence: [], result: { status: "permission_restricted", answer: scopeDenialAnswer,
+      presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [],
+        suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true,
+        snapshot_mode: "none", auto_navigation: false } } };
+  }
   input = { ...input, result: shapeReadAnswer(input.result, input.context, input.capability.key) };
   // IQ-9A14: a disclosure constraint stated in this conversation is enforced on the projected answer, its blocks and the facts returned with it
   const constraints = ((input.context.input as any)?.context?.disclosure_constraints as string[] | undefined) || [];
@@ -218,6 +227,7 @@ export function capabilityDomainResultToConversationResponse(input: {
       module: input.context.input.module || input.capability.domain,
       context_source: "explicit_request",
       warnings: [],
+      scope_provenance: scopeProvenance,
       module_facts: {
         capability_key: input.capability.key,
         result_status: input.result.status,

@@ -69,7 +69,8 @@ export function isHazardReport(text: string): boolean {
   const u = analyse(text), T = u.tokens;
   const intrusion = T.some(t => ["burglary", "burglar", "burglars", "burgled", "burglarised", "burglarized", "ransacked", "intruder", "intruders", "intrusion", "robbery", "robbed", "trespasser", "trespassers", "breakin", "breakins"].includes(t)) || T.some((t, i) => (t === "break" || t === "broke" || t === "broken" || t === "breaking") && ["in", "into"].includes(T[i + 1]));
   const pairedHazard = T.some(t => WET.includes(t)) && T.some(t => ELECTRIC.includes(t));
-  const forcedEntry = T.includes("trying") && T.includes("door") && T.includes("handle");
+  const forcedEntry = (T.includes("trying") && T.includes("door") && T.includes("handle"))
+    || (T.some(t => ["forced", "forcing"].includes(t)) && T.some(t => ["entry", "door", "window", "gate"].includes(t)));
   if (!u.declarative || u.q || !(T.some(t => HAZARD.includes(t)) || pairedHazard || intrusion || forcedEntry) || T.some(t => NEGATION.has(t))) return false;
   return !["if", "suppose", "imagine", "assume", "what", "when", "hypothetically"].includes(T[0]);
 }
@@ -407,7 +408,7 @@ export function normalizeIndirectCommand(message: string): string {
 export type HazardClass = "intrusion" | "gas" | "fire" | "water" | "electrical" | "other";
 export function hazardClassIn(text: string): HazardClass {
   const T = analyse(text).tokens, has = (...w: string[]) => T.some(t => w.includes(t));
-  if (has("burglary", "burglar", "burglars", "burgled", "intruder", "intruders", "intrusion", "robbery", "robbed", "stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "breakin", "breakins", "ransacked") || T.some((t, i) => ["break", "broke", "broken", "breaking"].includes(t) && ["in", "into"].includes(T[i + 1] ?? "")) || (has("door") && has("handle") && has("trying"))) return "intrusion";
+  if (has("burglary", "burglar", "burglars", "burgled", "intruder", "intruders", "intrusion", "robbery", "robbed", "stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "breakin", "breakins", "ransacked") || T.some((t, i) => ["break", "broke", "broken", "breaking"].includes(t) && ["in", "into"].includes(T[i + 1] ?? "")) || (has("door") && has("handle") && has("trying")) || (has("forced", "forcing") && has("entry", "door", "window", "gate"))) return "intrusion";
   if (has("gas", "fumes", "fume", "carbon", "monoxide")) return "gas";
   if (has("fire", "smoke", "flame", "burning", "explosion")) return "fire";
   if (has("flood", "flooding", "flooded", "burst", "leak", "leaking", "pipe", "water", "wet", "dripping")) return "water";

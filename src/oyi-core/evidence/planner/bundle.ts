@@ -74,6 +74,7 @@ export function contribution(result: StepResult, limits: PlannerLimits, gathered
   const availability = availabilityFor(status);
   return {
     source_key: step.source_key, evidence_class: step.class, necessity: step.necessity, status, availability,
+    effective_scope: outcome?.effective_scope ?? null,
     completeness: !outcome || availability !== "available" ? "unknown" : outcome.zero_proven ? "zero_proven" : outcome.complete ? "complete" : "partial",
     freshness: outcome ? (entry?.kind === "state" ? outcome.freshness : outcome.freshness === "stale" ? "current" : outcome.freshness) : "unknown",
     scope_class: step.scope_class, scope_label: step.scope_label || null,

@@ -39,6 +39,7 @@ import { recordConversationTrace } from "../observability/conversationTraceRecor
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
+import { answerScopeDecision, scopeDenialAnswer } from "../response/scopeProvenance";
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
 import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities, taskBatchContextSlot, officeSnapshot } from "../capabilities/OfficeCorporateCapabilityModules";
@@ -2907,7 +2908,7 @@ async function buildAmbiguousFollowUpResponse(context: CanonicalConversationRequ
     metadata: { followup_ambiguous: true, candidate_count: candidates.length },
   };
   const capabilityForAdapter = followUpCapabilityFor(resultSet);
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [], sourceScopes: resultSet.source_scopes });
   response.execution = {
     ...(response.execution || {}),
     orchestrator_v2: {
@@ -2931,7 +2932,7 @@ async function buildOutOfRangeOrdinalResponse(context: CanonicalConversationRequ
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
     metadata: { followup_out_of_range: true, result_count: count },
   };
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability, result, evidence: [], sourceScopes: resultSet.source_scopes });
   response.execution = { ...(response.execution || {}), orchestrator_v2: { request_id: tracer.requestId, correlation_id: tracer.correlationId, runtime_id: tracer.runtimeId, followup: { detected: true, resolver: "canonical", reference_type: "ordinal", source_domain: resultSet.domain, result_set_id: resultSet.result_set_id, result_count: count, resolution_status: "out_of_range" } } };
   response = await persistCapabilityResponse(context, response, response.truth, resolvedTurn, capability);
   tracer.finish({ thread_id: response.thread_id || null, response_state: response.persistence_saved === false ? "unsaved" : "returned" });
@@ -3005,7 +3006,7 @@ async function resolveAndHydrateSingleObject(context: CanonicalConversationReque
     const r = deepRedactNames(String(result.answer ?? ""), [String(ref.label), String(ref.label).replace(/^\S+\s+(?=\S+\s+Visitor\b)/i, "")]);
     if (r.changed) result.answer = `${r.value} ${disclosureNote("visitor_names")}`;
   }
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence, sourceScopes: resultSet.source_scopes });
   if (fact) {
     response.facts = [fact];
     response.result_set = narrowedResultSetContext(resultSet, ref, {
@@ -3044,7 +3045,7 @@ async function handleFilterFollowUp(context: CanonicalConversationRequestContext
     answer: `${resolution.matched.length} of ${resultSet.object_refs.length} match "${keyword}": ${labels}.`,
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
   };
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [], sourceScopes: resultSet.source_scopes });
   response.result_set = filteredResultSetContext(resultSet, resolution.matched, "keyword", keyword, {
     contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
     message: context.input.message,
@@ -3086,7 +3087,7 @@ async function handlePrioritizeFollowUp(context: CanonicalConversationRequestCon
     presentation_policy: NO_ACTIONS_TEXT_PRESENTATION,
     metadata: { followup_prioritized: true, candidate_count: ordered.length, evidence_priority_available: hasEvidencePriority },
   };
-  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [] });
+  let response = capabilityDomainResultToConversationResponse({ context: { ...context, resolvedTurn, legacyFallback: () => canonicalUnavailableFallback({ ...context, resolvedTurn }, "followup_resolution") }, capability: capabilityForAdapter, result, evidence: [], sourceScopes: resultSet.source_scopes });
   response.result_set = prioritizedResultSetContext(resultSet, ordered, {
     contract: { conversation_request_id: resolvedTurn.request_id, thread_id: context.input.thread_id || null, temporal_scope: resultSet.timeframe || { mode: "current", from: null, to: null } },
     message: context.input.message,
@@ -3257,6 +3258,7 @@ async function assessmentEvidenceResponse(
   answer: string,
   status: "answered" | "unavailable",
   planStatus: string,
+  sourceScopes: import("../response/scopeProvenance").AnswerScopeProvenance["retrieved"] = [],
 ): Promise<ConversationRunResult> {
   const capability: CapabilityModule = {
     key: "oyi.assessment.evidence_plan", domain: "global", rolloutStatus: "enabled", supported_surfaces: [context.input.surface],
@@ -3264,7 +3266,7 @@ async function assessmentEvidenceResponse(
   };
   const result: DomainResult = { status, answer, presentation_policy: resultPresentation("text"),
     metadata: { assessment_evidence_plan_status: planStatus, fallback_owner: "assessment_evidence_planner", legacy_fallback_used: false } };
-  return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [] });
+  return capabilityDomainResultToConversationResponse({ context: { ...context, legacyFallback: unavailableInsideFallback }, capability, result, evidence: [], sourceScopes });
 }
 
 async function canonicalUnavailableFallback(
@@ -3390,6 +3392,7 @@ async function targetedFallbackResponse(context: CanonicalConversationRequestCon
 // (financial.summary.read, crm.opportunities.read), not by "Office doesn't manage wallet transactions" or a menu. Authority is checked per capability.
 async function equivalentOfficeRead(baseContext: CanonicalConversationRequestContext & { resolvedTurn: ResolvedTurn }): Promise<ConversationRunResult | null> {
   try {
+    if (answerScopeDecision(baseContext, baseContext.resolvedTurn.semantic_frame).decision === "denied") return null;
     const surface = baseContext.input.surface;
     if (surface !== "office_internal") return null;
     const frame = baseContext.resolvedTurn.semantic_frame;
@@ -3584,11 +3587,19 @@ export class ConversationOrchestrator {
       if (context.input?.message) {
         try {
           const tid = context.input.thread_id;
-          const prior = tid ? await supabaseAdmin.from("oyi_conversation_messages").select("content").eq("thread_id", tid).eq("role", "user").order("created_at", { ascending: true }).limit(1000) : null;
+          const prior = tid ? await supabaseAdmin.from("oyi_conversation_messages").select("content,created_at").eq("thread_id", tid).eq("role", "user").order("created_at", { ascending: true }).limit(1000) : null;
           if (prior?.error || (prior?.data?.length ?? 0) >= 1000) throw new Error("disclosure_history_incomplete");
           const active = activeDisclosureConstraints([...(((prior?.data as any[]) || []).map(r => String(r.content ?? ""))), String(context.input.message)]);
+          // A later topic or the assessment TTL is not evidence that a hazard
+          // was resolved. Retain reports in this authorised conversation; a
+          // newer, less restrictive report cannot erase an earlier gas risk.
+          const hazards = [...((prior?.data as any[]) || []).map(r => String(r.content ?? "")), String(context.input.message)]
+            .filter(hazardReportIn).map(hazardClassIn);
+          const hazard = (["gas", "intrusion", "water", "other", "fire", "electrical"] as const).find(h => hazards.includes(h)) || null;
+          context = { ...context, safetyContext: { hazard, historyAvailable: true } };
           context = { ...context, input: { ...context.input, context: { ...((context.input as any).context || {}), disclosure_constraints: active } } as any };
         } catch {
+          context = { ...context, safetyContext: { hazard: hazardReportIn(String(context.input.message)) ? hazardClassIn(String(context.input.message)) : null, historyAvailable: false } };
           // Fail closed on names when the conversation's restriction history cannot be established.
           context = { ...context, input: { ...context.input, context: { ...((context.input as any).context || {}), disclosure_constraints: ["visitor_names"] } } as any };
         }
@@ -3832,6 +3843,48 @@ export class ConversationOrchestrator {
       correlationId: tracer.correlationId,
       runtimeId: tracer.runtimeId,
     });
+    // IQ-10A: preserve requested population before continuity, fallback, evidence
+    // or a pending workflow can substitute an unrelated readable population.
+    const scopeAdmission = answerScopeDecision(context, parsedFrame);
+    // Admission, not a warning after proposal creation. A pending incompatible
+    // device intent is terminally invalidated before any confirmation/clarification.
+    const safety = context.safetyContext;
+    const hazard = safety?.hazard || (hazardReportIn(frame.rawText) ? hazardClassIn(frame.rawText) : null);
+    const devicePending = activeWorkflow?.capability_key === "devices.power.control";
+    const continuingProtectiveOff = Boolean(devicePending && activeWorkflow?.proposed_action?.requested_state === false
+      && (isConfirmationText(context.input.message) || activeWorkflow?.status === "awaiting_clarification")
+      && frame.operation !== "device.power.on");
+    const protectiveOff = Boolean(hazard && ["fire", "electrical"].includes(hazard)
+      && (frame.operation === "device.power.off" || continuingProtectiveOff));
+    if (!isCancellationText(context.input.message) && (hazard || safety?.historyAvailable === false)
+      && (frame.mutationIntent || devicePending)) {
+      if (devicePending && activeWorkflow && (!protectiveOff || !safety?.historyAvailable)) {
+        const action = activeWorkflow.action_id ? await actionService.get(activeWorkflow.action_id) : null;
+        if (action && ["draft", "awaiting_confirmation", "approved"].includes(action.status)) await actionService.cancel(action, context.actor?.id || null, "hazard_admission");
+        await workflowService.cancel(activeWorkflow, "hazard_admission");
+        activeWorkflow = null;
+        resolvedTurn = { ...resolvedTurn, active_workflow_id: null };
+      }
+      if (!protectiveOff || !safety?.historyAvailable) {
+        const answer = hazard
+          ? `I won't prepare or continue that device action while this hazard is unresolved. No command was sent and no physical safety has been verified. ${hazardPrecaution(hazard)}`
+          : "I couldn't restore the safety context for this conversation, so I haven't prepared or continued a device action. Please retry after the conversation is available.";
+        const blocked = await respondFromOfficeActionResult(context, resolvedTurn, syntheticOfficeActionCapability("answer_target.hazard_admission", "global"), { status: "unsupported", answer, presentation_policy: resultPresentation("text") });
+        blocked.execution.hazard_admission = "blocked";
+        tracer.finish({ response_state: "hazard_admission_blocked", thread_id: blocked.thread_id });
+        return blocked;
+      }
+      // Explicit power-off is only a fresh request: normal target/canUse and
+      // confirmation gates below remain mandatory. It cannot reuse old approval.
+    }
+    if (scopeAdmission.decision === "denied" && !isCancellationText(context.input.message)) {
+      const denied = await respondFromOfficeActionResult(context, resolvedTurn, syntheticOfficeActionCapability("answer_target.scope_denied", "global"), {
+        status: "permission_restricted", answer: scopeDenialAnswer, presentation_policy: resultPresentation("text"),
+      });
+      denied.execution.scope_admission = "denied";
+      tracer.finish({ response_state: "scope_denied", thread_id: denied.thread_id });
+      return denied;
+    }
     // Oyi Conversational Runtime Completion Programme, Phase 2 -- office_
     // internal conversation continuity. A no-op for every other surface
     // (returns the same objects back). See officeConversationContext.ts
@@ -4329,7 +4382,9 @@ export class ConversationOrchestrator {
         const answer = gathered ? `${judged ? judged.text : composeEvidenceReadiness(planned!.state)}${assessmentCaveats(assessment, frame, { judged: Boolean(judged && judged.result.status === "JUDGED") })}` : assessmentEvidenceAnswer(assessment, frame);
         const anyUsable = Boolean(planned?.state.contributions.some(c => c.availability === "available"));
         let response = gathered
-          ? await assessmentEvidenceResponse({ ...context, resolvedTurn }, answer, anyUsable ? "answered" : "unavailable", planned!.state.status)
+          ? await assessmentEvidenceResponse({ ...context, resolvedTurn }, answer, anyUsable ? "answered" : "unavailable", planned!.state.status,
+            planned!.state.contributions.filter(c => c.availability === "available" && c.effective_scope).map(c => ({ capability: c.source_key,
+              estate_id: c.effective_scope!.estate_id, home_id: c.effective_scope!.home_id, room_id: c.effective_scope!.room_id })))
           : await canonicalUnavailableFallback({ ...context, resolvedTurn }, "assessment_evidence_needed", { status: "unavailable", answer });
         response.execution = { ...response.execution, cognitive_objective: frame.cognitiveObjective || assessment.objective,
           assessment_status: gathered ? "evidence_gathered" : "evidence_needed", current_turn_execution: false,
