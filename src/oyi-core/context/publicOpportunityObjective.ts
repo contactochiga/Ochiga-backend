@@ -117,6 +117,7 @@ export function extractTitleStatus(message: string): string | null {
   const documentClaim = /\b(?:(?:do\s+not|don't|does\s+not|doesn't|not|never|no\s+longer)\s+)?(?:have|has|hold|holds|with|got|obtained|without|awaiting)\s+(?:(?:a|the|no|not|yet)\s+)*(?:c\s+of\s+o|certificate\s+of\s+occupancy)\b/i.exec(message);
   if (documentClaim && !/^\s*(?:what|which|how|do|does|can|could|should|would|is)\b/i.test(message)) return /\b(?:no|not|never|don't|doesn't|without|awaiting)\b/i.test(documentClaim[0]) ? "C of O not available (caller supplied)" : "C of O held (caller supplied, not verified)";
   if (!/\btitle\b/i.test(message)) return null;
+  if (/\b(?:not\s+(?:yet\s+)?verified|unverified)\b/i.test(message)) return "not verified (caller supplied)";
   // IQ-9A11 R7: "no title papers yet" states that title documents are not available; it is not a statement that title is perfected
   if (/\bno\s+title\s+(?:papers?|documents?|deeds?)\b|\btitle\s+(?:papers?|documents?|deeds?)\s+(?:are\s+)?(?:not|yet\s+to)\b|\bwithout\s+title\s+(?:papers?|documents?)\b/i.test(message)) return "documents not yet available";
   if (/\bnot\b|\bisn'?t\b|\bnever\b|unperfected|\bno\b/i.test(message) && /perfect|regist|clean|clear|valid|sorted|good|certif/i.test(message)) return "not perfected";

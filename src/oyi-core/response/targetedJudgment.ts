@@ -2,7 +2,7 @@ import type { CompactEvidencePlanState } from "../evidence/planner/types";
 import { SOURCE_NOUN } from "../evidence/planner/evidenceClasses";
 import type { EvidenceIndex } from "../evidence/judgment/evidenceIndex";
 import { describe, levelOf, tiering } from "../evidence/judgment/dominance";
-import { contextStatements } from "../evidence/judgment/deterministic";
+import { contextStatements, osaAssessment } from "../evidence/judgment/deterministic";
 import type { Candidate, JudgmentResult } from "../evidence/judgment/types";
 import { analyse } from "../interpretation/semanticObjective";
 import { domainHits } from "../interpretation/domainVocabulary";
@@ -13,7 +13,7 @@ import { limitationAnswer } from "./limitationTarget";
 // reason, comparison, limitation, risk, list) instead of restating the state of the assessment. Everything stated comes from typed
 // evidence fields, the context statements, or the result's own uncertainties. Nothing is invented; nothing promises or executes.
 
-export type TargetedLead = { lead: string; support: string[] };
+export type TargetedLead = { lead: string; support: string[]; focused?: boolean };
 const GENERIC = new Set(["issue", "issues", "request", "requests", "item", "items", "problem", "problems", "ticket", "tickets", "lead", "leads", "report", "reports", "task", "tasks", "estate", "record", "records", "thing", "things", "one", "ones"]);
 import { conceptTokens, isConcept } from "../interpretation/conceptLexicon";
 const OPENISH = new Set([...conceptTokens("open"), "current"]);
@@ -85,12 +85,18 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       const k = sourceFor(state, T); if (!k) return null;
       const staleAsked = T.some(t => isConcept(t, "stale")) && k.freshness === "stale";
       const openAsked = T.some(t => OPENISH.has(t)) && !T.some(t => CLOSEDISH.has(t));
+      const closedAsked = target.state_concept === "resolved" && !target.negated_qualifiers.length;
       const overdueAsked = T.some(t => isConcept(t, "overdue"));
       let n = k.record_count; const noun = SOURCE_NOUN[k.source_key] || k.source_key;
       const fromSource = index.candidates.filter(c => c.source_key === k.source_key);
       if (fromSource.length && openAsked) n = fromSource.filter(c => levelOf(c, "lifecycle") === "active").length;
+      if (fromSource.length && closedAsked) n = fromSource.filter(c => levelOf(c, "lifecycle") === "historical").length;
       if (fromSource.length && overdueAsked) n = fromSource.filter(c => levelOf(c, "time_pressure") === "overdue").length;
-      const lead = `There ${n === 1 ? "is" : "are"} ${k.truncated ? "at least " : ""}${n} ${openAsked && fromSource.length ? "open " : overdueAsked && fromSource.length ? "overdue " : ""}${noun}${staleAsked ? " with stale readings" : ""}.`;
+      const filterUnknown = (openAsked || closedAsked) && fromSource.some(c => !["active", "historical"].includes(levelOf(c, "lifecycle") || ""))
+        || overdueAsked && fromSource.some(c => !levelOf(c, "time_pressure"));
+      const incomplete = k.completeness !== "complete" && k.completeness !== "zero_proven" || k.truncated || k.degraded.length > 0 || filterUnknown;
+      if (!n && incomplete) return { lead: `No matching ${noun} appeared in the partial evidence; the total is unknown.`, support: [], focused: true };
+      const lead = `There ${n === 1 ? "is" : "are"} ${incomplete ? "at least " : ""}${n} ${openAsked && fromSource.length ? "open " : closedAsked && fromSource.length ? "resolved " : overdueAsked && fromSource.length ? "overdue " : ""}${noun}${staleAsked ? " with stale readings" : ""}.`;
       return { lead, support: [] };
     }
     case "YES_NO_WITH_REASON": {
@@ -148,6 +154,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       if (named.length === 1) {
         const c = named[0], life = levelOf(c, "lifecycle"), asksClosed = T.some(t => CLOSEDISH.has(t)), asksOpen = T.some(t => OPENISH.has(t));
         if (asksClosed || asksOpen) {
+          if (life !== "historical" && life !== "active") return { lead: sentence(`Unknown — ${withFacts(c)}`), support: [], focused: true };
           const yes = asksClosed ? life === "historical" : life === "active";
           return { lead: sentence(`${yes ? "Yes" : "No"} — ${withFacts(c)}`), support: [] };
         }
@@ -165,6 +172,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     }
     case "EXPLANATION": {
       if (r.mode === "deterministic" && /^Here is why I ordered them that way/.test(r.conclusion)) return null;
+      if (noJudgment && !named.length && !r.ranking?.length) return { lead: `I have no earlier ordering to explain. ${limitNote}`, support: [businessSummary(index)], focused: true };
       if (T.some(t => ["reasoning", "ranking", "order", "ordering", "conditional", "recommendation", "say", "that"].includes(t)) && !named.length && !hadPrevious && !r.ranking?.length && (noJudgment || T.includes("reasoning"))) {
         return { lead: "I haven't ranked or recommended anything yet, so there is no ordering or reasoning of mine to explain.", support: [`What is recorded: ${business.length} lead/opportunity/project record${business.length === 1 ? "" : "s"}; ${limitNote}`] };
       }
@@ -178,8 +186,11 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
         if (askedSrc && !String(c.source_key || "").includes(askedSrc[1])) return { lead: sentence(`I have no ${askedTok} record under that name — the only record I read is ${c.ref.label} (${SOURCE_NOUN[c.source_key] || c.source_key}: ${describe(c).join(", ")}), so I can't say why it counts that way`), support: [] };
         return { lead: sentence(`${c.ref.label} is on the list because of what is recorded: ${describe(c).join(", ")}${c.signals[0] && !describe(c).includes(c.signals[0].text) && !/days since/.test(c.signals[0].text) ? ` (${c.signals[0].text})` : ""}${c.signals.find(x => /days since/.test(x.text)) ? `; ${c.signals.find(x => /days since/.test(x.text))!.text}` : ""}`), support: [`I can't weigh how serious that is: ${lower(limitNote)}`] };
       }
-      const pick = named.length ? named : index.candidates.filter(c => levelOf(c, "lifecycle") === "active").slice(0, 1);
-      if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"} matters because ${withFacts(c).replace(/^.*? is recorded as /, "it is recorded as ")}`), support: [] }; }
+      // A raw collection is not a selected referent. IQ-5 resolves valid derived
+      // references before this path; neither order nor recency may choose here.
+      const pick = named.length ? named : index.candidates.length === 1 ? index.candidates : [];
+      if (pick.length === 1 && !pick[0].needs_comparative_judgment) { const c = pick[0]; return { lead: sentence(`${c.ref.label || "That item"}: ${withFacts(c)}. These are recorded factors, not an independently established cause or strategic recommendation`), support: [], focused: true }; }
+      if (named.length > 1 || (!named.length && index.candidates.length > 1)) return { lead: "Which recorded item do you want explained? I cannot choose the intended item from the collection alone.", support: [], focused: true };
       const staleU = unc.find(u => /readings for/.test(u) && /stale/.test(u));
       if (staleU && topicClasses(T).includes("devices")) return { lead: sentence(`Because ${lower(staleU.replace(/\.$/, ""))}`), support: [] };
       const bare = T.filter(t => !["why", "not", "so", "then"].includes(t)).length === 0 || T.some(t => ["ranked", "ordered", "order", "ranking", "ordering", "priority", "reasoning", "recommend", "recommendation", "said"].includes(t));
@@ -189,7 +200,8 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
     }
     case "REFUSAL": return { lead: limitationAnswer(target, question), support: [] };
     case "COMPARISON": {
-      const sides = target.compare_terms.length === 2 ? target.compare_terms.map(g => index.candidates.filter(c => labelTokens(c.ref.label).some(t => g.includes(t) && !GENERIC.has(t)))) : [];
+      const sides = target.compare_terms.length === 2 ? target.compare_terms.map(g => namedCandidates(index, g)) : [];
+      if (sides.some(s => s.length > 1)) return { lead: "Which two records do you want compared? More than one record matches a named side.", support: [], focused: true };
       const pair = sides.length === 2 && sides[0].length && sides[1].length ? [sides[0][0], sides[1][0]] : (named.length === 2 ? named : null);
       if (pair && pair[0].cid !== pair[1].cid) {
         const [a, b] = pair;
@@ -208,8 +220,26 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       if (noJudgment) { const nm = target.compare_terms.map(g => g.filter(t => !["which", "one", "better", "worse", "stronger", "weaker", "best", "worst", "more", "most", "who", "ahead", "comes", "out", "serious", "bigger"].includes(t)).join(" ")).filter(Boolean); return { lead: sentence(`I can't compare ${nm.length === 2 ? `${nm[0]} and ${nm[1]}` : "these"} on judgment grounds: ${lower(limitNote)}`), support: [] }; }
       return null;
     }
-    case "RANKING": case "ASSESSMENT": case "DIRECT_ANSWER": case "ADVICE": case "NEXT_STEP": {
-      if (noJudgment && (target.response_intent === "RANKING" || ((target.response_intent === "ADVICE" || target.response_intent === "NEXT_STEP") && T.some(t => ["first", "which", "best", "most", "top"].includes(t))) || (target.response_intent === "ASSESSMENT" && /rank|order|first|best|matters?\b/.test(T.join(" "))))) {
+    case "NEXT_STEP": {
+      // Advice only: typed evidence requirements, never an action, retrieval or
+      // inferred business process. Public completeness uses the existing public
+      // safe projection, not internal commercial criteria.
+      const steps: string[] = [];
+      const publicFacts = osaAssessment(index);
+      if (publicFacts?.missing.length) steps.push(`Clarify ${publicFacts.missing.join("; ")}. These details are supplied by you, not independently verified.`);
+      for (const c of state.contributions) {
+        const noun = SOURCE_NOUN[c.source_key];
+        if (!noun) continue; // never leak a raw capability key as user guidance
+        if (c.availability !== "available") continue; // denied sources cannot be acquired by advice
+        if (c.freshness === "stale" || c.unobserved > 0) steps.push(`Verify current observations for ${noun}; the available evidence does not establish their current state.`);
+        else if (c.completeness === "partial" || c.truncated || c.degraded.length) steps.push(`Check the missing coverage for ${noun} before relying on a complete count or conclusion.`);
+        if (c.evidence_class === "visitors") steps.push("Verify arrival separately through an authorised arrival record; visitor permission alone does not establish presence.");
+      }
+      if (steps.length) return { lead: [...new Set(steps)].join(" "), support: [...(noJudgment ? [limitNote] : []), "These are verification steps only; I have not initiated any work or action."], focused: true };
+      return { lead: noJudgment ? `I cannot recommend a business next step without comparative judgment. ${limitNote}` : "The available evidence does not establish a specific next step. Which outcome do you want to verify?", support: noJudgment ? [businessSummary(index)] : [], focused: true };
+    }
+    case "RANKING": case "ASSESSMENT": case "DIRECT_ANSWER": case "ADVICE": {
+      if (noJudgment && (target.response_intent === "RANKING" || (target.response_intent === "ADVICE" && T.some(t => ["first", "which", "best", "most", "top"].includes(t))) || (target.response_intent === "ASSESSMENT" && /rank|order|first|best|matters?\b/.test(T.join(" "))))) {
         return { lead: sentence(`I can't put these in order: ordering ${business.length === 1 ? "this record" : "these records"} ${lower(limitNote.replace(/^That takes /, "takes "))}`), support: [businessSummary(index)] };
       }
       if (target.response_intent === "DIRECT_ANSWER" && T.some(t => ["since", "yesterday", "ago", "earlier", "last", "before"].includes(t)) && T.some(t => ["changed", "change", "different", "new"].includes(t))) {
@@ -229,6 +259,7 @@ export function targetedLead(r: JudgmentResult, state: CompactEvidencePlanState,
       if (T.some(t => isConcept(t, "stale")) && !src) { const st = state.contributions.filter(c => c.availability === "available" && c.freshness === "stale"); if (st.length) return { lead: sentence(`Stale: ${st.map(c => `the latest readings for ${c.record_count} ${SOURCE_NOUN[c.source_key] || c.source_key}`).join("; ")}`), support: [] }; }
       const miss = T.some(t => ["unknown", "unresolved", "missing", "confirmation", "remains", "remain"].includes(t));
       if (miss && unc.length) return { lead: sentence(`What I cannot confirm: ${unc.slice(0, 4).map(u => lower(u.replace(/\.$/, ""))).join("; ")}`), support: [] };
+      if (miss && noJudgment) return { lead: `The missing requirement is comparative judgment, not another count of the supplied records. ${limitNote}`, support: r.limitations, focused: true };
       if (T.includes("evidence") && T.includes("have")) return { lead: sentence(`I have read ${state.contributions.filter(c => c.availability === "available").map(c => `${c.record_count} ${SOURCE_NOUN[c.source_key] || c.source_key}`).join(", ") || "no usable source"}`), support: [] };
       const classes = topicClasses(T);
       const devices = state.contributions.find(c => c.evidence_class === "device_availability" && c.availability === "available");

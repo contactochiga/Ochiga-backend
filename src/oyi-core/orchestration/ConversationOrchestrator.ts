@@ -4303,6 +4303,16 @@ export class ConversationOrchestrator {
       const currentSet = await loadThreadResultSetContext(context.input.thread_id);
       const usableSet = currentSet && Date.now() - Date.parse(currentSet.created_at) >= 0 && Date.now() - Date.parse(currentSet.created_at) < ASSESSMENT_TTL_MS
         && eligibleReads.some(m => m.key === currentSet.capability_key) ? currentSet : null;
+      // A newer authorised retrieval can establish the subject of a subsequent
+      // explicit question. Mere lexical domain overlap cannot switch a parked
+      // assessment: require that the actual latest result has that same domain.
+      if (previousAssessment?.suspended && usableSet && frame.concepts?.head_domain === usableSet.domain
+        && usableSet.domain !== previousAssessment.domain && Date.parse(usableSet.created_at) >= Date.parse(previousAssessment.updated_at)) {
+        assessment = { ...assessment, domain: usableSet.domain, subject_domains: [usableSet.domain], subject_label: null,
+          target_ref: null, result_set_id: usableSet.result_set_id, evidence_plan: null, judgment: null,
+          material_information: null, pending_information: null, facts: [], reassessment: null,
+          derived_ranking: assessment.derived_ranking ? { ...assessment.derived_ranking, parked: true } : null };
+      }
       if (context.input.surface === "office_internal" && /\b(?:reply|response|draft|send this)\b/i.test(frame.rawText)) {
         const draft = await loadDraftCommunication(context.input.thread_id, context.actor?.id);
         if (draft || usableSet) {

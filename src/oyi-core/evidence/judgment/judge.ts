@@ -145,9 +145,11 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   if (result.ranking && !(ok && wantsRanking && rankingAllowed)) result = { ...result, ranking: null, tied_groups: [], presented: (result.presented || []).filter(p => p.group !== "ranked" && p.group !== "compared") };
   // IQ-5: whatever the validated answer names is the conversational referent (a ranking, a compared pair, or the items needing
   // attention), kept as ONE derived artifact. It never claims an order the judgment did not establish (`ordered` is false for the latter two).
-  const artifact = ok && result.status === "JUDGED" ? artifactFor(result, a, basis, now, index) : null;
   let lead: ReturnType<typeof targetedLead> = null;
   if (a.targeted !== false && a.answerTarget) { try { lead = targetedLead(result, a.state, index, a.answerTarget!, a.question, { hadPrevious: Boolean(a.previous), userReports: a.userReports || [] }); } catch { lead = null; } }
+  // A focused explanation/clarification is not a presentation of a new ordered
+  // set. Keep the existing IQ-5 referent rather than minting an unseen ranking.
+  const artifact = ok && result.status === "JUDGED" && !lead?.focused ? artifactFor(result, a, basis, now, index) : null;
   const text = composeJudgmentText(result, a.state, lead);
   return { result, text, ranking_artifact: artifact, validation: { ok, failures: failures.slice(0, 12) }, provider, candidate_count: index.candidates.length,
     evidence_source_count: index.sources.length, latency_ms: Math.max(0, (a.now || Date.now)() - t0) };

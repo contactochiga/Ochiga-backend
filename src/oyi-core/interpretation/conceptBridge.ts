@@ -86,7 +86,10 @@ export function resolveConcepts(text: string): SemanticConcepts {
   const correction = T.some(t=>["correct","correction","meant"].includes(t)) || factField && (T.includes("change") || T.includes("should") && T.includes("be"));
   const additionAt = T.findIndex(t=>t==="another" || t==="second");
   const negatedAddition = additionAt>=0 && T.slice(Math.max(0,additionAt-4),additionAt).some(t=>["not","no","never"].includes(t));
-  const introducing = entityNoun && !correction && utterance.declarative && !negatedAddition && !T.includes("if") && (T.includes("another") || T.includes("second") && (T.includes("have") || /:\s*\d/.test(text)));
+  // Possession of a second entity is an introduction; auxiliary "have" in a
+  // claim about that entity (have not verified its title) is not possession.
+  const possessionOrdinal = T.some((t,i) => t === "have" && (T[i+1] === "second" || T[i+1] === "a" && T[i+2] === "second"));
+  const introducing = entityNoun && !correction && utterance.declarative && !negatedAddition && !T.includes("if") && (T.includes("another") || T.includes("second") && (possessionOrdinal || /:\s*\d/.test(text)));
   const withdrawal = entityNoun && T.includes("withdraw") && (utterance.imperative || T[0]==="withdraw") && !utterance.negImperative && !T.some(t=>["action","request","command","draft","callback","call"].includes(t));
   return { domains: hits, head_domain: head, object, facet, quantity, state, entity_transition:introducing?"introduce":withdrawal?"withdraw":entityNoun&&correction&&!utterance.wh&&!utterance.auxLead&&!utterance.negImperative?"correct":null };
 }

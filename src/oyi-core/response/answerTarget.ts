@@ -305,6 +305,10 @@ function deriveOneTarget(text: string, opts: { objective?: string | null; active
   if (objective === "compare") return base("COMPARISON", { compare_terms: splitSides(T.filter(t => !["compare", "comparing", "difference", "differ", "differs", "versus"].includes(t) || t === "versus")), top_n: topN, must_answer: "the comparison itself (which, how they differ), not two independent summaries", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "prioritize") return base("RANKING", { top_n: topN, must_answer: "the ordering (or why none can be given) first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
   if (objective === "explain" || lead === "why") return base("EXPLANATION", { must_answer: "the supported reason first", must_not_substitute: ["capability_menu", "evidence_readiness", "state_for_answer"] });
+  // An open question about what to verify asks for a verification requirement,
+  // not an instruction to execute verification or a catalogue of capabilities.
+  if (u.wh && ["what", "which"].includes(lead) && [null, "assess", "advise"].includes(objective) && T.some(t => ["verify", "check", "checking"].includes(t)))
+    return base("NEXT_STEP", { must_answer: "the evidence-supported verification requirement, without initiating work", must_not_substitute: ["capability_menu", "evidence_readiness"] });
   // asking where something stands is a status read; explicit list asks are lists whatever the judgment cue words
   const standing = u.wh && T.some(t => ["stand", "stands"].includes(t)) && T.some(t => ["where", "how"].includes(t)) && contentTokens(T).filter(t => !["stand", "stands", "things", "overall", "everything"].includes(t)).length > 0;
   if (standing) return base("STATUS", { must_answer: "the current state of the thing asked about", must_not_substitute: ["capability_menu", "count_for_list"] });
