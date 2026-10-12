@@ -1,0 +1,23 @@
+{
+  "reference_runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "reference_run": "/tmp/iq10e-release-candidate280.json",
+  "total": 280,
+  "identical": 278,
+  "original_pass_unchanged": 40,
+  "deltas": [
+    {
+      "journey_id": "IQ-EVAL-CON-005",
+      "turn_number": 3,
+      "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "original_status": "FAIL"
+    },
+    {
+      "journey_id": "IQ-EVAL-CON-008",
+      "turn_number": 4,
+      "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "original_status": "FAIL"
+    }
+  ]
+}

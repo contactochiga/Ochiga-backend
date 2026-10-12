@@ -1,0 +1,54 @@
+{
+  "OMA": {
+    "attempted": 299,
+    "scored": 130,
+    "scored_saved": 130,
+    "scored_traced": 130,
+    "latency": {
+      "n": 130,
+      "mean": 84,
+      "p50": 80,
+      "p95": 150,
+      "max": 307
+    }
+  },
+  "OSA": {
+    "attempted": 324,
+    "scored": 130,
+    "scored_saved": 130,
+    "scored_traced": 130,
+    "latency": {
+      "n": 130,
+      "mean": 158,
+      "p50": 79,
+      "p95": 136,
+      "max": 10141
+    }
+  },
+  "FACILITY": {
+    "attempted": 344,
+    "scored": 130,
+    "scored_saved": 130,
+    "scored_traced": 129,
+    "latency": {
+      "n": 130,
+      "mean": 74,
+      "p50": 69,
+      "p95": 125,
+      "max": 157
+    }
+  },
+  "CONSUMER": {
+    "attempted": 318,
+    "scored": 130,
+    "scored_saved": 128,
+    "scored_traced": 128,
+    "latency": {
+      "n": 128,
+      "mean": 76,
+      "p50": 71,
+      "p95": 126,
+      "max": 160
+    }
+  }
+}

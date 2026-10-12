@@ -1,0 +1,730 @@
+{
+  "runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "validation": {
+    "source_diff_sha256": "220297d72384a6151205bf2a0eca2b208e0dc1d89b9592dc62d8489a1f5241dd",
+    "source_unchanged": true,
+    "results": [
+      {
+        "id": "typecheck",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 14965,
+        "log": "/tmp/iq10e-iq10f-preservation-typecheck.log",
+        "error": "/tmp/iq10e-iq10f-preservation-typecheck.error"
+      },
+      {
+        "id": "build",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 15510,
+        "log": "/tmp/iq10e-iq10f-preservation-build.log",
+        "error": "/tmp/iq10e-iq10f-preservation-build.error"
+      },
+      {
+        "id": "pure",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 201,
+        "log": "/tmp/iq10e-iq10f-preservation-pure.log",
+        "error": "/tmp/iq10e-iq10f-preservation-pure.error"
+      },
+      {
+        "id": "evidence-pure",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 152,
+        "log": "/tmp/iq10e-iq10f-preservation-evidence-pure.log",
+        "error": "/tmp/iq10e-iq10f-preservation-evidence-pure.error"
+      },
+      {
+        "id": "additional",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 303,
+        "log": "/tmp/iq10e-iq10f-preservation-additional.log",
+        "error": "/tmp/iq10e-iq10f-preservation-additional.error"
+      },
+      {
+        "id": "judgment-additional",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 183,
+        "log": "/tmp/iq10e-iq10f-preservation-judgment-additional.log",
+        "error": "/tmp/iq10e-iq10f-preservation-judgment-additional.error"
+      },
+      {
+        "id": "trace-contract",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 387,
+        "log": "/tmp/iq10e-iq10f-preservation-trace-contract.log",
+        "error": "/tmp/iq10e-iq10f-preservation-trace-contract.error"
+      },
+      {
+        "id": "context-pure",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 245,
+        "log": "/tmp/iq10e-iq10f-preservation-context-pure.log",
+        "error": "/tmp/iq10e-iq10f-preservation-context-pure.error"
+      },
+      {
+        "id": "dev",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 13809,
+        "log": "/tmp/iq10e-iq10f-preservation-dev.log",
+        "error": "/tmp/iq10e-iq10f-preservation-dev.error"
+      },
+      {
+        "id": "evidence-live",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 3091,
+        "log": "/tmp/iq10e-iq10f-preservation-evidence-live.log",
+        "error": "/tmp/iq10e-iq10f-preservation-evidence-live.error"
+      },
+      {
+        "id": "context-live",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 4804,
+        "log": "/tmp/iq10e-iq10f-preservation-context-live.log",
+        "error": "/tmp/iq10e-iq10f-preservation-context-live.error"
+      },
+      {
+        "id": "reliability",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 6794,
+        "log": "/tmp/iq10e-iq10f-preservation-reliability.log",
+        "error": "/tmp/iq10e-iq10f-preservation-reliability.error"
+      },
+      {
+        "id": "export",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 7175,
+        "log": "/tmp/iq10e-iq10f-preservation-export.log",
+        "error": "/tmp/iq10e-iq10f-preservation-export.error"
+      },
+      {
+        "id": "candidate280",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 34647,
+        "log": "/tmp/iq10e-iq10f-preservation-candidate280.log",
+        "error": "/tmp/iq10e-iq10f-preservation-candidate280.error"
+      },
+      {
+        "id": "candidate-links",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 1539,
+        "log": "/tmp/iq10e-iq10f-preservation-candidate-links.log",
+        "error": "/tmp/iq10e-iq10f-preservation-candidate-links.error"
+      },
+      {
+        "id": "reg",
+        "exit": 1,
+        "signal": null,
+        "duration_ms": 55074,
+        "log": "/tmp/iq10e-iq10f-preservation-reg.log",
+        "error": "/tmp/iq10e-iq10f-preservation-reg.error"
+      },
+      {
+        "id": "wave",
+        "exit": 0,
+        "signal": null,
+        "duration_ms": 18867,
+        "log": "/tmp/iq10e-iq10f-preservation-wave.log",
+        "error": "/tmp/iq10e-iq10f-preservation-wave.error"
+      }
+    ]
+  },
+  "regression_suites": [
+    {
+      "suite": "iq9a-invariant-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 474,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a-invariant-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a-invariant-tests.stderr"
+    },
+    {
+      "suite": "iq9a2-closure-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 82,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a2-closure-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a2-closure-tests.stderr"
+    },
+    {
+      "suite": "iq9a4-r0-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 306,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a4-r0-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a4-r0-tests.stderr"
+    },
+    {
+      "suite": "iq9a5-r2-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 300,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a5-r2-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a5-r2-tests.stderr"
+    },
+    {
+      "suite": "iq9a6-r1-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 310,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a6-r1-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a6-r1-tests.stderr"
+    },
+    {
+      "suite": "iq9a7-r3-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 308,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a7-r3-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a7-r3-tests.stderr"
+    },
+    {
+      "suite": "iq9a8-r4-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 289,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a8-r4-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a8-r4-tests.stderr"
+    },
+    {
+      "suite": "iq9a9-r5-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 292,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a9-r5-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a9-r5-tests.stderr"
+    },
+    {
+      "suite": "iq9a10-r6-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 102,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a10-r6-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a10-r6-tests.stderr"
+    },
+    {
+      "suite": "iq9a11-r7-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 127,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a11-r7-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a11-r7-tests.stderr"
+    },
+    {
+      "suite": "iq8-answer-target-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 181,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8-answer-target-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8-answer-target-tests.stderr"
+    },
+    {
+      "suite": "iq8b-bridge-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 75,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8b-bridge-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8b-bridge-tests.stderr"
+    },
+    {
+      "suite": "iq8b-metamorphic-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 121,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8b-metamorphic-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8b-metamorphic-tests.stderr"
+    },
+    {
+      "suite": "iq8d2-contract-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 146,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8d2-contract-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8d2-contract-tests.stderr"
+    },
+    {
+      "suite": "iq8d-projector-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 217,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8d-projector-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8d-projector-tests.stderr"
+    },
+    {
+      "suite": "iq8e-routing-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 335,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq8e-routing-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq8e-routing-tests.stderr"
+    },
+    {
+      "suite": "iq2-objective-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 5685,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq2-objective-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq2-objective-smoke.stderr"
+    },
+    {
+      "suite": "iq3a-source-certification",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 701,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq3a-source-certification.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq3a-source-certification.stderr"
+    },
+    {
+      "suite": "iq3a-benchmark-source-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 804,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq3a-benchmark-source-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq3a-benchmark-source-tests.stderr"
+    },
+    {
+      "suite": "iq3a-source-local-isolation",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 601,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq3a-source-local-isolation.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq3a-source-local-isolation.stderr"
+    },
+    {
+      "suite": "iq3b-planner-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 988,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq3b-planner-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq3b-planner-tests.stderr"
+    },
+    {
+      "suite": "iq4-judgment-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 493,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq4-judgment-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq4-judgment-tests.stderr"
+    },
+    {
+      "suite": "iq5-reference-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 322,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq5-reference-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq5-reference-tests.stderr"
+    },
+    {
+      "suite": "iq5-conversation-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 3294,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq5-conversation-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq5-conversation-tests.stderr"
+    },
+    {
+      "suite": "iq6-reassessment-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 368,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq6-reassessment-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq6-reassessment-tests.stderr"
+    },
+    {
+      "suite": "iq6-conversation-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 2800,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq6-conversation-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq6-conversation-tests.stderr"
+    },
+    {
+      "suite": "iq1-truth-safety-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 254,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq1-truth-safety-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq1-truth-safety-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 130,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-runtime-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 465,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-runtime-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-runtime-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-reload-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 416,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-reload-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-reload-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 440,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-multigang-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-multigang-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-action-phase-c-correction-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 418,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-correction-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-action-phase-c-correction-smoke.stderr"
+    },
+    {
+      "suite": "oyi-workflow-durable-continuation-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 393,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-durable-continuation-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-workflow-durable-continuation-smoke.stderr"
+    },
+    {
+      "suite": "device-command-truth-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 69,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-device-command-truth-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-device-command-truth-smoke.stderr"
+    },
+    {
+      "suite": "oyi-security-adversarial-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 126,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-security-adversarial-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-security-adversarial-smoke.stderr"
+    },
+    {
+      "suite": "oyi-security-closure-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 125,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-security-closure-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-security-closure-smoke.stderr"
+    },
+    {
+      "suite": "oyi-programme4-authority-privacy-closure-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 123,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-oyi-programme4-authority-privacy-closure-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-oyi-programme4-authority-privacy-closure-smoke.stderr"
+    },
+    {
+      "suite": "consumer-context-resolution-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 140,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-consumer-context-resolution-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-consumer-context-resolution-smoke.stderr"
+    },
+    {
+      "suite": "wave9-context-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 75,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave9-context-authority-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave9-context-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-memory-context-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 303,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave9-memory-context-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave9-memory-context-smoke.stderr"
+    },
+    {
+      "suite": "wave9-conversation-ownership-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 120,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave9-conversation-ownership-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave9-conversation-ownership-smoke.stderr"
+    },
+    {
+      "suite": "wave11-intent-capability-contract-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 294,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave11-intent-capability-contract-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave11-intent-capability-contract-smoke.stderr"
+    },
+    {
+      "suite": "wave11-terminal-persistence-guard-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 66,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave11-terminal-persistence-guard-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave11-terminal-persistence-guard-smoke.stderr"
+    },
+    {
+      "suite": "wave11-public-opportunity-generalization-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 848,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave11-public-opportunity-generalization-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave11-public-opportunity-generalization-smoke.stderr"
+    },
+    {
+      "suite": "wave10-canonical-fallback-retirement-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 78,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave10-canonical-fallback-retirement-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave10-canonical-fallback-retirement-smoke.stderr"
+    },
+    {
+      "suite": "wave10-legacy-command-router-guard",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 68,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave10-legacy-command-router-guard.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave10-legacy-command-router-guard.stderr"
+    },
+    {
+      "suite": "wave10-automation-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 65,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave10-automation-authority-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave10-automation-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-slice1-canonical-knowledge-authority-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 136,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave9-slice1-canonical-knowledge-authority-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave9-slice1-canonical-knowledge-authority-smoke.stderr"
+    },
+    {
+      "suite": "wave9-capability-inventory",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 257,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-wave9-capability-inventory.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-wave9-capability-inventory.stderr"
+    },
+    {
+      "suite": "iq10a-invariants",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 118,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq10a-invariants.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq10a-invariants.stderr"
+    },
+    {
+      "suite": "iq10a-safety-live",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 5071,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq10a-safety-live.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq10a-safety-live.stderr"
+    },
+    {
+      "suite": "iq9a14-remediation-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 173,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-remediation-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-remediation-tests.stderr"
+    },
+    {
+      "suite": "iq9a14-disclosure-live",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 5128,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-disclosure-live.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-disclosure-live.stderr"
+    },
+    {
+      "suite": "iq9a15-focused-tests",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 192,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-focused-tests.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-focused-tests.stderr"
+    },
+    {
+      "suite": "iq9a15-boundary-live",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 573,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-boundary-live.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-boundary-live.stderr"
+    },
+    {
+      "suite": "iq9a15-owned-workflow-smoke",
+      "status": "FAIL",
+      "exit": 1,
+      "signal": null,
+      "latency_ms": 2121,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-owned-workflow-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a15-owned-workflow-smoke.stderr"
+    },
+    {
+      "suite": "iq9a14-iq7-regression",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 10719,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-iq7-regression.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq9a14-iq7-regression.stderr"
+    },
+    {
+      "suite": "iq1-cancellation-live-smoke",
+      "status": "PASS",
+      "exit": 0,
+      "signal": null,
+      "latency_ms": 4839,
+      "stdout": "/tmp/iq10e-iq10f-preservation-reg-iq1-cancellation-live-smoke.stdout",
+      "stderr": "/tmp/iq10e-iq10f-preservation-reg-iq1-cancellation-live-smoke.stderr"
+    }
+  ],
+  "regressions": {
+    "total": 58,
+    "pass": 53,
+    "fail": 5,
+    "historical_failures": [
+      "iq9a15-owned-workflow-smoke",
+      "oyi-workflow-action-phase-c-correction-smoke",
+      "oyi-workflow-action-phase-c-multigang-smoke",
+      "oyi-workflow-action-phase-c-reload-smoke",
+      "oyi-workflow-durable-continuation-smoke"
+    ]
+  },
+  "wave11": {
+    "pass": 132,
+    "fail": 0,
+    "blocked": 0
+  },
+  "frozen280": {
+    "attempted": 280,
+    "persisted": 280,
+    "traced": 280,
+    "message_rows": 560,
+    "identical": 278,
+    "fixture_timestamp_deltas": [
+      {
+        "journey_id": "IQ-EVAL-CON-005",
+        "turn": 3,
+        "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+        "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+      },
+      {
+        "journey_id": "IQ-EVAL-CON-008",
+        "turn": 4,
+        "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+        "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+      }
+    ],
+    "original_pass_preserved": 40
+  },
+  "focused": {
+    "IQ10B": 25,
+    "IQ10C": 62,
+    "IQ10D": 32,
+    "IQ10E": 29,
+    "IQ10E_review": 6
+  },
+  "previously_tracked_files_preserved": 1674,
+  "runtime_diff_zero": true,
+  "raw_artifact_sha256": {
+    "artifacts/intelligence-quality-v1-iq10f-preservation-candidate280.json.gz": "532f8b12c5bb48137248355b321edc26155480e26cb5eb78b6c7df731285012f",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-wave.json.gz": "fd637787c207c94fdcf6bf65dfbbb8e21bd6c9079cdd3d29b9ee196e3dfb3b09",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-reg.json.gz": "35c9448f6d784be5124094490324c9724cc5816a2b834576eccdbccc169b34b7",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-validation.json.gz": "c4499f5a4f31290d143ccf7aead6027079a1fa9f3f800dc726376806a7b8aa52",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-reliability.json.gz": "fd31c3d4bbe6743e14736682e0d179f654bc18afc02ecfb9add1a88b25b4d9d4",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-context-live.json.gz": "c9162ab21976bdcb88d4cf62b845bb388e65f8d3866cf1d1da8e64f6c01e0dcb",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-evidence-live.json.gz": "3beca11b6f380d57fef0b1edc399a8ef864db399d8d6155c684bbb72d6f45f3f",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-dev.json.gz": "1f89738ffc2cbec7969b488d0d9539ac63e10eb248dcda36c3681ab623330141",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-candidate-links.json.gz": "b4ddfc18a9cb4da48938b9cdf1b17198505feec067ee59ffedea4e9e24dd10a6",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-live-review.json.gz": "0952e2f4f3d1b28df072076cc234d5442936f326892fafe55cb1bfb9d3cf3d7d",
+    "artifacts/intelligence-quality-v1-iq10f-preservation-suite-logs.json.gz": "8c862478568d6654055015bbb97669f2d5aece7a340515e3909f23d294c6d0c9"
+  }
+}
