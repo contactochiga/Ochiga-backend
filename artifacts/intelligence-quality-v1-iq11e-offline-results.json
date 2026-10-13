@@ -1,0 +1,991 @@
+{
+  "programme": "IQ-11E",
+  "status": "PREPARATION_TESTS_PASS",
+  "starting_head": "d51bcaa88677e62d4b8218ae60ea0c137973e441",
+  "head": "d51bcaa88677e62d4b8218ae60ea0c137973e441",
+  "checks": [
+    {
+      "id": "canonical-schema-closed-and-enums-derived",
+      "status": "PASS"
+    },
+    {
+      "id": "valid-projection-no-adoption",
+      "status": "PASS"
+    },
+    {
+      "id": "scope-positive-office_internal",
+      "status": "PASS"
+    },
+    {
+      "id": "scope-positive-public_corporate",
+      "status": "PASS"
+    },
+    {
+      "id": "scope-positive-facility",
+      "status": "PASS"
+    },
+    {
+      "id": "scope-positive-consumer",
+      "status": "PASS"
+    },
+    {
+      "id": "root-tool",
+      "status": "PASS"
+    },
+    {
+      "id": "nested-authority",
+      "status": "PASS"
+    },
+    {
+      "id": "execution-state",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-operation",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-objective",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-target",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-field",
+      "status": "PASS"
+    },
+    {
+      "id": "wrong-type",
+      "status": "PASS"
+    },
+    {
+      "id": "oversize-output",
+      "status": "PASS"
+    },
+    {
+      "id": "oversize-array",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-reference",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate-binding",
+      "status": "PASS"
+    },
+    {
+      "id": "epoch-change",
+      "status": "PASS"
+    },
+    {
+      "id": "request-change",
+      "status": "PASS"
+    },
+    {
+      "id": "input-change",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-uncertainty",
+      "status": "PASS"
+    },
+    {
+      "id": "hidden-uncertainty",
+      "status": "PASS"
+    },
+    {
+      "id": "advice-mutation",
+      "status": "PASS"
+    },
+    {
+      "id": "past-result-mutation",
+      "status": "PASS"
+    },
+    {
+      "id": "hypothetical-mutation",
+      "status": "PASS"
+    },
+    {
+      "id": "power-without-mutation",
+      "status": "PASS"
+    },
+    {
+      "id": "cancel-as-command",
+      "status": "PASS"
+    },
+    {
+      "id": "cancel-kind-inconsistent",
+      "status": "PASS"
+    },
+    {
+      "id": "result-as-approval",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-facet",
+      "status": "PASS"
+    },
+    {
+      "id": "unbounded-top-n",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-state",
+      "status": "PASS"
+    },
+    {
+      "id": "ungrounded-negative-filter",
+      "status": "PASS"
+    },
+    {
+      "id": "scope-range-reversal",
+      "status": "PASS"
+    },
+    {
+      "id": "invalid-time",
+      "status": "PASS"
+    },
+    {
+      "id": "read-with-mutation",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-reference",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-second-comparison",
+      "status": "PASS"
+    },
+    {
+      "id": "span-outside-input",
+      "status": "PASS"
+    },
+    {
+      "id": "no-grounding",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-discourse",
+      "status": "PASS"
+    },
+    {
+      "id": "objective-shape-conflict",
+      "status": "PASS"
+    },
+    {
+      "id": "prototype-field-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "clarification-explicit-valid",
+      "status": "PASS"
+    },
+    {
+      "id": "unsupported-explicit-valid",
+      "status": "PASS"
+    },
+    {
+      "id": "fresh-proposal-is-only-a-shadow",
+      "status": "PASS"
+    },
+    {
+      "id": "cancelled-approval-not-revived",
+      "status": "PASS"
+    },
+    {
+      "id": "requested-other-scope-not-own-substitute",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-cross-home",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-cross-surface",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-osa-private",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-expired",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-withdrawn",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-expired-fact",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-withheld-field",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-raw-record",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-production-packet",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-email",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-secret",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-token",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-long-input",
+      "status": "PASS"
+    },
+    {
+      "id": "minimization-duplicate-entity",
+      "status": "PASS"
+    },
+    {
+      "id": "prompt-injection-remains-inert-data",
+      "status": "PASS"
+    },
+    {
+      "id": "recorded-success-non-interference",
+      "status": "PASS"
+    },
+    {
+      "id": "recorded-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "recorded-unavailable",
+      "status": "PASS"
+    },
+    {
+      "id": "recorded-error",
+      "status": "PASS"
+    },
+    {
+      "id": "late-result-discarded",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-receipt-not-success",
+      "status": "PASS"
+    },
+    {
+      "id": "receipt-mismatch",
+      "status": "PASS"
+    },
+    {
+      "id": "receipt-negative-time",
+      "status": "PASS"
+    },
+    {
+      "id": "identical-duplicate-no-reexecution",
+      "status": "PASS"
+    },
+    {
+      "id": "conflicting-duplicate-blocks",
+      "status": "PASS"
+    },
+    {
+      "id": "unexpected-receipt-blocks",
+      "status": "PASS"
+    },
+    {
+      "id": "trace-has-no-prompt-or-facts",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate-attempt-manifest-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "expectation-alternatives-not-detail-alias",
+      "status": "PASS"
+    },
+    {
+      "id": "operation-flip-scores-exact-operation",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-author-vocabulary-rejected-before-scoring",
+      "status": "PASS"
+    },
+    {
+      "id": "facets-and-qualifiers-not-silently-ignored",
+      "status": "PASS"
+    },
+    {
+      "id": "approved-budget-remains-zero",
+      "status": "PASS"
+    },
+    {
+      "id": "minimum-320-multiturn-journeys-plus-200-companions-composition-only",
+      "status": "PASS"
+    },
+    {
+      "id": "gates-no-partial-promotion-no-weak-worker-no-p0",
+      "status": "PASS"
+    },
+    {
+      "id": "unchanged-parser-offline-Oma",
+      "status": "PASS"
+    },
+    {
+      "id": "unchanged-parser-offline-Osa",
+      "status": "PASS"
+    },
+    {
+      "id": "unchanged-parser-offline-Facility",
+      "status": "PASS"
+    },
+    {
+      "id": "unchanged-parser-offline-Consumer",
+      "status": "PASS"
+    },
+    {
+      "id": "source-unchanged",
+      "status": "PASS"
+    },
+    {
+      "id": "schema-packet-definition-closed",
+      "status": "PASS"
+    },
+    {
+      "id": "cli-recorded-input-journal-and-final-reconciliation",
+      "status": "PASS"
+    }
+  ],
+  "pass": 91,
+  "fail": 0,
+  "source_manifest": [
+    {
+      "path": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+      "sha256": "425db6861e8c2449c509f0944af8288546830859338be66a9eab43b8a353bf1c"
+    },
+    {
+      "path": "src/oyi-core/runtime/languageUnderstanding.ts",
+      "sha256": "ea241118e04d906ad0d08da593e336995469fa8b5acfe08e2f69a0d1fbe231a2"
+    },
+    {
+      "path": "src/oyi-core/interpretation/LanguageNormalizer.ts",
+      "sha256": "32a8413a7cf05046c35ad712a7717f53691fcc76451fbf58b6e130c32272776e"
+    },
+    {
+      "path": "src/oyi-core/interpretation/ReferenceResolver.ts",
+      "sha256": "153e37965d9e51fe67f3471fe83c9062a76608ff14de019fcbc6f4209e929e88"
+    },
+    {
+      "path": "src/oyi-core/interpretation/TemporalResolver.ts",
+      "sha256": "cd223a65227b881051162788c2d9bfb9638feebd81f2252c27966fc708e3d7c5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptBridge.ts",
+      "sha256": "d598a83dc98f9ad338c97189b2d6c4c1bdc97036924fd00989c4f3cb498968a5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptLexicon.ts",
+      "sha256": "9e00bd65aec8401a7230d1083554f85802ea623f91a487a46226b1dbf7edf117"
+    },
+    {
+      "path": "src/oyi-core/interpretation/semanticObjective.ts",
+      "sha256": "dd3107fb54571c4922432cda23f0c0641174b364226b7d2d77cb1f0d958758ca"
+    },
+    {
+      "path": "src/oyi-core/interpretation/domainVocabulary.ts",
+      "sha256": "61b04b150ce37cebac8ad121dd987bd7a4c1d794d72989bde0d0e6b5eb8a92f1"
+    },
+    {
+      "path": "src/oyi-core/response/answerTarget.ts",
+      "sha256": "8da4772b1b5b3b6e25ea869d426c029997910cd0a1e37fa699d2f69012ebace0"
+    },
+    {
+      "path": "src/oyi-core/response/disclosureConstraint.ts",
+      "sha256": "ea9bfc68f0f4474973198eac436d5c8c5a8c13bd65a5e69607be396bd4414625"
+    }
+  ],
+  "canonical_schema_sources": [
+    {
+      "path": "src/oyi-core/contracts/semanticFrame.ts",
+      "sha256": "e52c7581198818d9e3a02570b20c4954ca7679a5bfb4ced882fef4ad142ca9d2"
+    },
+    {
+      "path": "src/oyi-core/response/answerTarget.ts",
+      "sha256": "8da4772b1b5b3b6e25ea869d426c029997910cd0a1e37fa699d2f69012ebace0"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptBridge.ts",
+      "sha256": "d598a83dc98f9ad338c97189b2d6c4c1bdc97036924fd00989c4f3cb498968a5"
+    },
+    {
+      "path": "src/oyi-core/runtime/languageUnderstanding.ts",
+      "sha256": "ea241118e04d906ad0d08da593e336995469fa8b5acfe08e2f69a0d1fbe231a2"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptLexicon.ts",
+      "sha256": "9e00bd65aec8401a7230d1083554f85802ea623f91a487a46226b1dbf7edf117"
+    }
+  ],
+  "schema_sha256": "c13f027c91247cd71f8f8778aa88b6e9abb4446d461f47705bf65683095c3577",
+  "packet_schema_sha256": "01cc5daa75e85f6705f341d341c795199e068e24ff3b5df27be514919fa1276d",
+  "baselineSamples": [
+    {
+      "worker": "Oma",
+      "turn": 1,
+      "frame": {
+        "rawText": "List the leads.",
+        "concepts": {
+          "domains": [
+            {
+              "domain": "crm",
+              "at": 2
+            }
+          ],
+          "head_domain": "crm",
+          "object": "lead",
+          "facet": null,
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "List the leads.",
+        "operation": "list",
+        "domain": "crm",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": "retrieve",
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": "lead",
+          "facet": null,
+          "state_concept": null,
+          "response_intent": "LIST",
+          "subject_tokens": [
+            "leads"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": null,
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": "list",
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the items themselves (names/records), with any count only as support",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Oma",
+      "turn": 2,
+      "frame": {
+        "rawText": "What is their recorded status?",
+        "concepts": {
+          "domains": [],
+          "head_domain": null,
+          "object": null,
+          "facet": "status",
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "What is their recorded status?",
+        "operation": "device.status",
+        "domain": "devices",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": null,
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": null,
+          "facet": "status",
+          "state_concept": null,
+          "response_intent": "STATUS",
+          "subject_tokens": [
+            "their",
+            "recorded",
+            "status"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": "recall",
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": null,
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the current state of the thing asked about",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Osa",
+      "turn": 1,
+      "frame": {
+        "rawText": "I have a synthetic property for lease.",
+        "concepts": {
+          "domains": [
+            {
+              "domain": "corporate_opportunity",
+              "at": 4
+            },
+            {
+              "domain": "corporate_opportunity",
+              "at": 6
+            }
+          ],
+          "head_domain": "corporate_opportunity",
+          "object": null,
+          "facet": null,
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "I have a synthetic property for lease.",
+        "operation": "inform",
+        "domain": "corporate_opportunity",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": null,
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": null,
+          "facet": null,
+          "state_concept": null,
+          "response_intent": "DIRECT_ANSWER",
+          "subject_tokens": [
+            "synthetic",
+            "property",
+            "lease"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": null,
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [
+            "structure_offered"
+          ],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": null,
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": false,
+          "must_answer": "the requested information",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Osa",
+      "turn": 2,
+      "frame": {
+        "rawText": "What information have I supplied?",
+        "concepts": {
+          "domains": [],
+          "head_domain": null,
+          "object": null,
+          "facet": null,
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "What information have I supplied?",
+        "operation": "inform",
+        "domain": null,
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": null,
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": null,
+          "facet": null,
+          "state_concept": null,
+          "response_intent": "LIST",
+          "subject_tokens": [
+            "information",
+            "supplied"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": "recall",
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": "list",
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the items themselves (what is open / unknown / missing), first",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list",
+            "evidence_readiness"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Facility",
+      "turn": 1,
+      "frame": {
+        "rawText": "List the maintenance requests.",
+        "concepts": {
+          "domains": [
+            {
+              "domain": "maintenance",
+              "at": 2
+            }
+          ],
+          "head_domain": "maintenance",
+          "object": "maintenance_request",
+          "facet": null,
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "List the maintenance requests.",
+        "operation": "list",
+        "domain": "maintenance",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": "retrieve",
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": "maintenance_request",
+          "facet": null,
+          "state_concept": null,
+          "response_intent": "LIST",
+          "subject_tokens": [
+            "maintenance",
+            "requests"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": null,
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": "list",
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the items themselves (names/records), with any count only as support",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Facility",
+      "turn": 2,
+      "frame": {
+        "rawText": "What is their recorded status?",
+        "concepts": {
+          "domains": [],
+          "head_domain": null,
+          "object": null,
+          "facet": "status",
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "What is their recorded status?",
+        "operation": "device.status",
+        "domain": "devices",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": null,
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": null,
+          "facet": "status",
+          "state_concept": null,
+          "response_intent": "STATUS",
+          "subject_tokens": [
+            "their",
+            "recorded",
+            "status"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": "recall",
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": null,
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the current state of the thing asked about",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Consumer",
+      "turn": 1,
+      "frame": {
+        "rawText": "Show my devices.",
+        "concepts": {
+          "domains": [
+            {
+              "domain": "devices",
+              "at": 2
+            }
+          ],
+          "head_domain": "devices",
+          "object": "device",
+          "facet": null,
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "Show my devices.",
+        "operation": "list",
+        "domain": "devices",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": "retrieve",
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": "device",
+          "facet": null,
+          "state_concept": null,
+          "response_intent": "LIST",
+          "subject_tokens": [
+            "devices"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": null,
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": "list",
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the items themselves (names/records), with any count only as support",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    },
+    {
+      "worker": "Consumer",
+      "turn": 2,
+      "frame": {
+        "rawText": "What is their recorded status?",
+        "concepts": {
+          "domains": [],
+          "head_domain": null,
+          "object": null,
+          "facet": "status",
+          "quantity": null,
+          "state": null,
+          "entity_transition": null
+        },
+        "normalizedText": "What is their recorded status?",
+        "operation": "device.status",
+        "domain": "devices",
+        "primaryEntity": null,
+        "constraints": [],
+        "temporalScope": null,
+        "references": [],
+        "confidence": 0.72,
+        "ambiguity": {
+          "required": false,
+          "reason": null,
+          "candidates": []
+        },
+        "corrections": [],
+        "mutationIntent": false,
+        "cognitiveObjective": null,
+        "capabilityInquiry": false,
+        "answerTarget": {
+          "object": null,
+          "facet": "status",
+          "state_concept": null,
+          "response_intent": "STATUS",
+          "subject_tokens": [
+            "their",
+            "recorded",
+            "status"
+          ],
+          "negated_qualifiers": [],
+          "ask_facet": "recall",
+          "flow": null,
+          "subject_scope": "own",
+          "existential": false,
+          "fact_keys": [],
+          "past_reference": false,
+          "top_n": null,
+          "quantity": null,
+          "yes_no": null,
+          "compare_terms": [],
+          "qualifier_tokens": [],
+          "safety_relevant": false,
+          "is_question": true,
+          "must_answer": "the current state of the thing asked about",
+          "supporting_context_allowed": true,
+          "must_not_substitute": [
+            "capability_menu",
+            "count_for_list"
+          ]
+        }
+      }
+    }
+  ],
+  "elapsed_ms": 2858,
+  "provider_calls": 0,
+  "provider_cost": 0,
+  "database_calls": 0,
+  "physical_execution": 0,
+  "runtime_adoption": false,
+  "independent_corpus_authored": false,
+  "limitations": [
+    "Harness controls are maintainer authored, not intelligence qualification.",
+    "Recorded timeout/availability simulation, not measured provider behavior.",
+    "Parser snapshots do not test full orchestrator context restoration or IQ11C durable persistence.",
+    "No live provider adapter, runtime adoption path or production data exporter exists."
+  ]
+}

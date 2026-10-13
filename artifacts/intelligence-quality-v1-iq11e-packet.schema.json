@@ -1,0 +1,199 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "data_class": {
+      "const": "synthetic"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "context_epoch": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "surface": {
+      "enum": [
+        "office_internal",
+        "public_corporate",
+        "facility",
+        "consumer"
+      ]
+    },
+    "scope_token": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "now": {
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2}))?$"
+    },
+    "utterance": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "active_objective": {
+      "enum": [
+        "retrieve",
+        "summarize",
+        "assess",
+        "prioritize",
+        "compare",
+        "explain",
+        "advise",
+        "reassess",
+        null
+      ]
+    },
+    "prior": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "speaker": {
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "speaker",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 4,
+      "uniqueItems": true
+    },
+    "allowed_fields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "maxItems": 16,
+      "uniqueItems": true
+    },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "alias": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "surface": {
+            "enum": [
+              "office_internal",
+              "public_corporate",
+              "facility",
+              "consumer"
+            ]
+          },
+          "scope_token": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          },
+          "visibility": {
+            "enum": [
+              "public_supplied",
+              "authorized_synthetic"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2}))?$"
+          },
+          "withdrawn": {
+            "type": "boolean"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "provenance": {
+                  "enum": [
+                    "caller_supplied_unverified",
+                    "recorded_synthetic"
+                  ]
+                },
+                "expires_at": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2}))?$"
+                }
+              },
+              "required": [
+                "key",
+                "value",
+                "provenance",
+                "expires_at"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 4,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "token",
+          "alias",
+          "surface",
+          "scope_token",
+          "visibility",
+          "expires_at",
+          "withdrawn",
+          "facts"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "version",
+    "data_class",
+    "request_id",
+    "context_epoch",
+    "surface",
+    "scope_token",
+    "now",
+    "utterance",
+    "active_objective",
+    "prior",
+    "allowed_fields",
+    "entities"
+  ],
+  "additionalProperties": false
+}
