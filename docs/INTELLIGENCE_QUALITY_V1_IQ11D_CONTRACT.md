@@ -39,4 +39,6 @@ Freeze baseline and candidate source/build/corpus hashes. Preserve all failures 
 
 ## Preservation
 
+Pre-runtime harness correction: the first structural baseline had 18/73 passes. Four expiry assertions compared a nonexistent `id` on both assessment objects and therefore tested `undefined === undefined`. They are corrected to assert the canonical `validAssessment` returns null after TTL, before runtime edits. The initial result is retained and not relabelled as a runtime expiry failure; the intended expiry expectation is unchanged.
+
 Run IQ-11B/C, IQ-10A–E, IQ-9A/IQ-8/IQ-7/IQ-1–6, authority/privacy, action/device truth, One-Core, frozen 280, Wave 11, typecheck/build and diff/secret checks. Review any changed original frozen-PASS answers; no defensible regression allowed. Historical workflow failures remain visible and multi-gang remains excluded. No sealed evidence changes, merge, deployment, production migration, other repository work or autonomous Initiative.
