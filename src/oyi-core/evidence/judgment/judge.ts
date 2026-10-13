@@ -8,6 +8,7 @@ import { buildProviderRequest, withProviderDeadline, type JudgmentProvider, type
 import { adoptProposal, validateResult, type ValidationContext } from "./validator";
 import { composeJudgmentText, evidenceBasis } from "./compose";
 import type { AnswerTarget } from "../../response/answerTarget";
+import { hazardContinuityNotice, type HazardClass } from "../../response/answerTarget";
 import { targetedLead } from "../../response/targetedJudgment";
 import type { Candidate, DerivedRanking, JudgmentOutcome, JudgmentResult, RankedItem } from "./types";
 
@@ -35,6 +36,9 @@ export type JudgeArgs = {
   answerTarget?: AnswerTarget;
   // IQ-8: the user's own unverified statements in this conversation (text only), used to answer "does that prove / is that confirmed" truthfully.
   userReports?: string[];
+  // Server-derived safety context, not a caller's permission or provider claim.
+  hazard?: HazardClass | null;
+  safetyHistoryAvailable?: boolean;
 };
 
 function businessFacts(index: EvidenceIndex): string[] {
@@ -94,7 +98,15 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   let finalFailures: string[] = []; // validity of the result actually shown
 
   const reusable = a.previous && (a.previous.artifact_type ?? "ranking") === "ranking" && !a.previous.stale && !a.previous.parked && a.previous.subject_key === a.state.subject_key && a.previous.scope_key === a.state.scope_key && Date.parse(a.previous.expires_at) > now ? a.previous : null;
-  if (a.objective === "explain" && reusable) {
+  const safetyBounded = Boolean(a.hazard) || a.safetyHistoryAvailable === false;
+  if (safetyBounded) {
+    result = { v: 1, assessment_id: index.assessment_id, objective: a.objective, mode: "deterministic", status: "BOUNDED",
+      candidates: [], ranking: null, tied_groups: [], conclusion: a.hazard ? hazardContinuityNotice(a.hazard) : "The conversation's safety history is unavailable. These records cannot establish whether an earlier reported hazard remains unresolved, so I cannot give a safety assessment or ranking.",
+      rationale: index.candidates.slice(0, 6).map(c => `Administrative record only: ${c.ref.label || "item"}: ${describe(c).join(", ")}.`),
+      uncertainties: ["The report is not matched to a verified physical resolution; I cannot use record lifecycle to rank it as no longer a concern."],
+      limitations: ["No ranking or all-clear is established by these records."], clarification: null, evidence_refs: [] };
+    finalFailures = validateResult(result, vctx(typed)); failures = finalFailures;
+  } else if (a.objective === "explain" && reusable) {
     result = explainFrom(reusable, index);
     finalFailures = validateResult(result, vctx(typed, [reusable.assessment_id])); failures = finalFailures;
   } else if (business.length) { // includes an explain with nothing earlier to explain: it must not fall through to a "nothing found" conclusion
@@ -146,7 +158,7 @@ export async function judgeAssessment(a: JudgeArgs): Promise<JudgmentOutcome> {
   // IQ-5: whatever the validated answer names is the conversational referent (a ranking, a compared pair, or the items needing
   // attention), kept as ONE derived artifact. It never claims an order the judgment did not establish (`ordered` is false for the latter two).
   let lead: ReturnType<typeof targetedLead> = null;
-  if (a.targeted !== false && a.answerTarget) { try { lead = targetedLead(result, a.state, index, a.answerTarget!, a.question, { hadPrevious: Boolean(a.previous), userReports: a.userReports || [] }); } catch { lead = null; } }
+  if (!safetyBounded && a.targeted !== false && a.answerTarget) { try { lead = targetedLead(result, a.state, index, a.answerTarget!, a.question, { hadPrevious: Boolean(a.previous), userReports: a.userReports || [] }); } catch { lead = null; } }
   // A focused explanation/clarification is not a presentation of a new ordered
   // set. Keep the existing IQ-5 referent rather than minting an unseen ranking.
   const artifact = ok && result.status === "JUDGED" && !lead?.focused ? artifactFor(result, a, basis, now, index) : null;

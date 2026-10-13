@@ -9,6 +9,20 @@ import { responseContract } from "../response/resultEnvelope";
 import { projectResponse, projectionRequired } from "../response/projector";
 import { denialAnswer, isGenericUnsupportedAnswer, limitationAnswer } from "../response/limitationTarget";
 import { evidenceScopeProvenance, scopeDenialAnswer } from "../response/scopeProvenance";
+import { hazardContinuityNotice, hazardReportIn } from "../response/answerTarget";
+import type { CanonicalConversationRequestContext } from "../contracts/conversation";
+
+// Applied before canonical persistence, including terminal/follow-up answers.
+// It preserves action truth and does not infer an entity match or intervention.
+export function preserveHazardContinuity(context: CanonicalConversationRequestContext, response: CanonicalConversationResponse) {
+  const hazard = context.safetyContext?.hazard;
+  if ((!hazard && context.safetyContext?.historyAvailable !== false) || hazardReportIn(context.input.message)) return;
+  const notice = hazard ? hazardContinuityNotice(hazard) : "The conversation's safety history is unavailable; these records do not establish physical safety or resolution of any earlier report.";
+  if (response.answer.includes(notice)) return;
+  const answer = `${response.answer}\n\n${notice}`;
+  response.answer = response.reply = response.message = response.summary = answer;
+  if (response.truth) response.truth.body = answer;
+}
 
 // IQ-8D: read capabilities return structured truth; the ONE AnswerTarget carried on the semantic frame decides the shape. Core maps the result into
 // a ResultEnvelope (mapResultEnvelope) and projects it (projectResponse). The capability's own prose stays as supporting detail and as the fallback.
@@ -140,7 +154,8 @@ export function capabilityDomainResultToConversationResponse(input: {
   sourceScopes?: import("../response/scopeProvenance").AnswerScopeProvenance["retrieved"];
 }): CanonicalConversationResponse {
   const scopeProvenance = evidenceScopeProvenance(input.context, input.capability.key, input.evidence, input.sourceScopes);
-  if (scopeProvenance.decision === "denied") {
+  const privateWithheld = ((input.context.input.context as any)?.disclosure_constraints || []).includes("private_records");
+  if (scopeProvenance.decision === "denied" || (privateWithheld && (input.evidence.length > 0 || (input.sourceScopes?.length || 0) > 0))) {
     input = { ...input, evidence: [], result: { status: "permission_restricted", answer: scopeDenialAnswer,
       presentation_policy: { primary: "text", allowed_supporting_blocks: ["text"], allowed_action_types: [],
         suppress_awareness: true, suppress_context_chips: true, suppress_duplicate_status: true,

@@ -1,6 +1,7 @@
 import type { CapabilityContext } from "../contracts/capability";
 import type { OyiEvidence } from "../contracts/evidence";
 import type { SemanticFrame } from "../contracts/semanticFrame";
+import { actorHasFacilityReadScope } from "../../intelligence-core/permissionEngine";
 
 // An answer-scope invariant, not an authority engine. Eligibility remains canUse().
 // Intent must not be overwritten by the scope that happens to be readable.
@@ -16,7 +17,19 @@ type Context = Pick<CapabilityContext, "actor" | "oisContext" | "input">;
 const normalize = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const operational = /\b(?:wallets?|balances?|transactions?|maintenance|repairs?|visitors?|guests?|devices?|lights?|cameras?|security|utilities|payments?|spending|financial|incidents?)\b/i;
 const operationalFrame = (raw: string, frame: SemanticFrame) => operational.test(raw)
-  || ["wallet", "transactions", "maintenance", "visitors", "devices", "cameras", "security", "utilities", "financial"].includes(String(frame.domain));
+  || [frame.domain, frame.concepts?.head_domain].some(d => ["wallet", "transactions", "maintenance", "visitors", "devices", "cameras", "security", "utilities", "financial"].includes(String(d)));
+
+// Only server-verified operating-context members can resolve a display label.
+// Selection narrows the current estate; it never grants a capability permission.
+export function verifiedRequestedHome(context: Context, frame: SemanticFrame) {
+  if (context.input.surface !== "facility" || !actorHasFacilityReadScope(context.actor?.role)) return null;
+  const estate = context.oisContext?.estate_id;
+  const refs = requestedAnswerScope(context, frame).home_references;
+  if (!estate || refs.length !== 1) return null;
+  const homes = [...(context.oisContext?.available_homes || []), ...(context.oisContext?.home ? [context.oisContext.home] : [])];
+  const matches = homes.filter(h => h.estate_id === estate && [h.id, h.name, h.unit].some(v => v && normalize(v) === normalize(refs[0])));
+  return new Set(matches.map(h => h.id)).size === 1 ? matches[0] : null;
+}
 
 export function requestedAnswerScope(context: Context, frame: SemanticFrame) {
   const raw = String(frame.rawText || context.input.message || ""), surface = context.input.surface;
@@ -46,9 +59,10 @@ export function answerScopeDecision(context: Context, frame: SemanticFrame): Ans
   const authorized = { surface, estate_id: context.oisContext?.estate_id || context.actor?.estate_id || null,
     home_id: context.oisContext?.home_id || (surface === "consumer" ? context.actor?.home_id : null) || null };
   const knownHome = context.oisContext?.home as { id?: string; name?: string } | null | undefined;
-  const aliases = [authorized.home_id, knownHome?.id, knownHome?.name].filter(Boolean).map(normalize);
+  const verifiedHome = verifiedRequestedHome(context, frame);
+  const aliases = [authorized.home_id, knownHome?.id, knownHome?.name, verifiedHome?.id, verifiedHome?.name, verifiedHome?.unit].filter(Boolean).map(normalize);
   let reason: string | null = null;
-  if (surface === "consumer" && operationalFrame(String(frame.rawText || ""), frame) && requested.subject !== "own") reason = "requested_scope_not_authorized";
+  if (surface === "consumer" && requested.subject !== "own") reason = "requested_scope_not_authorized";
   if (requested.home_references.some(ref => !aliases.includes(normalize(ref)))) reason = "requested_home_not_verified";
   if (surface === "consumer" && context.input.home_id && context.input.home_id !== authorized.home_id) reason = "requested_home_not_verified";
   if ((surface === "office_internal" || surface === "public_corporate") && requested.population === "household") reason = "household_scope_not_available_on_surface";
@@ -66,6 +80,10 @@ export function evidenceScopeProvenance(context: CapabilityContext, capability: 
       p.decision = "denied"; p.reason = "evidence_scope_mismatch";
     }
     if ((context.input.surface === "office_internal" || context.input.surface === "public_corporate") && r.home_id) {
+      p.decision = "denied"; p.reason = "evidence_scope_mismatch";
+    }
+    if (context.input.surface === "facility" && ((r.estate_id && r.estate_id !== p.authorized.estate_id)
+      || (p.requested.home_references.length > 0 && (!p.authorized.home_id || r.home_id !== p.authorized.home_id)))) {
       p.decision = "denied"; p.reason = "evidence_scope_mismatch";
     }
   }

@@ -11,6 +11,7 @@ export function disclosureConstraintsIn(message: string): string[] {
   const t = String(message || "").replace(/’/g, "'");
   const names = /\b(?:visitor|visitors|guest|guests)(?:'s|s')?\s+names?\b|\bnames?\s+of\s+(?:my\s+|the\s+)?(?:visitors?|guests?)\b/i;
   if (names.test(t) && (NEGATION.test(t) && WITHHOLD_VERB.test(t) || /\bno\s+(?:visitor|guest)\s+names?\b/i.test(t))) out.push("visitor_names");
+  if (NEGATION.test(t) && /\b(?:read|retrieve|access|inspect|disclose|reveal|show|repeat|use)\b[^.;!?]*\b(?:private|personal)\s+(?:records?|data|information|facts?)\b/i.test(t)) out.push("private_records");
   return out;
 }
 /** A lifting message ("you can mention names again") removes the constraint. */
@@ -18,6 +19,7 @@ export function disclosureConstraintLifted(message: string): string[] {
   const t = String(message || "").replace(/’/g, "'");
   if (disclosureConstraintsIn(t).length) return [];
   const lifted: string[] = [];
+  if (/\b(?:you\s+can|go\s+ahead\s+and)\b[^.;!?]*\b(?:read|access|use)\b[^.;!?]*\b(?:private|personal)\s+(?:records?|data|information|facts?)\s+again\b/i.test(t)) lifted.push("private_records");
   if (/\b(?:you\s+can|feel\s+free\s+to|it'?s\s+(?:fine|ok|okay)\s+to|go\s+ahead\s+and)\b[^.]*\b(?:visitor|guest)s?'?\s*names?\b/i.test(t) || /\b(?:names?\s+(?:are\s+)?(?:fine|ok|okay)\s+again|lift|cancel|ignore)\b[^.]*\b(?:visitor|guest)s?'?\s*names?\b/i.test(t)) lifted.push("visitor_names");
   return lifted;
 }

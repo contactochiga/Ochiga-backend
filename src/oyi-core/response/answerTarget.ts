@@ -419,6 +419,10 @@ export function normalizeIndirectCommand(message: string): string {
 
 /** IQ-9A14: the class of a user-reported hazard (general concepts, not sentences) and the precaution that fits it. A precaution is guidance, never proof that anything is safe. */
 export type HazardClass = "intrusion" | "gas" | "fire" | "water" | "electrical" | "other";
+/** An administrative record is not a physical resolution of a caller's report. */
+export function hazardContinuityNotice(hazard: HazardClass): string {
+  return `The ${hazard} hazard reported in this conversation remains unverified and unresolved here. A closed or resolved administrative record does not establish that the reported hazard has ended. I have not verified physical safety or completed any intervention. ${hazardPrecaution(hazard)}`;
+}
 export function hazardClassIn(text: string): HazardClass {
   const T = analyse(text).tokens, has = (...w: string[]) => T.some(t => w.includes(t));
   if (has("burglary", "burglar", "burglars", "burgled", "intruder", "intruders", "intrusion", "robbery", "robbed", "stranger", "strangers", "trespasser", "trespassers", "squatter", "squatters", "breakin", "breakins", "ransacked") || T.some((t, i) => ["break", "broke", "broken", "breaking"].includes(t) && ["in", "into"].includes(T[i + 1] ?? "")) || (has("door") && has("handle") && has("trying")) || (has("forced", "forcing") && has("entry", "door", "window", "gate"))) return "intrusion";

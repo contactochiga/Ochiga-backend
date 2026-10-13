@@ -1,5 +1,6 @@
 import type { CognitiveObjective } from "../contracts/semanticFrame";
 import { domainHits } from "./domainVocabulary";
+import { disclosureConstraintsIn } from "../response/disclosureConstraint";
 
 // IQ-7 semantic generalisation. This is the canonical objective/speech-act recogniser used by SemanticFrameParser: there is no second parser.
 // It infers the cognitive job from COMPOSITIONAL signals (speech act, question form, single-word semantic stems, comparison/ordering
@@ -383,6 +384,9 @@ export function isCancellationSentence(u: Utterance): boolean {
   const first = T[0];
   if (u.negImperative) {
     const verb = T.find((t, i) => i > 0 && !["not", "ever", "just", "to", "even", "again", "need", "bother"].includes(t) ) ?? "bother";
+    // A restriction on reading private evidence is not withdrawal of a device
+    // or communication action. Explicit cancellation verbs still win above.
+    if (["read", "retrieve", "access", "inspect", "use"].includes(verb) && disclosureConstraintsIn(u.raw).includes("private_records")) return false;
     // A prohibition on asserting completion remains a truth constraint even
     // when its object mentions a call/send. The governing verb owns polarity.
     if (["claim", "promise", "pretend", "guarantee", "assume", "state", "imply", "say", "describe"].includes(verb)) return false;

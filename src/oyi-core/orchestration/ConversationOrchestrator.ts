@@ -39,8 +39,8 @@ import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
 import { recordConversationTrace } from "../observability/conversationTraceRecorder";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
-import { capabilityDomainResultToConversationResponse } from "../capabilities/CapabilityResponseAdapter";
-import { answerScopeDecision, scopeDenialAnswer } from "../response/scopeProvenance";
+import { capabilityDomainResultToConversationResponse, preserveHazardContinuity } from "../capabilities/CapabilityResponseAdapter";
+import { answerScopeDecision, scopeDenialAnswer, verifiedRequestedHome } from "../response/scopeProvenance";
 import { buildDeviceActionCapabilities, continueDeviceActionWorkflow } from "../capabilities/DeviceActionCapabilityModules";
 import { buildPhaseBReadCapabilities, resultPresentation } from "../capabilities/ReadCapabilityModules";
 import { buildOfficeInternalReadCapabilities, buildPublicCorporateReadCapabilities, taskBatchContextSlot, officeSnapshot } from "../capabilities/OfficeCorporateCapabilityModules";
@@ -657,6 +657,7 @@ async function reconcileWorkflowThreadId(workflowId: string | null | undefined, 
 }
 
 async function persistCapabilityResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, capability: CapabilityModule) {
+  preserveHazardContinuity(context, response);
   const contract = requestContractForCapability(context, turn, capability);
   logger.info("oyi_capability_persistence_started", {
     request_id: turn.request_id,
@@ -721,6 +722,7 @@ async function persistCapabilityResponse(context: CanonicalConversationRequestCo
 }
 
 async function persistTerminalConversationResponse(context: CanonicalConversationRequestContext, response: ConversationRunResult, truth: CanonicalTruth, turn: ResolvedTurn, classification: string) {
+  preserveHazardContinuity(context, response);
   const contract = requestContractForTerminalTurn(context, turn);
   logger.info("oyi_terminal_conversation_persistence_started", {
     request_id: turn.request_id,
@@ -3815,6 +3817,10 @@ export class ConversationOrchestrator {
     // IQ-7: the active assessment is part of the meaning of a turn (a statement continues it; an unprompted complaint opens one)
     const earlyAssessment = await loadConversationAssessment(context.input, context.actor?.id || null).catch(() => null);
     const parsedFrame = parseSemanticFrame(context.input.message, { activeAssessment: Boolean(earlyAssessment), surface: context.input.surface });
+    const requestedHome = verifiedRequestedHome(context, parsedFrame);
+    if (requestedHome && context.oisContext) context = { ...context,
+      input: { ...context.input, home_id: requestedHome.id },
+      oisContext: { ...context.oisContext, home: requestedHome, home_id: requestedHome.id } };
     const publicCorrection = context.input.surface === "public_corporate"
       && correctedPublicFacts(await loadPublicOpportunityObjective(context.input.thread_id), context.input.message);
     const publicObjective = context.input.surface === "public_corporate" ? await loadPublicOpportunityObjective(context.input.thread_id) : null;
@@ -3947,6 +3953,13 @@ export class ConversationOrchestrator {
       denied.execution.scope_admission = "denied";
       tracer.finish({ response_state: "scope_denied", thread_id: denied.thread_id });
       return denied;
+    }
+    if (((context.input.context as any)?.disclosure_constraints || []).includes("private_records") && !isCancellationText(context.input.message)) {
+      const restricted = await respondFromOfficeActionResult(context, resolvedTurn, syntheticOfficeActionCapability("answer_target.private_records_withheld", "global"), {
+        status: "unsupported", answer: "I haven't read or repeated private records, as requested. Access requires the current actor's effective permissions and the requested resource scope; a fact from an earlier conversation does not itself grant permission.", presentation_policy: resultPresentation("text"),
+      });
+      tracer.finish({ response_state: "private_records_withheld", thread_id: restricted.thread_id });
+      return restricted;
     }
     // Oyi Conversational Runtime Completion Programme, Phase 2 -- office_
     // internal conversation continuity. A no-op for every other surface
@@ -4436,7 +4449,7 @@ export class ConversationOrchestrator {
         // and any failure degrades to an honest bounded statement without touching canonical assessment state.
         let judged: JudgmentOutcome | null = null;
         if (gathered && boolFlag("OYI_JUDGMENT_ENABLED", true)) {
-          judged = await judgeAssessment({ state: planned!.state, objective: assessment.objective, question: frame.rawText, answerTarget: frame.answerTarget, surface: context.input.surface, previous: assessment.derived_ranking ?? null, provider: providerFromEnv(), userReports: (assessment.facts || []).filter((f) => !f.superseded_by).map((f) => f.text) }).catch((error) => {
+          judged = await judgeAssessment({ state: planned!.state, objective: assessment.objective, question: frame.rawText, answerTarget: frame.answerTarget, surface: context.input.surface, previous: assessment.derived_ranking ?? null, provider: providerFromEnv(), hazard: context.safetyContext?.hazard, safetyHistoryAvailable: context.safetyContext?.historyAvailable, userReports: (assessment.facts || []).filter((f) => !f.superseded_by).map((f) => f.text) }).catch((error) => {
             logger.warn("oyi_assessment_judgment_failed", { request_id: tracer.requestId, error: error instanceof Error ? error.message : String(error) });
             return null;
           });

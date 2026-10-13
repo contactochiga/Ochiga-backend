@@ -154,6 +154,7 @@ export async function loadMaintenanceRequestFacts(
       .order("created_at", { ascending: false })
       .limit(50);
     query = isFacilitySurface ? query.eq("estate_id", scope.estate_id) : query.eq("home_id", scope.home_id);
+    if (isFacilitySurface && scope.home_id) query = query.eq("home_id", scope.home_id);
     const { data, error } = await query;
     if (error) throw error;
     const rows = Array.isArray(data) ? data : [];
