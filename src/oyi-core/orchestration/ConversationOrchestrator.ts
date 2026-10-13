@@ -36,7 +36,7 @@ import type { CanonicalIntent, IntelligenceRequestContract, OperationClass, Scop
 import { ConversationTracer } from "../observability/ConversationTracer";
 import { incrementCanonicalConversationOutcome } from "../observability/ConversationMetrics";
 import { capabilityRegistry } from "../capabilities/CapabilityRegistry";
-import { recordConversationTrace } from "../observability/conversationTraceRecorder";
+import { recordConversationTrace, retainExceptionTrace } from "../observability/conversationTraceRecorder";
 import { capabilityService } from "../capabilities/CapabilityService";
 import { buildCapabilityAdvertisingResult } from "../capabilities/CapabilityAdvertisingPresentation";
 import { capabilityDomainResultToConversationResponse, preserveHazardContinuity } from "../capabilities/CapabilityResponseAdapter";
@@ -3591,9 +3591,10 @@ export class ConversationOrchestrator {
       const latest = new Map(captures.map(c => [c.requestId, c]));
       const receipt = recordConversationTrace({ events: [...latest.values()].flatMap(c => c.events).slice(0, 256),
         startedAt, completedAt: Date.now(), requestId, surface: context.input.surface,
-        threadId: response?.thread_id || context.input.thread_id || null, actor: context.actor as any,
+        threadId: response?.thread_id || (response as any)?.persistence_attempt_thread_id || context.input.thread_id || null, actor: context.actor as any,
         response: response as any, error: failure });
       if (response) response.execution = { ...response.execution, durable_trace: receipt };
+      if (failure) retainExceptionTrace(failure, requestId, receipt);
     }
   }
 

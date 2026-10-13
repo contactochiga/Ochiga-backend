@@ -46,16 +46,29 @@ let writeHealth: { status: "unknown" | "saved" | "failed"; code: string | null }
 export const conversationTraceWriteHealth = () => ({ ...writeHealth });
 
 function safeCode(error: unknown): string {
-  const code = error && typeof error === "object" ? (error as any).code : null;
-  return typeof code === "string" && /^[A-Za-z0-9_]{1,32}$/.test(code) ? code : "trace_write_failed";
+  const e = error as any, code = String(e?.code || e?.cause?.code || "");
+  return /^(?:[0-9]{2}[A-Z0-9]{3}|PGRST[0-9]{3})$/.test(code) || ["UND_ERR_SOCKET", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "trace_timeout", "trace_verification_mismatch"].includes(code) ? code
+    : ["AbortError", "TimeoutError"].includes(e?.name) ? "trace_timeout" : "trace_write_failed";
 }
 
-function reportFailure(stage: "projection" | "insert", error: unknown) {
+export function traceFailureClass(error: unknown): string {
+  const code = safeCode(error);
+  if (["42703", "42P01", "PGRST204", "PGRST205", "PGRST202"].includes(code)) return "schema";
+  if (["42501", "PGRST301", "PGRST302"].includes(code)) return "permission";
+  if (["trace_timeout", "ETIMEDOUT", "57014"].includes(code)) return "timeout";
+  if (/^(?:UND_|ECONN)/.test(code)) return "transport";
+  if (/^(?:08|53|57)/.test(code)) return "database_unavailable";
+  if (code === "trace_verification_mismatch") return "verification_mismatch";
+  if (/^[0-9]{2}[A-Z0-9]{3}$/.test(code)) return "database_rejection";
+  return "unknown";
+}
+
+function reportFailure(stage: "projection" | "insert" | "verify", error: unknown, traceId?: string) {
   writeHealth = { status: "failed", code: safeCode(error) };
   operationalMetrics.increment("oyi_conversation_trace_write_total", { outcome: "failed", stage });
   const now = Date.now();
   if (now - lastFailureLogAt >= FAILURE_LOG_INTERVAL_MS) {
-    logger.warn("oyi_conversation_trace_write_failed", { stage, error_code: safeCode(error), suppressed_since_last: suppressedFailures });
+    logger.warn("oyi_conversation_trace_write_failed", { stage, error_code: safeCode(error), failure_class: traceFailureClass(error), trace_id: traceId || null, suppressed_since_last: suppressedFailures });
     lastFailureLogAt = now;
     suppressedFailures = 0;
   } else {
@@ -68,16 +81,38 @@ type TraceInsert = (record: ConversationTraceRecord) => Promise<void>;
 const defaultInsert: TraceInsert = async (record) => {
   // Retry of an ambiguous delivery uses this same UUID; append-only DO NOTHING
   // cannot overwrite an already recorded trace or duplicate it.
+  const signal = AbortSignal.timeout(2000);
   const { error } = await supabaseAdmin.from(CONVERSATION_TRACE_TABLE)
-    .upsert(record as any, { onConflict: "trace_id", ignoreDuplicates: true }).abortSignal(AbortSignal.timeout(2000));
-  if (error) throw error;
+    .upsert(record as any, { onConflict: "trace_id", ignoreDuplicates: true }).abortSignal(signal);
+  if (error) throw signal.aborted ? { code: "trace_timeout" } : error;
 };
 let insertImpl: TraceInsert = defaultInsert;
 export function __setConversationTraceInsertForTests(fn: TraceInsert | null) {
   insertImpl = fn || defaultInsert;
 }
 
-export type TraceRecordOutcome = { attempted: boolean; trace_id: string | null; status: "pending" | "saved" | "failed" | "disabled" | "unconfigured"; error_code?: string };
+export type TraceRecordOutcome = { attempted: boolean; trace_id: string | null; status: "pending" | "saved" | "failed" | "disabled" | "unconfigured"; error_code?: string;
+  delivery_state?: "pending" | "saved_verified" | "failed" | "timed_out" | "uncertain";
+  failure_class?: string; stage?: "insert" | "verify"; attempts?: number; turn_ref?: string | null };
+
+// Private in-process correlation for callers handling exceptions. Never mutate
+// an authorization error, serialize its payload or persist rejected content.
+const rejectedReceipts = new WeakMap<object, { request_id: string; receipt: TraceRecordOutcome }>();
+export function retainExceptionTrace(error: unknown, requestId: string, receipt: TraceRecordOutcome) {
+  if (error && typeof error === "object") rejectedReceipts.set(error, { request_id: requestId, receipt });
+}
+export function exceptionTraceCorrelation(error: unknown) {
+  return error && typeof error === "object" ? rejectedReceipts.get(error) ?? null : null;
+}
+
+async function verifyRecord(record: ConversationTraceRecord) {
+  const signal = AbortSignal.timeout(2000);
+  const { data, error } = await supabaseAdmin.from(CONVERSATION_TRACE_TABLE)
+    .select("trace_id,turn_ref,thread_ref,persistence_saved,authority_result,terminal_outcome,response_status")
+    .eq("trace_id", record.trace_id).abortSignal(signal).maybeSingle();
+  if (error) throw signal.aborted ? { code: "trace_timeout" } : error;
+  if (!data || Object.keys(data).some(k => (data as any)[k] !== (record as any)[k])) throw { code: "trace_verification_mismatch" };
+}
 
 // Synchronous, non-throwing entry point. Returns immediately; the write
 // continues in the background.
@@ -105,7 +140,7 @@ export function recordConversationTrace(input: TraceProjectionInput): TraceRecor
     return { attempted: false, trace_id: null, status: "failed", error_code: "projection_failed" };
   }
   const startedAt = Date.now();
-  const receipt: TraceRecordOutcome = { attempted: true, trace_id: record.trace_id, status: "pending" };
+  const receipt: TraceRecordOutcome = { attempted: true, trace_id: record.trace_id, status: "pending", delivery_state: "pending", turn_ref: record.turn_ref, attempts: 0 };
   const insert = insertImpl;
   const write = (async () => {
     try {
@@ -113,9 +148,14 @@ export function recordConversationTrace(input: TraceProjectionInput): TraceRecor
       for (let attempt = 0; ; attempt++) {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-          await Promise.race([insert(record), new Promise<never>((_, reject) => {
+          receipt.attempts = attempt + 1;
+          receipt.stage = "insert";
+          // The stage variable is local: late callbacks cannot mutate a receipt.
+          let stage: "insert" | "verify" = "insert";
+          await Promise.race([(async () => { await insert(record); stage = "verify"; await verifyRecord(record); })(), new Promise<never>((_, reject) => {
             timer = setTimeout(() => reject({ code: "trace_timeout" }), 2200);
-          })]);
+          })]).catch(error => { receipt.stage = stage; throw error; });
+          receipt.stage = "verify";
           break;
         } catch (error) {
           const code = safeCode(error);
@@ -123,13 +163,17 @@ export function recordConversationTrace(input: TraceProjectionInput): TraceRecor
         } finally { if (timer) clearTimeout(timer); }
       }
       receipt.status = "saved";
+      receipt.delivery_state = "saved_verified";
       writeHealth = { status: "saved", code: null };
       operationalMetrics.increment("oyi_conversation_trace_write_total", { outcome: "saved", stage: "insert" });
       operationalMetrics.observe("oyi_conversation_trace_write_ms", Date.now() - startedAt, {});
     } catch (error) {
       receipt.status = "failed";
       receipt.error_code = safeCode(error);
-      reportFailure("insert", error);
+      receipt.failure_class = traceFailureClass(error);
+      receipt.delivery_state = receipt.failure_class === "timeout" ? "timed_out"
+        : receipt.stage === "verify" || ["transport", "unknown"].includes(receipt.failure_class) ? "uncertain" : "failed";
+      reportFailure(receipt.stage || "insert", error, record.trace_id);
     }
   })();
   inFlight.add(write);
@@ -138,6 +182,12 @@ export function recordConversationTrace(input: TraceProjectionInput): TraceRecor
 }
 
 // Await every in-flight trace write (tests and graceful shutdown only).
-export async function flushConversationTraceWrites(): Promise<void> {
-  while (inFlight.size) await Promise.allSettled(Array.from(inFlight));
+export async function flushConversationTraceWrites(timeoutMs = 6000): Promise<boolean> {
+  const deadline = Date.now() + Math.max(1, Math.min(timeoutMs, 10000));
+  while (inFlight.size && Date.now() < deadline) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.allSettled(Array.from(inFlight)), new Promise(resolve => { timer = setTimeout(resolve, deadline - Date.now()); })]);
+    if (timer) clearTimeout(timer);
+  }
+  return inFlight.size === 0;
 }

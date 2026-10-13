@@ -513,6 +513,10 @@ export async function persistCanonicalConversationTurn(input: {
     // delete rows after an ambiguous network response: it may have committed.
     response.persistence_request_id = contract.conversation_request_id;
     response.persistence_saved = false;
+    // Diagnostic identity of the attempted transaction, not a claim that this
+    // thread exists. Enables exact reconciliation after a lost acknowledgement.
+    response.persistence_attempt_thread_id = threadId;
+    response.persistence_trace_request_id = text(recordOf(request.context).canonical_trace_request_id) || contract.conversation_request_id;
     response.persistence_failure_stage = failedStage;
     (response as any).persistence_warning = "This answer's save could not be confirmed; conversation history may be incomplete.";
     logger.warn("conversation_turn_persist_failed", {

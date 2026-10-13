@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+const path=process.argv[2];assert(path?.startsWith('/tmp/iq11c-')&&path.endsWith('-manifest.json'));
+const sha=b=>createHash('sha256').update(b).digest('hex');
+const files=(root)=>fs.readdirSync(root,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(root+'/'+e.name):[root+'/'+e.name]);
+const paths=[...files('src'),...files('dist'),'scripts/iq8f-run.mjs','scripts/iq1-local-run.mjs','scripts/iq11c-reliability-live.mjs'];
+const manifest={head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),files:paths.map(path=>({path,sha256:sha(fs.readFileSync(path))})),provider:'off',physical_execution:'trapped',fixture:'loopback:55421'};
+fs.writeFileSync(path,JSON.stringify(manifest,null,2),{flag:'wx'});console.log(JSON.stringify({files:paths.length,sha256:sha(fs.readFileSync(path))}));
