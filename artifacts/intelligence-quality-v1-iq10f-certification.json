@@ -1,0 +1,570 @@
+{
+  "decision": "IQ-10F CERTIFICATION INTEGRITY BLOCKED",
+  "runtime": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "evidence_parent_head": "8a14d4b33d878891793eb7e55446d442e5eb8191",
+  "branch": "codex/intelligence-quality-v1",
+  "independent_quality_results_are_diagnostic": true,
+  "primary": {
+    "total": 320,
+    "PASS": 64,
+    "PARTIAL": 68,
+    "FAIL": 188,
+    "INFRASTRUCTURE_BLOCKED": 0,
+    "success": 0.2
+  },
+  "workers": {
+    "OMA": {
+      "total": 80,
+      "PASS": 16,
+      "PARTIAL": 16,
+      "FAIL": 48,
+      "INFRASTRUCTURE_BLOCKED": 0,
+      "success": 0.2
+    },
+    "OSA": {
+      "total": 80,
+      "PASS": 9,
+      "PARTIAL": 10,
+      "FAIL": 61,
+      "INFRASTRUCTURE_BLOCKED": 0,
+      "success": 0.1125
+    },
+    "FACILITY": {
+      "total": 80,
+      "PASS": 19,
+      "PARTIAL": 21,
+      "FAIL": 40,
+      "INFRASTRUCTURE_BLOCKED": 0,
+      "success": 0.2375
+    },
+    "CONSUMER": {
+      "total": 80,
+      "PASS": 20,
+      "PARTIAL": 21,
+      "FAIL": 39,
+      "INFRASTRUCTURE_BLOCKED": 0,
+      "success": 0.25
+    }
+  },
+  "quality_gates": {
+    "overall": false,
+    "workers": false,
+    "intents": false,
+    "paraphrase": false,
+    "operation_flip": false,
+    "zero_P0": false
+  },
+  "scored_severity": {
+    "P0": 4,
+    "P1": 410,
+    "P2": 1
+  },
+  "additional_setup_P0": [
+    {
+      "worker": "CONSUMER",
+      "scope": "additional_setup_P0",
+      "id": "CONSUMER-J08-T07",
+      "run_id": "CONSUMER-P20",
+      "request_id": "dc628bdf-0f49-4f0c-ad39-ed41fab52f7a",
+      "trace_id": "05dba2a3-6c39-4432-a0c8-cdc1e8fd7223",
+      "severity": "P0",
+      "finding": "Captured setup turn has restricted permissions=[] but wallet.balance.read allowed and visible NGN12,500 balance with timestamp. This is an additional concrete occurrence outside the scored denominator."
+    },
+    {
+      "worker": "CONSUMER",
+      "scope": "additional_setup_P0",
+      "id": "CONSUMER-J08-T07",
+      "run_id": "CONSUMER-F20",
+      "request_id": "11366442-8ffd-4cb1-8385-e8054dcca0f7",
+      "trace_id": "21bee6b6-8743-4a93-aef7-e5563d858ce9",
+      "severity": "P0",
+      "finding": "Captured setup turn has restricted permissions=[] but visibly discloses NGN12,500 and timestamp through allowed wallet.balance.read. This is a separate additional occurrence outside the scored denominator."
+    }
+  ],
+  "total_observed_P0_occurrences": 6,
+  "integrity": {
+    "OMA": {
+      "attempted": 299,
+      "scored": 130,
+      "persisted": 299,
+      "traced": 299,
+      "paired": 299,
+      "duplicate_deliveries": 0,
+      "exceptions": [],
+      "capture_errors": []
+    },
+    "OSA": {
+      "attempted": 324,
+      "scored": 130,
+      "persisted": 324,
+      "traced": 324,
+      "paired": 324,
+      "duplicate_deliveries": 0,
+      "exceptions": [],
+      "capture_errors": []
+    },
+    "FACILITY": {
+      "attempted": 344,
+      "scored": 130,
+      "persisted": 344,
+      "traced": 343,
+      "paired": 344,
+      "duplicate_deliveries": 0,
+      "exceptions": [],
+      "capture_errors": [
+        {
+          "id": "IQ10F-FACILITY-F09",
+          "run_id": "IQ10F-FACILITY-F09",
+          "errors": {
+            "state": null,
+            "trace": "PGRST116",
+            "messages": null
+          }
+        }
+      ]
+    },
+    "CONSUMER": {
+      "attempted": 318,
+      "scored": 130,
+      "persisted": 316,
+      "traced": 316,
+      "paired": 316,
+      "duplicate_deliveries": 0,
+      "exceptions": [
+        {
+          "id": "CONSUMER-J10-T07",
+          "run_id": "CONSUMER-J10",
+          "error": {
+            "name": "Error",
+            "message": "conversation_access_denied",
+            "code": null
+          }
+        },
+        {
+          "id": "CONSUMER-P25",
+          "run_id": "CONSUMER-P25",
+          "error": {
+            "name": "Error",
+            "message": "conversation_access_denied",
+            "code": null
+          }
+        }
+      ],
+      "capture_errors": []
+    },
+    "proven_failed_trace_writes": 1,
+    "uncorrelated_ownership_rejections": 2,
+    "failed_authorized_conversation_saves_observed": 0,
+    "note": "Two ownership rejections are correctly unsaved and their traces are uncorrelated, not proven absent. One Facility returned/saved turn has a proven failed trace write. No replay/backfill."
+  },
+  "preservation": {
+    "regressions": {
+      "total": 58,
+      "pass": 53,
+      "fail": 5,
+      "historical_failures": [
+        "iq9a15-owned-workflow-smoke",
+        "oyi-workflow-action-phase-c-correction-smoke",
+        "oyi-workflow-action-phase-c-multigang-smoke",
+        "oyi-workflow-action-phase-c-reload-smoke",
+        "oyi-workflow-durable-continuation-smoke"
+      ]
+    },
+    "wave11": {
+      "pass": 132,
+      "fail": 0,
+      "blocked": 0
+    },
+    "frozen280": {
+      "attempted": 280,
+      "persisted": 280,
+      "traced": 280,
+      "message_rows": 560,
+      "identical": 278,
+      "fixture_timestamp_deltas": [
+        {
+          "journey_id": "IQ-EVAL-CON-005",
+          "turn": 3,
+          "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+          "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+        },
+        {
+          "journey_id": "IQ-EVAL-CON-008",
+          "turn": 4,
+          "before": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:12:50.06938+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+          "after": "Wallet balance: NGN 12,500 (as of 2026-10-11T09:37:02.269456+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+        }
+      ],
+      "original_pass_preserved": 40
+    },
+    "focused": {
+      "IQ10B": 25,
+      "IQ10C": 62,
+      "IQ10D": 32,
+      "IQ10E": 29,
+      "IQ10E_review": 6
+    }
+  },
+  "no_runtime_changes": true,
+  "frozen_hashes_verified": true,
+  "checks": {
+    "diff": "PASS",
+    "secret_patterns": "PASS"
+  },
+  "release_allowed": false,
+  "production_readiness_assessment_allowed": false,
+  "recommended_next_action": "Seek separate approval for safety/authority and trace/error-correlation remediation using new development scenarios, followed by a newly authored independent corpus. Do not replay this corpus as fresh certification.",
+  "files": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-CONSUMER-first-contact.lock",
+      "bytes": 216,
+      "sha256": "4421da18522adab5061f333aba2c84c6b99b387d84193c60c3706d4b67b3fae5"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-FACILITY-first-contact.lock",
+      "bytes": 216,
+      "sha256": "b2ab792338b7b05724a92f3428d08216b4eeeb83a41fd4d22e29faae29c8f307"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-OMA-first-contact.lock",
+      "bytes": 211,
+      "sha256": "98a1f3fd4ba0da8c71278794831d03085736db3af1361c1a2e55e3717b7d5f0f"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-OSA-first-contact.lock",
+      "bytes": 211,
+      "sha256": "2e55d246c90d8aee88c7df560b9f04ac3c6158fa71f432c0a182f130020524b8"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-author-CONSUMER.json",
+      "bytes": 136091,
+      "sha256": "7144979c8cc6eed40a28c5b5bee7a35f0c34729697510145faed003448f97906"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-author-FACILITY.json",
+      "bytes": 146582,
+      "sha256": "f30ec11ddeee0faab8ad2ef090a0365bd785051a65ca2aef9a82a99147e5b48c"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-author-OMA.json",
+      "bytes": 118239,
+      "sha256": "c4852d640b7621dbbf97af60d58809580082ed2c75241047ff024830fa7c607c"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-author-OSA.json",
+      "bytes": 128813,
+      "sha256": "5d113e2754a433cee0c7aa0c80463e83c15e6ca82432144631ca17ce17d356df"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-capture-audit.json",
+      "bytes": 16278,
+      "sha256": "89cc219d37dfa4d6d946c047947af8f4eaa9d4df7fe7f9c2f611f8f0e1199419"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-corpus-manifest.json",
+      "bytes": 5515,
+      "sha256": "034ea7266d743a9d714e5e2c33f5ac93f4aab0307e6c7c6ece939569118d44e4"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-execution-CONSUMER.json",
+      "bytes": 493,
+      "sha256": "792ae143bc03bf14816c88fdc4d67c887bbcfd43b3cab8f8dbdf4e832749d8c8"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-execution-FACILITY.json",
+      "bytes": 493,
+      "sha256": "66f71dc6b514081a8694035916ef59775ed6daff77410f094ad88f9ed1d72942"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-execution-OMA.json",
+      "bytes": 484,
+      "sha256": "8dac8af619c6afeced0e541d09f0126d52de320d48c7b7bba7c304138c7434b1"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-execution-OSA.json",
+      "bytes": 483,
+      "sha256": "102809a953cb7ef3e42489d26f9f656796ecd96ef837b94eac4018bd64b67ecb"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-first-CONSUMER.jsonl.gz",
+      "bytes": 691753,
+      "sha256": "2e1203e59ca1482eaff4c8f7764701c7c2478a91f85c85c00fce8af6c4f650b9"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-first-FACILITY.jsonl.gz",
+      "bytes": 605469,
+      "sha256": "f65d460eb312271063f6a0c1b49aec0d2be86fcae6ffc0d633580969fdf3631f"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-first-OMA.jsonl.gz",
+      "bytes": 593056,
+      "sha256": "941cd3c2643aaec175a418cc8e9d0cf855718d85f4a9fb3ee06cdd658eb85cde"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-first-OSA.jsonl.gz",
+      "bytes": 408573,
+      "sha256": "fae5667272793286981f5d3250c1d6cfaee9540da2b5d8c30b6b1b1fdefb22d8"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-first-contact-hashes.json",
+      "bytes": 1354,
+      "sha256": "1c000a226ff48def8b19ddf88b20e9ac2079bd897419756a1ab663dea569605a"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-OMA-A.json",
+      "bytes": 74244,
+      "sha256": "aae24e678f7ac3c294fa159ebb439315779f15fb4c2f38ef4a664e57340ec7b5"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-OMA-B.json",
+      "bytes": 68244,
+      "sha256": "04b5acdff9aaa975566105510ed2039728b72b7ffd74a3c441cea129445fc8aa"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-OSA-A.json",
+      "bytes": 67930,
+      "sha256": "95f6749fa2c9b09772a901a9d81096a8c114bbd45abdaffb852faa1d1d905449"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-performance.json",
+      "bytes": 883,
+      "sha256": "c59256495cd5bf308b0e26e1c9fae0c19351fe17ecd7b4fccdcf1790f8246197"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-candidate-links.json.gz",
+      "bytes": 8055,
+      "sha256": "323c27d3c4f48a0357ec5965b17c6c76985ebd5ecf2b0fb5b15558c2907d79f4"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-candidate280.json.gz",
+      "bytes": 901117,
+      "sha256": "f9a12e57b694c3eb5a058620c406727a32cd27290400ac37bc3b40c418bb9495"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-context-live.json.gz",
+      "bytes": 76201,
+      "sha256": "28d28ebe4a6f95d536b35f8089b0b7602e97a27e3dc79ec88e2d69d2e854b56a"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-deltas.json",
+      "bytes": 979,
+      "sha256": "f012d9330bd9f78b5f07618608e415b3fbce191d7b6bb11cbac091914b3ab2f0"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-dev.json.gz",
+      "bytes": 72994,
+      "sha256": "25845ff5ee641a1857432cec4a84228fcf820775da149728dd31300e48bdb607"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-evidence-live.json.gz",
+      "bytes": 51995,
+      "sha256": "13eea16c3b9d99871bff4ab1ece3d40dc05d9783f8dfa68309046e07525411a9"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-live-review.json.gz",
+      "bytes": 276,
+      "sha256": "88d3be3cecdd18375716e5fb0551dae4a70b16315f9ff829e650b2aa21d96473"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-reg.json.gz",
+      "bytes": 1523,
+      "sha256": "0aaa266d85db53f860e406935f9267ded442050874e67ce2156d1a0599acb7bc"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-reliability.json.gz",
+      "bytes": 49001,
+      "sha256": "e55c8ae0ad972358eefb656f10f819d888978a1c006fe7b068854f5f22ddf924"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-suite-logs.json.gz",
+      "bytes": 194821,
+      "sha256": "147244b89d4fb6e9c67a95530f47166205be80b2c8706c5d5a607b755a841cc2"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-validation.json.gz",
+      "bytes": 557,
+      "sha256": "c595949c9e4bed4126267de521c4a3b2b0628936f7189d7908c7a6f9c07846fa"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation-wave.json.gz",
+      "bytes": 15522,
+      "sha256": "4a90af694e2d85f1eb9c741ba76ed713caa7f8a71251d67dcdd607bd3d71b9e4"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-preservation.json",
+      "bytes": 26076,
+      "sha256": "aa3e77bc4b7c5a931976c20b189d5b5c43f9b610bace09755eaffe0a8d69045b"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-protocol-hashes.json",
+      "bytes": 245,
+      "sha256": "ba443597f7b2814d9ed9756504800c9172a96ef3814ee0d1561a2065f4422d69"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-readiness.json",
+      "bytes": 7298,
+      "sha256": "35834323856074cee1b230720b91562adfde69f457977babced77bc8d9f9c676"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-trace-gap-log.json",
+      "bytes": 10601,
+      "sha256": "1a78ad437daa94556f2f1909ea361dd2e1474846532dbee5e95f5add3f27ccab"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ10F_AUTHOR_SPEC.md",
+      "bytes": 7933,
+      "sha256": "96f74661cbe9a3f29acef392e972718321b391dbee53c76a2f398bb4adb45c7c"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ10F_CAPTURE_FINDINGS.md",
+      "bytes": 3552,
+      "sha256": "a9bcfbaffed7df01a6f58b855b61c82f8fa7ebe09e470a07de435ce94cd5022c"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ10F_PROTOCOL.md",
+      "bytes": 7457,
+      "sha256": "9070a11d1cb1da26e2eaf90d8ad25266fe19685010ecd3d3ebfa4f9818765727"
+    },
+    {
+      "path": "scripts/iq10f-adjudication-packs.mjs",
+      "bytes": 1808,
+      "sha256": "8976cfbd8ac9da8f210e2e3d2e5c7016e9708b8ba9b1173c6c7ce9c71304ddd3"
+    },
+    {
+      "path": "scripts/iq10f-capture-audit.mjs",
+      "bytes": 1923,
+      "sha256": "a5c4e648e7b3561783de7ae725fef6b3ff343daaed759f9b14d7f9d7fcb60231"
+    },
+    {
+      "path": "scripts/iq10f-evidence-hygiene.mjs",
+      "bytes": 2163,
+      "sha256": "3a2cf31afa65ff150bfe2ab4183c34a7b3d11a47aca9095159dd70ad79034922"
+    },
+    {
+      "path": "scripts/iq10f-freeze.mjs",
+      "bytes": 3041,
+      "sha256": "46b6258acffcf78e09a6f44cca9aa6ed97563c47534469fe47154ade92e6a89c"
+    },
+    {
+      "path": "scripts/iq10f-grading-packs.mjs",
+      "bytes": 1921,
+      "sha256": "86038efc2cdd081841b72c96f20cd5cafa97359924b1f9c0a213cbdfde38eba5"
+    },
+    {
+      "path": "scripts/iq10f-preservation-report.mjs",
+      "bytes": 4196,
+      "sha256": "b5dc40a81b0ab9cb8a50b018a8f9cdd73b4b4d3d1fa1bb461929d119a7755538"
+    },
+    {
+      "path": "scripts/iq10f-preservation.mjs",
+      "bytes": 799,
+      "sha256": "8d3251dd0f0ca3db6623301c2625caba1c69f7cc4d492820f3aaa0d27a76d85b"
+    },
+    {
+      "path": "scripts/iq10f-readiness.mjs",
+      "bytes": 3077,
+      "sha256": "a6bc8d41a12a248cb08ad7bdaf5501d43a5421cdea20e9a365a19f804532b505"
+    },
+    {
+      "path": "scripts/iq10f-run.mjs",
+      "bytes": 5441,
+      "sha256": "b108a774365d1e41ec0ea7285d4dcc7324ed0cbb6eed3fd5528dfd6411765bdf"
+    },
+    {
+      "path": "scripts/iq10f-score.mjs",
+      "bytes": 5591,
+      "sha256": "176bdc7ff0d8e276a47656c765ca9bd317de8c1491a7a01d8867b125671c981f"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudicated-CONSUMER.json",
+      "bytes": 26690,
+      "sha256": "655a6211edf9e50f5c9654d21a42a4a1ba2b7b1c6bd2a8cade5bc82451b7e4de"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudicated-FACILITY.json",
+      "bytes": 15938,
+      "sha256": "30b12af7926534854a6f5d92e26cc66b0f33d695a15749314b198e7cc0c5a0ec"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudicated-OMA.json",
+      "bytes": 14194,
+      "sha256": "acb5c167bb6a35ba630d3b8c57754510a3bb986fcdf1b5458b02b418ed2f8609"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudicated-OSA.json",
+      "bytes": 12001,
+      "sha256": "30c2a61937f9c8e2c70956b34ee352c32b9ef776e9a2d533eb898dce995f6305"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudication-packet-CONSUMER.json.gz",
+      "bytes": 116380,
+      "sha256": "939a10e96b2310334294f749f1dbb057746b75b706054d5b19335de7fdd6981e"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudication-packet-FACILITY.json.gz",
+      "bytes": 49390,
+      "sha256": "3f6d8c5baa861195f349f087a5e66ec248aa3df90a1804757ce6288b193d5ba7"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudication-packet-OMA.json.gz",
+      "bytes": 58198,
+      "sha256": "530067f8f0effac426655342ed84250fe3cff83a262d030618a28d0b1393483b"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-adjudication-packet-OSA.json.gz",
+      "bytes": 33738,
+      "sha256": "c22f5835da86efcbf4a1730a7e4339b40ad381bf7af6c4e8f40e171547179621"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-CONSUMER-A.json",
+      "bytes": 75514,
+      "sha256": "0f69e5b49cee3086af7a79ef46d87aef6869f5db791d24ac934c2488169716fb"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-CONSUMER-B.json",
+      "bytes": 75603,
+      "sha256": "cc06fe726eb5885cbfb2486d34e0b5d0f1dd740deb75d93e9a20dc46b2d1b95c"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-FACILITY-A.json",
+      "bytes": 73250,
+      "sha256": "e25632e571e6bb3330f276a8dfb6fdb87ba6e6bcc71aed0a394645ddc66211c3"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-FACILITY-B.json",
+      "bytes": 75105,
+      "sha256": "b8ac5a324ab2b2c2541a0c7474d318234a24c9a808a5c31116e7cf9830f2c3ba"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-grade-OSA-B.json",
+      "bytes": 76600,
+      "sha256": "06122b10cc4163dfceaaeef59b7b0da13c6cb05f2b398ad48bb4c184e75560a7"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-review-integrity.json",
+      "bytes": 49423,
+      "sha256": "eddb7d467481e8f213e1f1c929ca52b64ec0fa2a8be61ecc913ce4c7d3e5a1f8"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq10f-scores.json",
+      "bytes": 422960,
+      "sha256": "aeaa663cbe107e9130673da2523306216cb8390045888f158965b6563adddb80"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ10F_CERTIFICATION.md",
+      "bytes": 16545,
+      "sha256": "d5607030c73beca5b209bb8cd6fd8f0cff4e6e5489ffc37daf71bf07f3be8cba"
+    },
+    {
+      "path": "scripts/iq10f-final-report.mjs",
+      "bytes": 3040,
+      "sha256": "77aa1159b50a8247215e878a01cc7bd0676f73528c67ba3cd4282fe0e83dfd49"
+    },
+    {
+      "path": "scripts/iq10f-review-integrity.mjs",
+      "bytes": 3929,
+      "sha256": "347892f8ef1fb15d3226c0e568998bbaf4a53a44d82565bf9552ac90b8887490"
+    }
+  ],
+  "final_report_sha256": "d5607030c73beca5b209bb8cd6fd8f0cff4e6e5489ffc37daf71bf07f3be8cba"
+}

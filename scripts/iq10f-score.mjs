@@ -11,7 +11,8 @@ for(const w of workers){
  const a=JSON.parse(fs.readFileSync(prefix+'grade-'+w+'-A.json')).grades;
  const b=JSON.parse(fs.readFileSync(prefix+'grade-'+w+'-B.json')).grades;
  const adjud=JSON.parse(fs.readFileSync(prefix+'adjudicated-'+w+'.json')).grades;
- const selected=JSON.parse(fs.readFileSync('/tmp/iq10f-adjudication-'+w+'.json'));
+ const archivedSelection=prefix+'adjudication-packet-'+w+'.json.gz';
+ const selected=JSON.parse(fs.existsSync(archivedSelection)?gunzipSync(fs.readFileSync(archivedSelection)):fs.readFileSync('/tmp/iq10f-adjudication-'+w+'.json'));
  assert.equal(adjud.length,selected.cases.length);assert.equal(new Set(adjud.map(x=>x.id)).size,adjud.length);
  for(const c of selected.cases)assert(adjud.some(x=>x.id===c.case.id));
  agreement[w]={cases:130,verdict_agreement:cases.filter(c=>a.find(x=>x.id===c.id)?.verdict===b.find(x=>x.id===c.id)?.verdict).length,disagreements:selected.disagreements,adjudicated:adjud.length,agreed_sample:selected.agreed_sample.length};
