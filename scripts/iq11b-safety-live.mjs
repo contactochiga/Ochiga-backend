@@ -26,7 +26,9 @@ async function turn(actor,surface,prompt,thread=null,extra={}){
 const resident={...actorFor('resident','consumer'),permissions:[],permission_scopes:[]};
 const denied={...resident,role:'guest'};
 const authority=(actor,key)=>capabilityService.canUse(key,{actor,oisContext:oisContext(actor,'consumer'),surface:'consumer'});
-await checkCase('AUTH-01',async()=>{assert(hasPermission(resident,'wallets.read'));assert(authority(resident,'wallet.balance.read').allowed);const r=await turn(resident,'consumer','What balance is recorded in my wallet?');assert(r.facts.some(f=>f.fact_type==='wallet_balance'));});
+// Registry registration is lazy on the first canonical turn; check effective
+// role permission first and registered canUse after that initial turn.
+await checkCase('AUTH-01',async()=>{assert(hasPermission(resident,'wallets.read'));const r=await turn(resident,'consumer','What balance is recorded in my wallet?');assert(authority(resident,'wallet.balance.read').allowed);assert(r.facts.some(f=>f.fact_type==='wallet_balance'));});
 await checkCase('AUTH-02',async()=>{assert(!hasPermission(denied,'wallets.read'));assert(!authority(denied,'wallet.balance.read').allowed);const r=await turn(denied,'consumer','What balance is recorded in my wallet?');assert.equal(r.truth.truth_state,'permission_restricted');assert(!r.facts.length);assert.doesNotMatch(r.answer,/12,500|12500/);});
 await checkCase('AUTH-03',async()=>{const a={...denied,permissions:['wallets.read']};assert(authority(a,'wallet.balance.read').allowed);const r=await turn(a,'consumer','Show my wallet balance.');assert(r.facts.some(f=>f.fact_type==='wallet_balance'));});
 await checkCase('AUTH-04',async()=>{const a=await turn(resident,'consumer','What needs attention in my devices?');const r=await turn(denied,'consumer','Explain that assessment.',a.thread_id);assert(!authority(denied,'devices.status.read').allowed);assert(!r.facts.length);assert.doesNotMatch(r.answer,/4 devices|2 devices|Living Light|Master Bedroom|12,500/);});
