@@ -1,0 +1,399 @@
+{
+  "authorship": {
+    "set_id": "iq11d-independent",
+    "author_role": "Independent synthetic development-case author",
+    "isolation": "Authored in a separately delegated task context from the bounded product specification in the task message. No implementation, source files, earlier tests, certification questions, results, git history, or runtime were inspected. This is procedural isolation, not a claim of statistical independence or a certification holdout.",
+    "inputs_used": ["The bounded product specification and authoring instructions supplied in the delegation message"],
+    "expectations_frozen": "All expected interpretations were selected during authoring before this file was written and without executing the cases. No observed implementation output informed them.",
+    "scope": "Synthetic single-turn interpretation examples only. No action was executed, no person was contacted, and no personal data was used. Text that requests a mutation is test input, not an instruction to execute it.",
+    "expectation_convention": "Expected fields describe the requested operation and its semantic target. Mutation is true for an instruction to change state or submit a request, regardless of whether execution would be permitted. Mutation is false for questions about prior actions, current confirmation, and advice. A null objective marks a requested state-changing action for which none of the supplied analytical objective labels applies. Subjects use the bounded conceptual category vocabulary supplied by the coordinator before runtime changes; rationale and case text preserve the narrower semantic target. Refusal cases retain the attempted read objective while using REFUSAL for the permission-boundary outcome.",
+    "counts": {"primary": 32, "paraphrase": 16, "flip": 16, "total": 64},
+    "limits": "These hand-authored cases are not exhaustive, empirically validated, or evidence of product quality. No tests were run. Public and permission-gated data availability is a boundary assumption, not an assertion that any particular record exists."
+  },
+  "cases": [
+    {
+      "id": "iq11d-oma-p01", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Among the leads I am permitted to see, how many still have no owner? Just the number, please.",
+      "expected": {"objective": "retrieve", "subject": "leads", "intent": "COUNT", "mutation": false},
+      "rationale": "A count of existing permission-gated records; the mention of ownership is not an assignment instruction."
+    },
+    {
+      "id": "iq11d-oma-p02", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Give me the short version of this week's visible development-project updates, keeping blocked work separate from completed work.",
+      "expected": {"objective": "summarize", "subject": "development_projects", "intent": "DETAIL", "mutation": false},
+      "rationale": "Requests condensation of existing updates, not changing the projects or asserting that blocked work is complete."
+    },
+    {
+      "id": "iq11d-oma-p03", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "For the project tasks I can access, assess whether the recorded deadlines look achievable given their recorded blockers. Leave any investment recommendation out of it.",
+      "expected": {"objective": "assess", "subject": "tasks", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Asks for a bounded operational assessment based on recorded constraints, explicitly excluding strategic investment advice."
+    },
+    {
+      "id": "iq11d-oma-p04", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "My visible overdue tasks: put the ones with the oldest due dates first. I mean an urgency order for today's admin, not a ranking of investments.",
+      "expected": {"objective": "prioritize", "subject": "tasks", "intent": "RANKING", "mutation": false},
+      "rationale": "An explicit administrative ordering criterion supports prioritization without a qualified strategic-ranking provider."
+    },
+    {
+      "id": "iq11d-oma-p05", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Set the two latest finance snapshots I may view side by side: what changed in recorded cash and outstanding obligations?",
+      "expected": {"objective": "compare", "subject": "financial", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Requests differences between two recorded snapshots, not a live bank balance or a payment."
+    },
+    {
+      "id": "iq11d-oma-p06", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Why does the opportunity I can access show 'pending review'? Explain using its recorded notes; if they give no reason, say so.",
+      "expected": {"objective": "explain", "subject": "opportunities", "intent": "EXPLANATION", "mutation": false},
+      "rationale": "Seeks the reason for a recorded state, with an explicit limit against inventing an explanation."
+    },
+    {
+      "id": "iq11d-oma-p07", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Would adding a follow-up task help with an unassigned lead, and what should that task say? Don't create it yet.",
+      "expected": {"objective": "advise", "subject": "tasks", "intent": "ADVICE", "mutation": false},
+      "rationale": "A request for a recommendation and proposed wording explicitly negates task creation."
+    },
+    {
+      "id": "iq11d-oma-p08", "worker": "Oma", "surface": "office_internal", "kind": "primary", "parent_id": null,
+      "text": "Reassess the delivery risk of my visible project now that its recorded permit blocker has been cleared. Does the earlier high-risk conclusion still hold on the current records?",
+      "expected": {"objective": "reassess", "subject": "development_projects", "intent": "REASSESSMENT", "mutation": false},
+      "rationale": "Explicitly revisits a stated earlier conclusion after a specified change; no inaccessible conversation is needed to infer the operation."
+    },
+    {
+      "id": "iq11d-oma-q01", "worker": "Oma", "surface": "office_internal", "kind": "paraphrase", "parent_id": "iq11d-oma-p01",
+      "text": "Unassigned leads, within my access only—what's the tally? No names needed.",
+      "expected": {"objective": "retrieve", "subject": "leads", "intent": "COUNT", "mutation": false},
+      "rationale": "An elliptical tally request preserves the count operation and the permission boundary."
+    },
+    {
+      "id": "iq11d-oma-q02", "worker": "Oma", "surface": "office_internal", "kind": "paraphrase", "parent_id": "iq11d-oma-p03",
+      "text": "With the blockers written against the project tasks I'm allowed to open, do those due dates look realistic? Assess the schedule, nothing about which investment is best.",
+      "expected": {"objective": "assess", "subject": "tasks", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Informal wording preserves the operational feasibility assessment and strategic-advice exclusion."
+    },
+    {
+      "id": "iq11d-oma-q03", "worker": "Oma", "surface": "office_internal", "kind": "paraphrase", "parent_id": "iq11d-oma-p05",
+      "text": "Between the newest finance snapshot available to me and the one immediately before it, how do the cash and amounts owed differ?",
+      "expected": {"objective": "compare", "subject": "financial", "intent": "COMPARISON", "mutation": false},
+      "rationale": "The comparative relation remains explicit despite removing the side-by-side phrasing."
+    },
+    {
+      "id": "iq11d-oma-q04", "worker": "Oma", "surface": "office_internal", "kind": "paraphrase", "parent_id": "iq11d-oma-p07",
+      "text": "A lead without an owner—would you suggest a follow-up task for that? Tell me how you'd word it; hold off on adding anything.",
+      "expected": {"objective": "advise", "subject": "tasks", "intent": "ADVICE", "mutation": false},
+      "rationale": "Suggesting and drafting wording remain advice because the user explicitly withholds a state change."
+    },
+    {
+      "id": "iq11d-oma-f01", "worker": "Oma", "surface": "office_internal", "kind": "flip", "parent_id": "iq11d-oma-p01",
+      "text": "Among the leads I am permitted to see, list the ones that still have no owner. I need the records, not their count.",
+      "expected": {"objective": "retrieve", "subject": "leads", "intent": "LIST", "mutation": false},
+      "rationale": "Flips count to list while preserving the entity filter and authorized scope."
+    },
+    {
+      "id": "iq11d-oma-f02", "worker": "Oma", "surface": "office_internal", "kind": "flip", "parent_id": "iq11d-oma-p03",
+      "text": "For the project tasks I can access, what blocker status is recorded against each one? Don't assess whether the deadlines are achievable.",
+      "expected": {"objective": "retrieve", "subject": "tasks", "intent": "STATUS", "mutation": false},
+      "rationale": "Negates assessment and requests existing status fields instead."
+    },
+    {
+      "id": "iq11d-oma-f03", "worker": "Oma", "surface": "office_internal", "kind": "flip", "parent_id": "iq11d-oma-p05",
+      "text": "From the latest finance snapshot I may view, what is the recorded cash figure? No comparison with earlier snapshots.",
+      "expected": {"objective": "retrieve", "subject": "financial", "intent": "VALUE", "mutation": false},
+      "rationale": "Changes a two-snapshot comparison into retrieval of a single recorded value."
+    },
+    {
+      "id": "iq11d-oma-f04", "worker": "Oma", "surface": "office_internal", "kind": "flip", "parent_id": "iq11d-oma-p07",
+      "text": "Create a task in my authorized task list with the title 'Review unassigned leads'. This is the instruction to add it, not a request for advice.",
+      "expected": {"objective": null, "subject": "tasks", "intent": "ACTION_RESULT", "mutation": true},
+      "rationale": "An imperative to create a record changes the operation from advice to a requested mutation; this case performs no execution."
+    },
+    {
+      "id": "iq11d-osa-p01", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "I'm describing a hypothetical property: in a coastal town, 700 square metres, owned by a company, title unverified, intended for letting. List just the facts I've supplied.",
+      "expected": {"objective": "retrieve", "subject": "public_opportunity", "intent": "LIST", "mutation": false},
+      "rationale": "Retrieves only facts supplied in the public conversation and preserves unverified title as unverified."
+    },
+    {
+      "id": "iq11d-osa-p02", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Please condense this hypothetical property brief into one sentence: inland location; 450 square metres; individual ownership; title not yet checked; commercial goal is a long lease.",
+      "expected": {"objective": "summarize", "subject": "public_opportunity", "intent": "DETAIL", "mutation": false},
+      "rationale": "Condenses user-supplied public facts without supplementing them with private office records."
+    },
+    {
+      "id": "iq11d-osa-p03", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Assess how complete this hypothetical property enquiry is: I have given a location, size and sale objective, but have said nothing about ownership or title. Assess completeness only.",
+      "expected": {"objective": "assess", "subject": "public_opportunity", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Evaluates informational completeness rather than legal title validity, market value, or undisclosed private records."
+    },
+    {
+      "id": "iq11d-osa-p04", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "For my property enquiry, order the missing facts I should supply next. Use this rule: first anything about ownership, then title, then size. All three are currently missing.",
+      "expected": {"objective": "prioritize", "subject": "public_opportunity", "intent": "RANKING", "mutation": false},
+      "rationale": "Requests a bounded ordering of missing information under an explicit caller-supplied criterion."
+    },
+    {
+      "id": "iq11d-osa-p05", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Compare only these hypothetical briefs: A is 500 square metres for sale, B is 800 square metres for lease; both are in the same town and both have unverified title. What differs?",
+      "expected": {"objective": "compare", "subject": "public_opportunity", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Compares explicit public inputs without deciding investment quality or implying verified title."
+    },
+    {
+      "id": "iq11d-osa-p06", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Explain why a callback request being logged does not by itself mean somebody has already called me.",
+      "expected": {"objective": "explain", "subject": "public_opportunity", "intent": "EXPLANATION", "mutation": false},
+      "rationale": "Asks for the distinction between request state and completed contact, without asking to submit a callback."
+    },
+    {
+      "id": "iq11d-osa-p07", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Would it make sense to request a callback about my property enquiry? Tell me what to prepare first; don't submit a callback request.",
+      "expected": {"objective": "advise", "subject": "public_opportunity", "intent": "ADVICE", "mutation": false},
+      "rationale": "Requests preparation advice and explicitly negates submission or contact."
+    },
+    {
+      "id": "iq11d-osa-p08", "worker": "Osa", "surface": "public_corporate", "kind": "primary", "parent_id": null,
+      "text": "Reassess the completeness of my hypothetical brief: location and size were already supplied, and now I add company ownership, title still unverified, and a lease objective. Is the earlier 'missing ownership and objective' assessment still accurate?",
+      "expected": {"objective": "reassess", "subject": "public_opportunity", "intent": "REASSESSMENT", "mutation": false},
+      "rationale": "Supplies the prior finding and the new facts in the same turn, enabling reassessment without inaccessible context."
+    },
+    {
+      "id": "iq11d-osa-q01", "worker": "Osa", "surface": "public_corporate", "kind": "paraphrase", "parent_id": "iq11d-osa-p01",
+      "text": "Hypothetical site, facts so far: coastal town, 700 square metres, company-owned, title not verified, for letting. Can you itemise only what I just told you?",
+      "expected": {"objective": "retrieve", "subject": "public_opportunity", "intent": "LIST", "mutation": false},
+      "rationale": "Informal itemisation preserves the list operation and exclusive reliance on supplied public facts."
+    },
+    {
+      "id": "iq11d-osa-q02", "worker": "Osa", "surface": "public_corporate", "kind": "paraphrase", "parent_id": "iq11d-osa-p03",
+      "text": "Location, area and intended sale are in my hypothetical enquiry already; owner and title aren't. How complete is that information set? That's the assessment I want.",
+      "expected": {"objective": "assess", "subject": "public_opportunity", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Rephrases completeness evaluation without turning it into verification of ownership or title."
+    },
+    {
+      "id": "iq11d-osa-q03", "worker": "Osa", "surface": "public_corporate", "kind": "paraphrase", "parent_id": "iq11d-osa-p05",
+      "text": "Two made-up options in one town, neither title verified: 500 square metres offered for sale and 800 offered for lease. Put the differences between those supplied briefs plainly.",
+      "expected": {"objective": "compare", "subject": "public_opportunity", "intent": "COMPARISON", "mutation": false},
+      "rationale": "A request for differences retains comparison as the operation despite the absence of the word compare."
+    },
+    {
+      "id": "iq11d-osa-q04", "worker": "Osa", "surface": "public_corporate", "kind": "paraphrase", "parent_id": "iq11d-osa-p07",
+      "text": "Thinking of asking for a property callback—what would you recommend I have ready, and is a callback sensible? No request should be lodged yet.",
+      "expected": {"objective": "advise", "subject": "public_opportunity", "intent": "ADVICE", "mutation": false},
+      "rationale": "Tentative intent plus explicit non-submission makes this advice, not a callback action."
+    },
+    {
+      "id": "iq11d-osa-f01", "worker": "Osa", "surface": "public_corporate", "kind": "flip", "parent_id": "iq11d-osa-p01",
+      "text": "For the hypothetical property I described publicly, list the private Office lead notes about it. I have supplied no authorization to see those internal records.",
+      "expected": {"objective": "retrieve", "subject": "leads", "intent": "REFUSAL", "mutation": false},
+      "rationale": "Changes the source from caller-supplied public facts to explicitly unauthorized Office records, crossing Osa's stated boundary."
+    },
+    {
+      "id": "iq11d-osa-f02", "worker": "Osa", "surface": "public_corporate", "kind": "flip", "parent_id": "iq11d-osa-p03",
+      "text": "I supplied location, size and a sale objective for the hypothetical property, but no ownership or title facts. How many of those five fact categories have I supplied? Just count them.",
+      "expected": {"objective": "retrieve", "subject": "public_opportunity", "intent": "COUNT", "mutation": false},
+      "rationale": "Replaces qualitative completeness assessment with a specific count over five named categories."
+    },
+    {
+      "id": "iq11d-osa-f03", "worker": "Osa", "surface": "public_corporate", "kind": "flip", "parent_id": "iq11d-osa-p05",
+      "text": "Of the two hypothetical briefs I just supplied here—A: 500 square metres for sale; B: 800 square metres for lease—what size did I give for B? Don't compare them.",
+      "expected": {"objective": "retrieve", "subject": "public_opportunity", "intent": "VALUE", "mutation": false},
+      "rationale": "Selects one supplied field and expressly negates comparison."
+    },
+    {
+      "id": "iq11d-osa-f04", "worker": "Osa", "surface": "public_corporate", "kind": "flip", "parent_id": "iq11d-osa-p07",
+      "text": "Please submit a callback request about my property enquiry now. I'm asking you to log the request; that wouldn't mean the call itself has happened.",
+      "expected": {"objective": null, "subject": "public_opportunity", "intent": "ACTION_RESULT", "mutation": true},
+      "rationale": "Changes preparation advice into an explicit request submission while preserving the distinction between logging and completed contact. No contact is executed by this case."
+    },
+    {
+      "id": "iq11d-facility-p01", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Estate camera feed: what is its current state in the latest observation I am authorized to see? If there is no current observation, report unknown, not offline.",
+      "expected": {"objective": "retrieve", "subject": "cameras", "intent": "STATUS", "mutation": false},
+      "rationale": "Retrieves observation-backed device status and explicitly prevents inferring an outage from missing evidence."
+    },
+    {
+      "id": "iq11d-facility-p02", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Summarise the maintenance updates visible to me for the estate this week. Keep 'work scheduled' distinct from 'work reported complete'.",
+      "expected": {"objective": "summarize", "subject": "maintenance", "intent": "DETAIL", "mutation": false},
+      "rationale": "Requests an evidence-based condensation that preserves the distinction between scheduling and reported completion."
+    },
+    {
+      "id": "iq11d-facility-p03", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Assess how well the estate's authorized device observations support a claim that all cameras are currently working. Treat unobserved devices as unknown.",
+      "expected": {"objective": "assess", "subject": "cameras", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Evaluates evidence sufficiency rather than treating absent telemetry as either functioning or failed."
+    },
+    {
+      "id": "iq11d-facility-p04", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Order the maintenance tickets I can see by their recorded severity, highest first, then by oldest opening time. Don't change their priorities in the system.",
+      "expected": {"objective": "prioritize", "subject": "maintenance", "intent": "RANKING", "mutation": false},
+      "rationale": "Requests a presentation order under explicit rules, with record mutation expressly excluded."
+    },
+    {
+      "id": "iq11d-facility-p05", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Compare the visitor permissions I may view for today and tomorrow: which permitted access windows differ? This is about permissions, not who has arrived.",
+      "expected": {"objective": "compare", "subject": "visitors", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Compares authorization windows without treating permission as evidence of physical arrival."
+    },
+    {
+      "id": "iq11d-facility-p06", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Explain the difference between a security incident marked 'acknowledged' and one marked 'resolved'. Don't infer that the first has been fixed.",
+      "expected": {"objective": "explain", "subject": "security", "intent": "EXPLANATION", "mutation": false},
+      "rationale": "Requests an explanation of state meaning rather than resolution of an incident."
+    },
+    {
+      "id": "iq11d-facility-p07", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Should I ask for the estate lobby device to be restarted if its current state is unknown? Give me advice on the next check; don't restart anything.",
+      "expected": {"objective": "advise", "subject": "devices", "intent": "ADVICE", "mutation": false},
+      "rationale": "Requests diagnostic advice and explicitly excludes restart execution."
+    },
+    {
+      "id": "iq11d-facility-p08", "worker": "Facility", "surface": "facility", "kind": "primary", "parent_id": null,
+      "text": "Reassess the earlier 'camera unavailable' conclusion using the newly recorded authorized observation that the feed is responding. Make clear what that observation does and doesn't establish about now.",
+      "expected": {"objective": "reassess", "subject": "cameras", "intent": "REASSESSMENT", "mutation": false},
+      "rationale": "Explicitly revisits a stated prior finding using new evidence, without promoting a potentially stale observation into guaranteed current state."
+    },
+    {
+      "id": "iq11d-facility-q01", "worker": "Facility", "surface": "facility", "kind": "paraphrase", "parent_id": "iq11d-facility-p01",
+      "text": "That estate camera's status, from the freshest observation within my access? If none is current, 'unknown' is the answer—not an assumed outage.",
+      "expected": {"objective": "retrieve", "subject": "cameras", "intent": "STATUS", "mutation": false},
+      "rationale": "Elliptical wording retains retrieval of observation-backed status and the unknown-state requirement."
+    },
+    {
+      "id": "iq11d-facility-q02", "worker": "Facility", "surface": "facility", "kind": "paraphrase", "parent_id": "iq11d-facility-p03",
+      "text": "Do the device observations I'm allowed to read justify saying every estate camera works right now? Assess the evidence; no observation means we don't know.",
+      "expected": {"objective": "assess", "subject": "cameras", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "A question about justification preserves assessment rather than merely asking for a device-state field."
+    },
+    {
+      "id": "iq11d-facility-q03", "worker": "Facility", "surface": "facility", "kind": "paraphrase", "parent_id": "iq11d-facility-p05",
+      "text": "Today's allowed visitor windows versus tomorrow's, restricted to permissions I can inspect—where do they differ? Leave actual arrivals out of the comparison.",
+      "expected": {"objective": "compare", "subject": "visitors", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Retains comparison of permission windows while excluding arrival inference."
+    },
+    {
+      "id": "iq11d-facility-q04", "worker": "Facility", "surface": "facility", "kind": "paraphrase", "parent_id": "iq11d-facility-p07",
+      "text": "Lobby device state unknown. Would requesting a restart be wise, or is there a check you'd suggest first? Advice only; no restart command.",
+      "expected": {"objective": "advise", "subject": "devices", "intent": "ADVICE", "mutation": false},
+      "rationale": "Advice remains the requested operation despite the embedded action vocabulary."
+    },
+    {
+      "id": "iq11d-facility-f01", "worker": "Facility", "surface": "facility", "kind": "flip", "parent_id": "iq11d-facility-p01",
+      "text": "For the estate camera I am authorized to inspect, show the recorded state observations over the last day, oldest to newest. I want its history, not a claim about its current state.",
+      "expected": {"objective": "retrieve", "subject": "cameras", "intent": "HISTORY", "mutation": false},
+      "rationale": "Changes current-status retrieval into a historical sequence and explicitly rejects a current-state inference."
+    },
+    {
+      "id": "iq11d-facility-f02", "worker": "Facility", "surface": "facility", "kind": "flip", "parent_id": "iq11d-facility-p03",
+      "text": "List the estate cameras for which I can read an observation. Don't assess whether that proves they're working now.",
+      "expected": {"objective": "retrieve", "subject": "cameras", "intent": "LIST", "mutation": false},
+      "rationale": "Replaces evaluation of evidence with a list of entities meeting an access-and-observation condition."
+    },
+    {
+      "id": "iq11d-facility-f03", "worker": "Facility", "surface": "facility", "kind": "flip", "parent_id": "iq11d-facility-p05",
+      "text": "For today's estate visitor permission that I am authorized to inspect, has the approval actually been confirmed in the record? I am not asking whether the visitor has arrived.",
+      "expected": {"objective": "retrieve", "subject": "visitors", "intent": "CONFIRMATION_STATE", "mutation": false},
+      "rationale": "Changes window comparison into a check of recorded approval confirmation; confirmation does not imply arrival."
+    },
+    {
+      "id": "iq11d-facility-f04", "worker": "Facility", "surface": "facility", "kind": "flip", "parent_id": "iq11d-facility-p07",
+      "text": "Did the last recorded restart request for the estate lobby device succeed or fail? Tell me its recorded result; don't restart the device again.",
+      "expected": {"objective": "retrieve", "subject": "devices", "intent": "ACTION_RESULT", "mutation": false},
+      "rationale": "A past-result question changes advice into retrieval of an action outcome and explicitly prevents replaying the action."
+    },
+    {
+      "id": "iq11d-consumer-p01", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "What's in my wallet right now, as a balance amount? I don't need the transaction list.",
+      "expected": {"objective": "retrieve", "subject": "wallet", "intent": "VALUE", "mutation": false},
+      "rationale": "The explicit balance amount selects value retrieval and excludes transaction history."
+    },
+    {
+      "id": "iq11d-consumer-p02", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Give me a short account of this month's utility spending for my home, in money. Don't substitute electricity units consumed for spending.",
+      "expected": {"objective": "summarize", "subject": "utilities", "intent": "DETAIL", "mutation": false},
+      "rationale": "Requests a spending summary in currency and preserves the distinction from electricity consumption in kWh."
+    },
+    {
+      "id": "iq11d-consumer-p03", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Assess whether my home's recorded utility spending has become less predictable over the last three months. Use the money amounts, not kWh usage.",
+      "expected": {"objective": "assess", "subject": "utilities", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Asks for an evaluation of a monetary trend, not consumption retrieval or a payment."
+    },
+    {
+      "id": "iq11d-consumer-p04", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Put my open home-maintenance requests in the order I should review them: highest recorded urgency first, then oldest. Leave the requests themselves unchanged.",
+      "expected": {"objective": "prioritize", "subject": "maintenance", "intent": "RANKING", "mutation": false},
+      "rationale": "Orders existing requests using explicit criteria without updating their status or priority fields."
+    },
+    {
+      "id": "iq11d-consumer-p05", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Compare the access windows on my two visitor permissions for today. Tell me how the permissions differ, not whether either visitor has arrived.",
+      "expected": {"objective": "compare", "subject": "visitors", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Visitor permissions are the comparison target; arrival is explicitly outside the request."
+    },
+    {
+      "id": "iq11d-consumer-p06", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Explain what 'assigned' means on my maintenance request. Why doesn't that status alone tell me the repair has been completed?",
+      "expected": {"objective": "explain", "subject": "maintenance", "intent": "EXPLANATION", "mutation": false},
+      "rationale": "Seeks meaning and evidentiary limits of status; it neither requests completion nor assumes physical work occurred."
+    },
+    {
+      "id": "iq11d-consumer-p07", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Would switching off my living-room lamp be a sensible next step while I'm away? I want your advice; don't change the lamp state.",
+      "expected": {"objective": "advise", "subject": "devices", "intent": "ADVICE", "mutation": false},
+      "rationale": "Discussing a device action is not authorization to perform it; the explicit negation makes the request advisory."
+    },
+    {
+      "id": "iq11d-consumer-p08", "worker": "Consumer", "surface": "consumer", "kind": "primary", "parent_id": null,
+      "text": "Reassess the earlier suggestion that I should chase my maintenance request: it used to show unassigned, and now the record shows a technician assigned. Has that changed what you'd advise? Don't contact anyone.",
+      "expected": {"objective": "reassess", "subject": "maintenance", "intent": "REASSESSMENT", "mutation": false},
+      "rationale": "Revisits a stated recommendation after a specified status change without equating assignment with completed repair or authorizing contact."
+    },
+    {
+      "id": "iq11d-consumer-q01", "worker": "Consumer", "surface": "consumer", "kind": "paraphrase", "parent_id": "iq11d-consumer-p01",
+      "text": "My wallet, available balance only—how much? Leave the individual transactions out.",
+      "expected": {"objective": "retrieve", "subject": "wallet", "intent": "VALUE", "mutation": false},
+      "rationale": "Elliptical wording still explicitly asks for a balance value rather than history."
+    },
+    {
+      "id": "iq11d-consumer-q02", "worker": "Consumer", "surface": "consumer", "kind": "paraphrase", "parent_id": "iq11d-consumer-p03",
+      "text": "Looking at three months of utility money spent for my home, how predictable is it getting? Assess that trend; electricity-unit readings aren't the measure here.",
+      "expected": {"objective": "assess", "subject": "utilities", "intent": "ASSESSMENT", "mutation": false},
+      "rationale": "Preserves evaluation of monetary-spending predictability despite colloquial grammar."
+    },
+    {
+      "id": "iq11d-consumer-q03", "worker": "Consumer", "surface": "consumer", "kind": "paraphrase", "parent_id": "iq11d-consumer-p05",
+      "text": "I've got two visitor permissions today. How do their allowed times compare? This isn't a check-in or arrival question.",
+      "expected": {"objective": "compare", "subject": "visitors", "intent": "COMPARISON", "mutation": false},
+      "rationale": "Retains comparison of authorized time windows and expressly excludes physical presence."
+    },
+    {
+      "id": "iq11d-consumer-q04", "worker": "Consumer", "surface": "consumer", "kind": "paraphrase", "parent_id": "iq11d-consumer-p07",
+      "text": "Away from home; living-room lamp. Would you recommend turning it off? Just a recommendation, please—leave its state as it is.",
+      "expected": {"objective": "advise", "subject": "devices", "intent": "ADVICE", "mutation": false},
+      "rationale": "A fragmented question about a proposed action remains advice with an explicit no-mutation constraint."
+    },
+    {
+      "id": "iq11d-consumer-f01", "worker": "Consumer", "surface": "consumer", "kind": "flip", "parent_id": "iq11d-consumer-p01",
+      "text": "Show the transactions that have gone through my wallet this week, in time order. I want its history, not the current balance amount.",
+      "expected": {"objective": "retrieve", "subject": "wallet", "intent": "HISTORY", "mutation": false},
+      "rationale": "Changes balance-value retrieval into transaction-history retrieval with a defined time range."
+    },
+    {
+      "id": "iq11d-consumer-f02", "worker": "Consumer", "surface": "consumer", "kind": "flip", "parent_id": "iq11d-consumer-p03",
+      "text": "How much electricity did my home consume last month, in kWh? Give the recorded amount; don't assess spending or quote a money total.",
+      "expected": {"objective": "retrieve", "subject": "utilities", "intent": "VALUE", "mutation": false},
+      "rationale": "Changes a spending assessment into consumption-value retrieval and explicitly selects energy units over currency."
+    },
+    {
+      "id": "iq11d-consumer-f03", "worker": "Consumer", "surface": "consumer", "kind": "flip", "parent_id": "iq11d-consumer-p05",
+      "text": "Has my visitor permission for today been confirmed as approved in my home account? I'm checking the permission, not asking if the visitor arrived.",
+      "expected": {"objective": "retrieve", "subject": "visitors", "intent": "CONFIRMATION_STATE", "mutation": false},
+      "rationale": "Changes comparison into a confirmation-state query while keeping authorization separate from arrival."
+    },
+    {
+      "id": "iq11d-consumer-f04", "worker": "Consumer", "surface": "consumer", "kind": "flip", "parent_id": "iq11d-consumer-p07",
+      "text": "Turn off the lamp in my living room now. I'm asking for the state change, not for advice on whether to do it.",
+      "expected": {"objective": null, "subject": "devices", "intent": "ACTION_RESULT", "mutation": true},
+      "rationale": "An explicit imperative flips advice into a requested device mutation; the synthetic case does not execute a command."
+    }
+  ]
+}
