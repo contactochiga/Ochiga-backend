@@ -1,0 +1,45 @@
+{
+  "starting_head": "fcb6df6b08b11e81b324eea5e33a844cde104115",
+  "runtime_head": "46efdbbae5ad3090c389cf9ddc799f15e00e68e3",
+  "method": "Offline analysis verification only; no runtime tests, database access or certification replay.",
+  "checks": {
+    "analysis_only_file_scope": true,
+    "existing_tracked_files_unchanged": true,
+    "runtime_diff_zero": true,
+    "syntax": true,
+    "artifact_reproduction": true,
+    "frozen_protocol_corpus_raw_hashes": true,
+    "primary_unique_rows": 256,
+    "trace_request_rows": 1285,
+    "p0_occurrences": 6,
+    "source_owner_paths": true,
+    "report_artifact_links": true,
+    "diff_whitespace": true,
+    "changed_file_secret_patterns": 0
+  },
+  "limitations": [
+    "Pattern-based secret scan is not exhaustive.",
+    "Remote HEAD equality is verified separately after push.",
+    "No new runtime regression result is claimed."
+  ],
+  "sizes_bytes": {
+    "docs/INTELLIGENCE_QUALITY_V1_IQ11A_ROOT_CAUSE_INVESTIGATION.md": 34441,
+    "scripts/iq11a-inspect.mjs": 2169,
+    "scripts/iq11a-diagnosis.mjs": 9181,
+    "scripts/iq11a-forensics.mjs": 11655,
+    "scripts/iq11a-verify.mjs": 4319,
+    "artifacts/intelligence-quality-v1-iq11a-primary-failure-map.json": 1966448,
+    "artifacts/intelligence-quality-v1-iq11a-trace-reconciliation.json": 1597964,
+    "artifacts/intelligence-quality-v1-iq11a-p0-forensics.json": 48602
+  },
+  "sha256": {
+    "docs/INTELLIGENCE_QUALITY_V1_IQ11A_ROOT_CAUSE_INVESTIGATION.md": "461bef34933c26236d0978b0662cec6b4218d07cb80e65866ac01e3cee882705",
+    "scripts/iq11a-inspect.mjs": "b3dc048db5d5d33e8e3dd86f28b5eeb6e1f4f0022adfdbea8addf49fb0cc92c2",
+    "scripts/iq11a-diagnosis.mjs": "350a399800d88b40f988ad50aef8fc34f10f66f9ca02516b69c9f9c43f466734",
+    "scripts/iq11a-forensics.mjs": "24bb3381b702f856fa3fec9dd4140ff64856b53189adecb9668c27bf4d1eec2e",
+    "scripts/iq11a-verify.mjs": "255fad4a74ebf6603682147db62e5cd371714ab06b63656a4b286351b31e6e8f",
+    "artifacts/intelligence-quality-v1-iq11a-primary-failure-map.json": "1b0bc44f57ce0c428d7d209bbdc3b80f2930b23655f17ffcd49f4d3671ebf2c4",
+    "artifacts/intelligence-quality-v1-iq11a-trace-reconciliation.json": "d1b13d6e01d1b71a88abb879619782112faba5e519549ec73e72044214488cca",
+    "artifacts/intelligence-quality-v1-iq11a-p0-forensics.json": "86abf3795a16d4e567a31f53b8776c00ce61032408ffe6d50219864bf45492c5"
+  }
+}
