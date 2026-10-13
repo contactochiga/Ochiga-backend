@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+process.env.SUPABASE_URL='http://127.0.0.1:1';process.env.SUPABASE_SERVICE_ROLE_KEY='x';
+globalThis.fetch=async()=>{throw Error('NO_NETWORK_IN_IQ11D_CONTRACTS');};
+const {parseSemanticFrame:parse}=await import('../dist/oyi-core/interpretation/SemanticFrameParser.js');
+const {plannerAdmission:admit}=await import('../dist/oyi-core/orchestration/plannerAdmission.js');
+const {nextConversationAssessment:next,ASSESSMENT_TTL_MS}=await import('../dist/oyi-core/context/conversationAssessmentContext.js');
+const checks=[],now=Date.now();
+const test=(id,fn)=>{try{fn();checks.push({id,status:'PASS'});}catch(e){checks.push({id,status:'FAIL',error:e.message});}};
+for(const surface of ['office_internal','public_corporate','facility','consumer']){
+ const seed={surface,objective:'assess',continuing:true,mutationOrAction:false,subjectDomains:['maintenance'],eligibleReadDomains:['maintenance'],headDomainSupportedOnSurface:true,headDomain:'maintenance',conceptDomains:['maintenance'],referencesStoredResultSet:false,hasPublicObjective:true,specificCapability:{key:'maintenance.requests.read',domain:'maintenance'}};
+ for(const intent of ['ACTION_RESULT','CONFIRMATION_STATE','REFUSAL','CLARIFICATION','CAPABILITY_DISCOVERY','LIMITATION'])test(surface+':specialized:'+intent,()=>assert.equal(admit({...seed,target:{response_intent:intent}}).admit,false));
+ test(surface+':mutation',()=>assert.equal(admit({...seed,mutationOrAction:true,target:{response_intent:'ASSESSMENT'}}).admit,false));
+ for(const response_intent of ['LIST','COUNT','STATUS','DIRECT_ANSWER'])test(surface+':fact:'+response_intent,()=>assert.equal(admit({...seed,objective:null,target:{response_intent}}).admit,false));
+ test(surface+':real-explanation',()=>assert.equal(admit({...seed,objective:'explain',target:{response_intent:'EXPLANATION'}}).admit,true));
+ const old=next(null,parse('What needs attention in maintenance?',{surface}),surface,now);
+ test(surface+':assessment-seed',()=>assert(old));
+ test(surface+':explicit-fact-suspends',()=>{const f={...parse('What is the recorded wallet status?',{surface}),cognitiveObjective:null,answerTarget:{response_intent:'STATUS'},domain:'wallet'};assert.equal(next(old,f,surface,now+1)?.suspended,true);});
+ test(surface+':why-preserved',()=>assert.equal(next(old,parse('Why?',{surface,activeAssessment:true}),surface,now+1)?.objective,'explain'));
+ test(surface+':expiry',()=>assert.equal(next(old,parse('Why?',{surface}),surface,now+ASSESSMENT_TTL_MS+1)?.id===old?.id,false));
+}
+for(const q of ['Is the maintenance request working?','Why is the wallet balance unavailable?','Is the development project working?'])test('non-device-operation:'+q,()=>{const f=parse(q,{surface:'office_internal'});assert(!f.operation.startsWith('device.'));assert(!f.mutationIntent);});
+test('correction-subject-and-facet',()=>{const f=parse('Show wallet balance; I mean electricity usage.',{surface:'consumer'});assert.equal(f.domain,'utilities');assert.equal(f.concepts.facet,'usage');assert.equal(f.answerTarget.facet,'usage');assert(!f.mutationIntent);});
+test('multipart-keeps-clause-subjects',()=>{const f=parse('Show wallet balance and list visitors.',{surface:'consumer'});assert.equal(f.answerTarget.clauses[0].target.object,'wallet');assert.equal(f.answerTarget.clauses[1].target.object,'visitor');});
+for(const q of ['Cancel the hall-light command.','Do not turn the hall light on.','Did you turn the hall light on?','Should I turn the hall light on?'])test('nonexecution:'+q,()=>assert.equal(parse(q,{surface:'consumer'}).mutationIntent,false));
+const report={checks,pass:checks.filter(x=>x.status==='PASS').length,fail:checks.filter(x=>x.status==='FAIL').length};
+fs.writeFileSync(process.argv[2],JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify({pass:report.pass,fail:report.fail}));process.exitCode=report.fail?1:0;
