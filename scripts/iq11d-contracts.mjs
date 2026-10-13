@@ -4,6 +4,7 @@ process.env.SUPABASE_URL='http://127.0.0.1:1';process.env.SUPABASE_SERVICE_ROLE_
 globalThis.fetch=async()=>{throw Error('NO_NETWORK_IN_IQ11D_CONTRACTS');};
 const {parseSemanticFrame:parse}=await import('../dist/oyi-core/interpretation/SemanticFrameParser.js');
 const {plannerAdmission:admit}=await import('../dist/oyi-core/orchestration/plannerAdmission.js');
+const {selectConversationReferences:select}=await import('../dist/oyi-core/interpretation/followUpResolver.js');
 const {nextConversationAssessment:next,validAssessment,ASSESSMENT_TTL_MS}=await import('../dist/oyi-core/context/conversationAssessmentContext.js');
 const checks=[],now=Date.now();
 const test=(id,fn)=>{try{fn();checks.push({id,status:'PASS'});}catch(e){checks.push({id,status:'FAIL',error:e.message});}};
@@ -18,6 +19,11 @@ for(const surface of ['office_internal','public_corporate','facility','consumer'
  test(surface+':explicit-fact-suspends',()=>{const f={...parse('What is the recorded wallet status?',{surface}),cognitiveObjective:null,answerTarget:{response_intent:'STATUS'},domain:'wallet'};assert.equal(next(old,f,surface,now+1)?.suspended,true);});
  test(surface+':why-preserved',()=>assert.equal(next(old,parse('Why?',{surface,activeAssessment:true}),surface,now+1)?.objective,'explain'));
  test(surface+':expiry',()=>assert.equal(validAssessment(old,surface,now+ASSESSMENT_TTL_MS+1),null));
+ const candidates=[{id:'a',ordinal:1,label:'Cobalt',location:'Minna'},{id:'b',ordinal:2,label:'Saffron',location:'Lokoja'},{id:'c',ordinal:3,label:'Indigo',location:'Minna'}];
+ test(surface+':explicit-reference-beats-recency',()=>assert.equal(select('Explain Cobalt.',candidates,'b').candidates[0]?.id,'a'));
+ test(surface+':ordinal-reference',()=>assert.equal(select('The second one.',candidates,'a').candidates[0]?.id,'b'));
+ test(surface+':ambiguous-location',()=>assert.equal(select('The one in Minna.',candidates,'b').kind,'ambiguous'));
+ test(surface+':other-not-guessed',()=>assert.equal(select('The other one.',candidates,'b').kind,'ambiguous'));
 }
 for(const q of ['Is the maintenance request working?','Why is the wallet balance unavailable?','Is the development project working?'])test('non-device-operation:'+q,()=>{const f=parse(q,{surface:'office_internal'});assert(!f.operation.startsWith('device.'));assert(!f.mutationIntent);});
 test('correction-subject-and-facet',()=>{const f=parse('Show wallet balance; I mean electricity usage.',{surface:'consumer'});assert.equal(f.domain,'utilities');assert.equal(f.concepts.facet,'usage');assert.equal(f.answerTarget.facet,'usage');assert(!f.mutationIntent);});
