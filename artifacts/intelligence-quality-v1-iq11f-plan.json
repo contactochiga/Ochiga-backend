@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "programme": "IQ-11F preparation",
+  "starting_head": "b9b85423bafcbce8964b2926bf00db33730b7a1b",
+  "provider": "OpenAI",
+  "provider_choice_approved": true,
+  "mode": "synthetic_shadow_only",
+  "paid_inference_enabled": false,
+  "runtime_adoption": false,
+  "models": [
+    {"id": "gpt-5.4-mini-2026-03-17", "input_usd_per_million": 0.75, "output_usd_per_million": 4.5},
+    {"id": "gpt-5.4-2026-03-05", "input_usd_per_million": 2.5, "output_usd_per_million": 15}
+  ],
+  "pricing_checked_date": "2026-10-14",
+  "pricing_basis": "Standard text processing; uncached input; no tools; excludes tax and regional uplift",
+  "endpoint_proposed": "https://api.openai.com/v1/responses",
+  "service_tier": "default",
+  "reasoning_effort": "none",
+  "limits": {
+    "total_input_tokens": 4096,
+    "max_output_tokens": 1024,
+    "packet_bytes": 12288,
+    "candidate_bytes": 8192,
+    "deadline_ms": 3000,
+    "p95_latency_ms": 1500,
+    "concurrency": 1,
+    "automatic_retries": 0,
+    "schema_validity_min": 0.99,
+    "availability_min": 0.99,
+    "timeout_rate_max": 0.01
+  },
+  "corpus": {
+    "workers": ["Oma", "Osa", "Facility", "Consumer"],
+    "primary_journeys_per_worker_min": 80,
+    "scored_turns_per_journey_min": 2,
+    "paraphrase_companions_min": 100,
+    "operation_flip_companions_min": 100,
+    "minimum_requests_per_model": 840,
+    "authorship": "Independent; not yet commissioned",
+    "sealed_hash": null
+  },
+  "budget": {
+    "currency": "USD",
+    "proposed_maximum_total": 50,
+    "currently_authorized_spend": 0,
+    "approval_reference": null,
+    "includes": "All experiment arms, setup, schema canaries, failures, late completions, reruns and any paid authoring/grading; no new runs implicitly authorized",
+    "price_or_usage_unknown": "STOP; retain worst-case reservation"
+  },
+  "data_processing_proposal": {
+    "synthetic_only": true,
+    "store": false,
+    "background": false,
+    "stream": false,
+    "tools": [],
+    "no_provider_conversation_state": true,
+    "training_opt_in": false,
+    "retention_mode": "PENDING explicit choice: standard documented retention or separately approved ZDR",
+    "region": null,
+    "project_verified": false,
+    "billing_verified": false,
+    "policy_approval_reference": null,
+    "tokenizer_version": null
+  },
+  "sources": [
+    "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+    "https://developers.openai.com/api/docs/models/gpt-5.4",
+    "https://developers.openai.com/api/docs/guides/your-data",
+    "https://developers.openai.com/api/docs/guides/structured-outputs",
+    "https://developers.openai.com/api/docs/guides/terraform/rate-limits-and-spend"
+  ]
+}

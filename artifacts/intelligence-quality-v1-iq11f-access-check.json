@@ -1,0 +1,21 @@
+{
+  "checked_at": "2026-10-14T05:32:11.079Z",
+  "checked_scope": "Current process environment and this worktree root only; no keychain/global credential search",
+  "environment_presence": {
+    "OPENAI_API_KEY": false,
+    "OPENAI_PROJECT_ID": false,
+    "OPENAI_PROJECT": false,
+    "OPENAI_ORG_ID": false,
+    "OPENAI_ADMIN_KEY": false,
+    "OPENAI_BASE_URL": false
+  },
+  "local_credential_file_present": false,
+  "credential_status": "UNAVAILABLE_IN_CHECKED_SCOPE",
+  "project_status": "UNAVAILABLE_IN_CHECKED_SCOPE",
+  "billing_status": "NOT_VERIFIED",
+  "project_data_controls": "NOT_VERIFIED",
+  "model_access": "NOT_VERIFIED",
+  "authenticated_api_requests": 0,
+  "paid_inference_calls": 0,
+  "note": "Environment presence never proves valid authentication, quota, credit, billing or retention. No paid probe is permitted."
+}

@@ -1,0 +1,236 @@
+{
+  "programme": "IQ-11F preparation",
+  "head": "b9b85423bafcbce8964b2926bf00db33730b7a1b",
+  "pass": 25,
+  "fail": 0,
+  "checks": [
+    {
+      "id": "snapshot-identifiers-not-aliases",
+      "status": "PASS"
+    },
+    {
+      "id": "approval-is-provider-only",
+      "status": "PASS"
+    },
+    {
+      "id": "exact-both-arm-budget",
+      "status": "PASS"
+    },
+    {
+      "id": "budget-overrun-not-approved",
+      "status": "PASS"
+    },
+    {
+      "id": "invalid-budget-counts-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "frozen-token-deadline-concurrency-limits",
+      "status": "PASS"
+    },
+    {
+      "id": "paired-inputs-and-schema-identical",
+      "status": "PASS"
+    },
+    {
+      "id": "moving-alias-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "non-synthetic-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "cross-scope-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "osa-private-context-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "credentials-in-packet-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "schema-source-unchanged",
+      "status": "PASS"
+    },
+    {
+      "id": "wire-closed-and-typed-with-identical-fields",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-schema-keyword-fails-closed",
+      "status": "PASS"
+    },
+    {
+      "id": "local-validator-retains-wire-omitted-bounds",
+      "status": "PASS"
+    },
+    {
+      "id": "local-validator-retains-uniqueness",
+      "status": "PASS"
+    },
+    {
+      "id": "safety-locks-unchanged",
+      "status": "PASS"
+    },
+    {
+      "id": "candidate-never-adopted",
+      "status": "PASS"
+    },
+    {
+      "id": "access-report-contains-no-value",
+      "status": "PASS"
+    },
+    {
+      "id": "absent-credentials-not-valid",
+      "status": "PASS"
+    },
+    {
+      "id": "all-live-blockers-remain",
+      "status": "PASS"
+    },
+    {
+      "id": "no-transport-or-runtime-import-added",
+      "status": "PASS"
+    },
+    {
+      "id": "full-iq11e-regression-without-overwriting-evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "runtime-fingerprint-unchanged",
+      "status": "PASS"
+    }
+  ],
+  "inherited_iq11e": {
+    "pass": 91,
+    "fail": 0,
+    "failures": [],
+    "elapsed_ms": 2502
+  },
+  "budget_estimate": {
+    "arms": [
+      {
+        "model": "gpt-5.4-mini-2026-03-17",
+        "requests": 840,
+        "per_request_micro_usd": 7680,
+        "total_micro_usd": 6451200
+      },
+      {
+        "model": "gpt-5.4-2026-03-05",
+        "requests": 840,
+        "per_request_micro_usd": 25600,
+        "total_micro_usd": 21504000
+      }
+    ],
+    "total_usd": 27.9552,
+    "headroom_usd": 22.0448,
+    "within_proposed_budget": true,
+    "spend_authorized": false,
+    "caveat": "Before taxes/region and extra requests; not a billing guarantee"
+  },
+  "source_manifest": [
+    {
+      "path": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+      "sha256": "425db6861e8c2449c509f0944af8288546830859338be66a9eab43b8a353bf1c"
+    },
+    {
+      "path": "src/oyi-core/runtime/languageUnderstanding.ts",
+      "sha256": "ea241118e04d906ad0d08da593e336995469fa8b5acfe08e2f69a0d1fbe231a2"
+    },
+    {
+      "path": "src/oyi-core/interpretation/LanguageNormalizer.ts",
+      "sha256": "32a8413a7cf05046c35ad712a7717f53691fcc76451fbf58b6e130c32272776e"
+    },
+    {
+      "path": "src/oyi-core/interpretation/ReferenceResolver.ts",
+      "sha256": "153e37965d9e51fe67f3471fe83c9062a76608ff14de019fcbc6f4209e929e88"
+    },
+    {
+      "path": "src/oyi-core/interpretation/TemporalResolver.ts",
+      "sha256": "cd223a65227b881051162788c2d9bfb9638feebd81f2252c27966fc708e3d7c5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptBridge.ts",
+      "sha256": "d598a83dc98f9ad338c97189b2d6c4c1bdc97036924fd00989c4f3cb498968a5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptLexicon.ts",
+      "sha256": "9e00bd65aec8401a7230d1083554f85802ea623f91a487a46226b1dbf7edf117"
+    },
+    {
+      "path": "src/oyi-core/interpretation/semanticObjective.ts",
+      "sha256": "dd3107fb54571c4922432cda23f0c0641174b364226b7d2d77cb1f0d958758ca"
+    },
+    {
+      "path": "src/oyi-core/interpretation/domainVocabulary.ts",
+      "sha256": "61b04b150ce37cebac8ad121dd987bd7a4c1d794d72989bde0d0e6b5eb8a92f1"
+    },
+    {
+      "path": "src/oyi-core/response/answerTarget.ts",
+      "sha256": "8da4772b1b5b3b6e25ea869d426c029997910cd0a1e37fa699d2f69012ebace0"
+    },
+    {
+      "path": "src/oyi-core/response/disclosureConstraint.ts",
+      "sha256": "ea9bfc68f0f4474973198eac436d5c8c5a8c13bd65a5e69607be396bd4414625"
+    }
+  ],
+  "preparation_hashes": [
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11F_PREPARATION.md",
+      "sha256": "721d42830495b47bc1ceccf5dce0495807a602fc735d4d4ba7936196840df08d"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-plan.json",
+      "sha256": "1c04a6a59f40b1a35ccc116920faf280ebaf2b3d745f207e6ee85e7ae89dc7ee"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-wire.schema.json",
+      "sha256": "369264ed74e4b269629fdee5389fe94b865ccdc2709b1291ead002d00589e01f"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-candidate.schema.json",
+      "sha256": "0b5d2e7d157089da88848cfa748849f8882995f068f904d327d48c25a5ce9d13"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-packet.schema.json",
+      "sha256": "7ecb0fe0edcc090c7deb39ba1415a771b676984c065ad40d5dec55a8214740bf"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11E_PROTOCOL.md",
+      "sha256": "4c3ebd07c7f1207a2566683e653f224ce2fdf4c7de09c062871de2d12ea24923"
+    },
+    {
+      "path": "scripts/iq11f/prepare.mjs",
+      "sha256": "0dea553f1e7a03e52fc800ef4ff251941f8c73a3df1893da58e660baa106410e"
+    },
+    {
+      "path": "scripts/iq11f/access-check.mjs",
+      "sha256": "59bb16c97f948d1a3479eb66f2575e439e0a4e2457b3be3cb2ea2a17a2b9bd4f"
+    },
+    {
+      "path": "scripts/iq11f/offline-tests.mjs",
+      "sha256": "7acbeedba9aeabe048aa97ff75882bf973e814f0a6ec298ccabc24d2fc996ed2"
+    }
+  ],
+  "prompt_sha256": "7968d95cee4e737bff12fa9a5f7464c81d1335940c6337b25a586dfc3dc383ab",
+  "provider_calls": 0,
+  "paid_inference_calls": 0,
+  "actual_inference_cost_usd": 0,
+  "independent_corpus_authored": false,
+  "runtime_adoption": false,
+  "durable_trace_tested": false,
+  "model_comparison_results": "NOT_RUN_PENDING_APPROVAL_AND_ACCESS",
+  "blockers": [
+    "PAID_INFERENCE_DISABLED",
+    "SPEND_APPROVAL_REQUIRED",
+    "DATA_PROCESSING_APPROVAL_REQUIRED",
+    "PROJECT_CREDENTIAL_AND_BILLING_VERIFICATION_REQUIRED",
+    "TOKENIZER_AND_SCHEMA_CANARY_REQUIRED",
+    "INDEPENDENT_CORPUS_AND_GRADERS_REQUIRED",
+    "SHADOW_TRANSPORT_AND_IQ11C_INTEGRATION_NOT_IMPLEMENTED"
+  ]
+}

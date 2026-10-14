@@ -1,0 +1,518 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "enum": [
+        1
+      ],
+      "type": "integer"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "context_epoch": {
+      "type": "string"
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "outcome": {
+      "enum": [
+        "interpreted",
+        "clarify",
+        "unsupported"
+      ],
+      "type": "string"
+    },
+    "uncertainty": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "enum": [
+            "none",
+            "ambiguous_target",
+            "missing_context",
+            "unsupported_contract",
+            "uncertain_meaning"
+          ],
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "objective",
+              "subject",
+              "operation",
+              "reference",
+              "scope",
+              "time",
+              "answerTarget"
+            ],
+            "type": "string"
+          },
+          "maxItems": 8
+        }
+      },
+      "required": [
+        "reason",
+        "fields"
+      ],
+      "additionalProperties": false
+    },
+    "frame": {
+      "type": "object",
+      "properties": {
+        "cognitiveObjective": {
+          "enum": [
+            "retrieve",
+            "summarize",
+            "assess",
+            "prioritize",
+            "compare",
+            "explain",
+            "advise",
+            "reassess",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domain": {
+          "enum": [
+            "global",
+            "home",
+            "rooms",
+            "devices",
+            "visitors",
+            "access",
+            "security",
+            "maintenance",
+            "wallet",
+            "transactions",
+            "utilities",
+            "services",
+            "community",
+            "messages",
+            "scenes",
+            "automations",
+            "reports",
+            "cameras",
+            "notifications",
+            "incidents",
+            "crm",
+            "office_reports",
+            "office_development",
+            "office_financial",
+            "office_tasks",
+            "office_meetings",
+            "office_support",
+            "office_portfolio",
+            "office_documents",
+            "office_content",
+            "corporate_company",
+            "corporate_development",
+            "corporate_oyi",
+            "corporate_private",
+            "corporate_partnerships",
+            "corporate_opportunity",
+            "digital_twin",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operation": {
+          "enum": [
+            "memory.recall",
+            "plan.review",
+            "inform",
+            "summarize",
+            "list",
+            "inspect",
+            "navigate",
+            "compose",
+            "clarify",
+            "approve",
+            "reject",
+            "cancel",
+            "device.power.on",
+            "device.power.off",
+            "device.availability",
+            "device.status",
+            "device.activity",
+            "device.failures",
+            "device.diagnosis",
+            "device.relationships",
+            "wallet.history",
+            "utilities.spending",
+            "utilities.active",
+            "utilities.usage",
+            "utilities.balance",
+            "utilities.meter"
+          ],
+          "type": "string"
+        },
+        "mutationIntent": {
+          "type": "boolean"
+        },
+        "temporalScope": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "current",
+                    "recent",
+                    "today",
+                    "yesterday",
+                    "current_month",
+                    "range",
+                    "history"
+                  ],
+                  "type": "string"
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2}))?$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2}))?$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "mode",
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "answerTarget": {
+          "type": "object",
+          "properties": {
+            "response_intent": {
+              "enum": [
+                "LIST",
+                "COUNT",
+                "STATUS",
+                "SUMMARY",
+                "DIRECT_ANSWER",
+                "ASSESSMENT",
+                "RANKING",
+                "COMPARISON",
+                "EXPLANATION",
+                "YES_NO_WITH_REASON",
+                "ADVICE",
+                "CLARIFICATION",
+                "REFUSAL",
+                "LIMITATION",
+                "CONFIRMATION_STATE",
+                "ACTION_RESULT",
+                "NEXT_STEP",
+                "SAFETY_RISK",
+                "CAPABILITY_DISCOVERY"
+              ],
+              "type": "string"
+            },
+            "quantity": {
+              "enum": [
+                "count",
+                "list",
+                "sum",
+                "value",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "subject_scope": {
+              "enum": [
+                "own",
+                "other_person",
+                "estate_wide"
+              ],
+              "type": "string"
+            },
+            "object": {
+              "enum": [
+                "lead",
+                "opportunity",
+                "report",
+                "task",
+                "project",
+                "document",
+                "wallet",
+                "visitor",
+                "device",
+                "camera",
+                "maintenance_request",
+                "incident",
+                "utility",
+                "room",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "facet": {
+              "enum": [
+                "balance",
+                "transactions",
+                "spending",
+                "usage",
+                "history",
+                "age",
+                "status",
+                "owner",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "top_n": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 50
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "state_concept": {
+              "enum": [
+                "open",
+                "resolved",
+                "stale",
+                "overdue",
+                "arrived",
+                "departed",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "yes_no": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "state",
+                        "inference",
+                        "capability",
+                        "change",
+                        "action_result",
+                        "advice",
+                        "fact",
+                        "submission"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "requested_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 8
+            },
+            "qualifier_tokens": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 8
+            },
+            "negated_qualifiers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 8
+            },
+            "hypothetical_process": {
+              "type": "boolean"
+            },
+            "confirmation_kind": {
+              "enum": [
+                "cancel",
+                "hold",
+                "callback",
+                "constraint",
+                "action",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "response_intent",
+            "quantity",
+            "subject_scope",
+            "object",
+            "facet",
+            "top_n",
+            "state_concept",
+            "yes_no",
+            "requested_fields",
+            "qualifier_tokens",
+            "negated_qualifiers",
+            "hypothetical_process",
+            "confirmation_kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cognitiveObjective",
+        "domain",
+        "operation",
+        "mutationIntent",
+        "temporalScope",
+        "answerTarget"
+      ],
+      "additionalProperties": false
+    },
+    "discourse": {
+      "enum": [
+        "new_subject",
+        "same_subject_facet",
+        "entity_correction",
+        "operation_correction",
+        "material_fact",
+        "return",
+        "selection",
+        "comparison",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_token": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "pronoun",
+              "same_target",
+              "other_candidate",
+              "candidate_reply"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_token",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    },
+    "basis_spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "enum": [
+              "objective",
+              "subject",
+              "operation",
+              "reference",
+              "scope",
+              "time",
+              "answerTarget"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2000
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2000
+          }
+        },
+        "required": [
+          "field",
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    }
+  },
+  "required": [
+    "version",
+    "request_id",
+    "context_epoch",
+    "input_hash",
+    "outcome",
+    "uncertainty",
+    "frame",
+    "discourse",
+    "bindings",
+    "basis_spans"
+  ],
+  "additionalProperties": false
+}
