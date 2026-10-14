@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "architecture": "provider-neutral interpretation gateway",
+  "historical_preparation_head": "e8c74aed00e613270a393aa633aa410253d9962e",
+  "supersedes_architecture_only": "OpenAI-only IQ-11F experiment; historical files and results remain immutable",
+  "status": "OFFLINE_DESIGN_ONLY",
+  "production_adoption": false,
+  "live_transport_implemented": false,
+  "paid_inference_enabled": false,
+  "currently_authorized_spend_usd": 0,
+  "historical_proposed_budget_usd": 50,
+  "multi_provider_budget_approved": false,
+  "cross_provider_fallback_default": "DISABLED",
+  "approved_cross_provider_transfers": [],
+  "providers": [
+    {"id": "openai", "family": "GPT", "adapter_protocol": "responses", "historical_candidates": ["gpt-5.4-mini-2026-03-17", "gpt-5.4-2026-03-05"], "qualified_model": null, "credential_reference": null, "project_approval": null, "processing_policy_approval": null, "region_approval": null, "retention_approval": null, "dated_price_schedule": null, "tokenizer_version": null, "live_approval": null},
+    {"id": "anthropic", "family": "Claude", "adapter_protocol": "messages", "historical_candidates": [], "qualified_model": null, "credential_reference": null, "project_approval": null, "processing_policy_approval": null, "region_approval": null, "retention_approval": null, "dated_price_schedule": null, "tokenizer_version": null, "live_approval": null},
+    {"id": "gemini", "family": "Gemini", "adapter_protocol": "generateContent-compatibility-profile", "historical_candidates": [], "qualified_model": null, "credential_reference": null, "project_approval": null, "processing_policy_approval": null, "region_approval": null, "retention_approval": null, "dated_price_schedule": null, "tokenizer_version": null, "live_approval": null}
+  ],
+  "common_limits_proposed": {"input_tokens": 4096, "output_tokens": 1024, "packet_bytes": 12288, "candidate_bytes": 8192, "raw_receipt_bytes": 65536, "per_attempt_timeout_ms": 3000, "overall_timeout_ms": 3000, "p95_target_ms": 1500, "concurrency": 1, "automatic_retries": 0, "max_fallback_attempts": 1},
+  "offline_circuit_proposal": {"consecutive_failures_to_open": 3, "cooldown_ms": 30000, "half_open_probes": 1},
+  "qualification": {"primary_journeys_per_worker_min": 80, "scored_turns_per_journey_min": 2, "paraphrases_min": 100, "operation_flips_min": 100, "scored_requests_per_model_min": 840, "three_provider_requests_min": 2520, "with_both_historical_openai_arms_min": 3360, "corpus_hash": null, "authorship": "NOT_COMMISSIONED", "fallback_in_scored_arms": false}
+}

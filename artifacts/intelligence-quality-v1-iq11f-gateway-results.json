@@ -1,0 +1,560 @@
+{
+  "programme": "IQ-11F provider-neutral architecture preparation",
+  "starting_head": "e8c74aed00e613270a393aa633aa410253d9962e",
+  "pass": 89,
+  "fail": 0,
+  "checks": [
+    {
+      "id": "registry-has-three-independent-adapters",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate-registry-entry-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-provider-no-discovery",
+      "status": "PASS"
+    },
+    {
+      "id": "live-adapter-registration-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "future-compatible-adapter-explicit-registration",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:same-canonical-output",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:surface-office_internal",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:surface-public_corporate",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:surface-facility",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:surface-consumer",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:description-no-execution",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:wrong-model-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:truncated-never-parsed-as-success",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:refusal-not-shopped",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:tool-output-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:invalid-candidate-no-repair",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:unknown-usage-reservation-retained",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:core-denied-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:core-cancelled-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:core-hazard-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:requested-scope-not-substituted",
+      "status": "PASS"
+    },
+    {
+      "id": "openai:wire-fields-preserved",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:same-canonical-output",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:surface-office_internal",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:surface-public_corporate",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:surface-facility",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:surface-consumer",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:description-no-execution",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:wrong-model-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:truncated-never-parsed-as-success",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:refusal-not-shopped",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:tool-output-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:invalid-candidate-no-repair",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:unknown-usage-reservation-retained",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:core-denied-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:core-cancelled-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:core-hazard-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:requested-scope-not-substituted",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic:wire-fields-preserved",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:same-canonical-output",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:surface-office_internal",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:surface-public_corporate",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:surface-facility",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:surface-consumer",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:description-no-execution",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:wrong-model-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:truncated-never-parsed-as-success",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:refusal-not-shopped",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:tool-output-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:invalid-candidate-no-repair",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:unknown-usage-reservation-retained",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:core-denied-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:core-cancelled-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:core-hazard-lock",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:requested-scope-not-substituted",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini:wire-fields-preserved",
+      "status": "PASS"
+    },
+    {
+      "id": "anthropic-cache-input-not-lost",
+      "status": "PASS"
+    },
+    {
+      "id": "gemini-reasoning-not-free",
+      "status": "PASS"
+    },
+    {
+      "id": "openai-reasoning-not-double-counted",
+      "status": "PASS"
+    },
+    {
+      "id": "no-production-packet-or-receipt",
+      "status": "PASS"
+    },
+    {
+      "id": "cross-home-packet-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "public-office-leak-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "unapproved-recipient-rejected-before-attempt",
+      "status": "PASS"
+    },
+    {
+      "id": "provider-approval-does-not-grant-other-scope",
+      "status": "PASS"
+    },
+    {
+      "id": "expired-recipient-policy-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "provider-off-needs-no-approval-or-receipt",
+      "status": "PASS"
+    },
+    {
+      "id": "no-unapproved-fallback-even-with-provider-approvals",
+      "status": "PASS"
+    },
+    {
+      "id": "explicit-packet-bound-fallback",
+      "status": "PASS"
+    },
+    {
+      "id": "transfer-not-reusable-for-different-packet",
+      "status": "PASS"
+    },
+    {
+      "id": "invalid-candidate-never-falls-back",
+      "status": "PASS"
+    },
+    {
+      "id": "three-recipient-route-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-price-blocks",
+      "status": "PASS"
+    },
+    {
+      "id": "zero-budget-blocks-before-attempt",
+      "status": "PASS"
+    },
+    {
+      "id": "unmeasured-tokens-block",
+      "status": "PASS"
+    },
+    {
+      "id": "oversized-tokens-block",
+      "status": "PASS"
+    },
+    {
+      "id": "missing-and-conflicting-receipts-accounted",
+      "status": "PASS"
+    },
+    {
+      "id": "wrong-epoch-cannot-return-valid-candidate",
+      "status": "PASS"
+    },
+    {
+      "id": "late-completion-discarded-and-does-not-rewrite-result",
+      "status": "PASS"
+    },
+    {
+      "id": "overall-deadline-cannot-reset-on-fallback",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-billing-stops-fallback-and-new-attempts",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate-delivery-no-extra-cost-or-attempt",
+      "status": "PASS"
+    },
+    {
+      "id": "changed-safety-lock-retry-rejected",
+      "status": "PASS"
+    },
+    {
+      "id": "revoked-policy-no-cached-shadow",
+      "status": "PASS"
+    },
+    {
+      "id": "circuit-opens-and-bounded-half-open-probe",
+      "status": "PASS"
+    },
+    {
+      "id": "no-private-payload-in-structural-records",
+      "status": "PASS"
+    },
+    {
+      "id": "unexpected-output-is-not-logged",
+      "status": "PASS"
+    },
+    {
+      "id": "historical-iq11f-and-iq11e-tests-in-isolated-output",
+      "status": "PASS"
+    },
+    {
+      "id": "all-historical-preparation-files-byte-identical",
+      "status": "PASS"
+    },
+    {
+      "id": "new-metadata-never-grants-live-approval",
+      "status": "PASS"
+    }
+  ],
+  "inherited": {
+    "pass": 25,
+    "fail": 0,
+    "inherited": {
+      "pass": 91,
+      "fail": 0,
+      "failures": [],
+      "elapsed_ms": 2614
+    },
+    "estimate": 27.9552,
+    "failures": []
+  },
+  "historical_files_preserved": [
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-candidate.schema.json",
+      "hash": "0b5d2e7d157089da88848cfa748849f8882995f068f904d327d48c25a5ce9d13"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-offline-results.json",
+      "hash": "57cbbaaffb339320b20d034ac6c47005394b4569f4f14e49483e9c0df9831acc"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-packet.schema.json",
+      "hash": "7ecb0fe0edcc090c7deb39ba1415a771b676984c065ad40d5dec55a8214740bf"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11e-provider-approval.template.json",
+      "hash": "0cf7c70f496ffe3336226f3163496de52af215ec718e121d6e035e06725ca6d7"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-access-check.json",
+      "hash": "7fdbe228bd73569b6187ac7fa30a27e7d93625c5e8f14701bd95768328137a3f"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-offline-results.json",
+      "hash": "0870fffa08febb9963edb401afae5d8397320a352e00813fd4ade42f70c09dbd"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-plan.json",
+      "hash": "1c04a6a59f40b1a35ccc116920faf280ebaf2b3d745f207e6ee85e7ae89dc7ee"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-wire.schema.json",
+      "hash": "369264ed74e4b269629fdee5389fe94b865ccdc2709b1291ead002d00589e01f"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11E_PREPARATION.md",
+      "hash": "a76480298509477de607f16cc60189becd03310b5a2568082fc8304beeb1f63b"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11E_PROTOCOL.md",
+      "hash": "4c3ebd07c7f1207a2566683e653f224ce2fdf4c7de09c062871de2d12ea24923"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11F_PREPARATION.md",
+      "hash": "721d42830495b47bc1ceccf5dce0495807a602fc735d4d4ba7936196840df08d"
+    },
+    {
+      "path": "scripts/iq11e/contract.mjs",
+      "hash": "20ca977a9df21e2276ad0a0138adf7417808c3765b48258b1eda4ee73f992199"
+    },
+    {
+      "path": "scripts/iq11e/fixtures.mjs",
+      "hash": "d9636ec9b34367bb9bf3cd1930fe254bd270dbcb64d240ae2dc010aed4175de6"
+    },
+    {
+      "path": "scripts/iq11e/harness.mjs",
+      "hash": "4ce558e9ebebb7ad2b62597f58b9788eaacc961ca59b48ad6dfb150df3f54698"
+    },
+    {
+      "path": "scripts/iq11e/offline-tests.mjs",
+      "hash": "63fbcc07313a88091b723c0be0f10cbf29b4539b832e78e8f2ac6e1ae25d21d5"
+    },
+    {
+      "path": "scripts/iq11e/run-offline.mjs",
+      "hash": "6fcabad98edf8c925541315245ebeb67577122af636699668d4d2e12198dbd9b"
+    },
+    {
+      "path": "scripts/iq11f/access-check.mjs",
+      "hash": "59bb16c97f948d1a3479eb66f2575e439e0a4e2457b3be3cb2ea2a17a2b9bd4f"
+    },
+    {
+      "path": "scripts/iq11f/offline-tests.mjs",
+      "hash": "7acbeedba9aeabe048aa97ff75882bf973e814f0a6ec298ccabc24d2fc996ed2"
+    },
+    {
+      "path": "scripts/iq11f/prepare.mjs",
+      "hash": "0dea553f1e7a03e52fc800ef4ff251941f8c73a3df1893da58e660baa106410e"
+    }
+  ],
+  "source_manifest": [
+    {
+      "path": "src/oyi-core/interpretation/SemanticFrameParser.ts",
+      "sha256": "425db6861e8c2449c509f0944af8288546830859338be66a9eab43b8a353bf1c"
+    },
+    {
+      "path": "src/oyi-core/runtime/languageUnderstanding.ts",
+      "sha256": "ea241118e04d906ad0d08da593e336995469fa8b5acfe08e2f69a0d1fbe231a2"
+    },
+    {
+      "path": "src/oyi-core/interpretation/LanguageNormalizer.ts",
+      "sha256": "32a8413a7cf05046c35ad712a7717f53691fcc76451fbf58b6e130c32272776e"
+    },
+    {
+      "path": "src/oyi-core/interpretation/ReferenceResolver.ts",
+      "sha256": "153e37965d9e51fe67f3471fe83c9062a76608ff14de019fcbc6f4209e929e88"
+    },
+    {
+      "path": "src/oyi-core/interpretation/TemporalResolver.ts",
+      "sha256": "cd223a65227b881051162788c2d9bfb9638feebd81f2252c27966fc708e3d7c5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptBridge.ts",
+      "sha256": "d598a83dc98f9ad338c97189b2d6c4c1bdc97036924fd00989c4f3cb498968a5"
+    },
+    {
+      "path": "src/oyi-core/interpretation/conceptLexicon.ts",
+      "sha256": "9e00bd65aec8401a7230d1083554f85802ea623f91a487a46226b1dbf7edf117"
+    },
+    {
+      "path": "src/oyi-core/interpretation/semanticObjective.ts",
+      "sha256": "dd3107fb54571c4922432cda23f0c0641174b364226b7d2d77cb1f0d958758ca"
+    },
+    {
+      "path": "src/oyi-core/interpretation/domainVocabulary.ts",
+      "sha256": "61b04b150ce37cebac8ad121dd987bd7a4c1d794d72989bde0d0e6b5eb8a92f1"
+    },
+    {
+      "path": "src/oyi-core/response/answerTarget.ts",
+      "sha256": "8da4772b1b5b3b6e25ea869d426c029997910cd0a1e37fa699d2f69012ebace0"
+    },
+    {
+      "path": "src/oyi-core/response/disclosureConstraint.ts",
+      "sha256": "ea9bfc68f0f4474973198eac436d5c8c5a8c13bd65a5e69607be396bd4414625"
+    }
+  ],
+  "preparation_hashes": [
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11F_PROVIDER_NEUTRAL_GATEWAY.md",
+      "sha256": "fa867577bf59b43a33ef8bbde1296833a87842104b7b37e9bb045a45133715ef"
+    },
+    {
+      "path": "artifacts/intelligence-quality-v1-iq11f-gateway-approvals.json",
+      "sha256": "6371aa7a05c3ee6d60c6236d188615b2bf31669e4c97db782842b50ecd4c6be4"
+    },
+    {
+      "path": "scripts/iq11f-gateway/adapter-contract.d.ts",
+      "sha256": "ead35094ec9990192464403dc3a27fadcf22d416f14a8d4324216503967ead6c"
+    },
+    {
+      "path": "scripts/iq11f-gateway/gateway.mjs",
+      "sha256": "d67302840951cea335a02787ff16fff22640991edbe372dfe5ef995dc179dd88"
+    },
+    {
+      "path": "scripts/iq11f-gateway/mocks.mjs",
+      "sha256": "d6fc837929e21ee4a53bd2f64c52c40137f3f3976c8628c9d216ecfc8594249e"
+    },
+    {
+      "path": "scripts/iq11f-gateway/offline-tests.mjs",
+      "sha256": "a5f7de5b5e4b3df0b5c5b680b52f1247e004aa9b736e6dd2cc14794e1742050d"
+    },
+    {
+      "path": "scripts/iq11f-gateway/registry.mjs",
+      "sha256": "edc5d61fd2d6665a5561d938408ff3f1339c4e5b8f4d25020be3a8e68b3965ae"
+    },
+    {
+      "path": "scripts/iq11f-gateway/adapters/anthropic.mjs",
+      "sha256": "c6bfab3a093222e47c7dbb460713d84621865a7310cf8c883ef0afcd502bb34c"
+    },
+    {
+      "path": "scripts/iq11f-gateway/adapters/common.mjs",
+      "sha256": "07d54581f04bade49e5b3106476f28092b4bcf554e63c657f3840299a95858b7"
+    },
+    {
+      "path": "scripts/iq11f-gateway/adapters/gemini.mjs",
+      "sha256": "6fac911ef235f0165eb702e6ebe871f6e53553eb34791848248b768a9166688a"
+    },
+    {
+      "path": "scripts/iq11f-gateway/adapters/openai.mjs",
+      "sha256": "8b980743c5326c2c6bca76d24ecd628b4bdb9de2909b0009532a260850ccbe43"
+    }
+  ],
+  "schema_hashes": {
+    "openai": "b3ab2ac2685fd6bdd47ee17a1f255c936ed29fcbbbfe4dad9f72c55f76a273af",
+    "anthropic": "6b97cd5519b7d5f49bcb3c5b6e964481b5c378ea09bf7d1df1094eaf048cdfaf",
+    "gemini": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3"
+  },
+  "instruction_hash": "c80f9487ad630c4ae69ee0af4d5541d470652a9f70e5521e578d7d21de616bd3",
+  "paid_calls": 0,
+  "provider_api_calls": 0,
+  "actual_provider_cost": 0,
+  "runtime_adoption": false,
+  "credentials_changed": false,
+  "clock": "VIRTUAL_MOCK",
+  "durability": "NOT_TESTED",
+  "independent_intelligence_cases": 0
+}
