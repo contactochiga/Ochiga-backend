@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "programme": "IQ-11F OpenAI shadow qualification",
+  "recorded_date": "2026-10-14",
+  "starting_head": "7074f7ae720c53d48d7c7f62ac2cbb2e7639a1c4",
+  "approval_source": "Direct user instruction in this task: Proceed with IQ-11F OpenAI Shadow Qualification; $50 combined OpenAI API budget approved",
+  "authorization": {
+    "provider": "openai",
+    "maximum_cumulative_api_charges_usd": 50,
+    "per_model_budget": false,
+    "synthetic_only": true,
+    "shadow_only": true,
+    "production_adoption": false,
+    "inactive_providers": ["anthropic", "gemini"],
+    "cross_provider_fallback": false,
+    "scope_includes": ["both approved models", "schema canaries", "setup inference", "qualification inference", "any paid authoring or grading", "failures and uncertain late completion"],
+    "conditions": ["verified credentials and funded project", "verified exact model access", "approved and verified data-processing settings", "tested durable cumulative budget enforcement", "frozen independent corpus and grading protocol"]
+  },
+  "models": [
+    {"id": "gpt-5.4-mini-2026-03-17", "documentation_verified": true, "project_access_verified": false, "standard_input_usd_per_million": 0.75, "standard_output_usd_per_million": 4.5},
+    {"id": "gpt-5.4-2026-03-05", "documentation_verified": true, "project_access_verified": false, "standard_input_usd_per_million": 2.5, "standard_output_usd_per_million": 15}
+  ],
+  "pricing": {
+    "checked_date": "2026-10-14",
+    "basis": "Standard text token rates; no cache discount; no tools. Regional processing, tax or any other applicable surcharge must be included before execution.",
+    "sources": ["https://developers.openai.com/api/docs/models/gpt-5.4-mini", "https://developers.openai.com/api/docs/models/gpt-5.4", "https://developers.openai.com/api/docs/pricing"],
+    "base_token_upper_estimate_for_840_requests_each_usd": 27.9552,
+    "estimate_is_all_in_quote": false
+  },
+  "preserved_limits": {
+    "input_tokens_including_instructions_schema_and_packet": 4096,
+    "max_output_tokens_including_reasoning": 1024,
+    "packet_bytes": 12288,
+    "candidate_bytes": 8192,
+    "deadline_ms": 3000,
+    "p95_target_ms": 1500,
+    "concurrency": 1,
+    "automatic_retries": 0,
+    "service_tier": "default",
+    "reasoning_effort": "none"
+  },
+  "proposed_processing_configuration": {
+    "endpoint": "https://api.openai.com/v1/responses",
+    "store": false,
+    "background": false,
+    "stream": false,
+    "tools": [],
+    "provider_conversation_state": false,
+    "training_sharing_opt_in": false,
+    "project": null,
+    "region": null,
+    "retention_policy_approval": null,
+    "project_controls_verified": false
+  },
+  "runner_readiness": {
+    "durable_live_budget_enforcement_implemented": false,
+    "live_transport_enabled": false,
+    "independent_corpus_hash": null,
+    "independent_graders_assigned": false,
+    "tokenizer_qualified": false,
+    "iq11c_live_reconciliation_verified": false,
+    "status": "BLOCKED_BEFORE_PAID_EXECUTION"
+  },
+  "accounting_this_request": {
+    "authenticated_provider_requests": 0,
+    "paid_inference_calls": 0,
+    "api_charges_usd": 0,
+    "outstanding_reservations_usd": 0,
+    "remaining_authorized_budget_usd": 50,
+    "basis": "No provider requests were sent; not a claim about unrelated account-wide usage"
+  },
+  "historical_evidence_policy": "Additive approval checkpoint only. Historical IQ-11E, IQ-11F and gateway approval artifacts remain unchanged and do not represent the new spending authorization. This file records approval but is not an executable transport configuration."
+}

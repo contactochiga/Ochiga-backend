@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-10-14T06:25:52.398Z",
+  "checked_scope": "Current process environment and intelligence-quality worktree root only; no keychain, other worktree or global credential search",
+  "environment_presence": {
+    "OPENAI_API_KEY": false,
+    "OPENAI_PROJECT_ID": false,
+    "OPENAI_PROJECT": false,
+    "OPENAI_ORG_ID": false,
+    "OPENAI_ADMIN_KEY": false,
+    "OPENAI_BASE_URL": false
+  },
+  "local_credential_file_present": false,
+  "credential_status": "UNAVAILABLE_IN_CHECKED_SCOPE",
+  "project_status": "UNAVAILABLE_IN_CHECKED_SCOPE",
+  "billing_status": "NOT_VERIFIED",
+  "project_data_controls": "NOT_VERIFIED",
+  "model_access": "NOT_VERIFIED",
+  "authenticated_api_requests": 0,
+  "paid_inference_calls": 0,
+  "credential_or_billing_changes": false,
+  "secret_values_recorded": false,
+  "blockers": ["No available project API credential", "No identified and verified funded experiment project", "Project retention, region and sharing controls not verified or specifically approved"]
+}
