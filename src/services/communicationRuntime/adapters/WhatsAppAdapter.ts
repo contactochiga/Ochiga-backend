@@ -83,6 +83,10 @@ export class WhatsAppAdapter implements CommunicationAdapter {
       // No free-form body when sending a template -- content comes from
       // the approved template itself.
       const [templateName, templateLanguage] = record.template_id ? record.template_id.split("@") : [null, null];
+      // Office's global autonomous-WhatsApp switch needs to tell a human-confirmed send from an autonomous one. Only a conversation-sourced record
+      // (Oma/Oyi chat, which reaches this point only after a staff member confirmed it) is "staff_confirmed"; goals, automations, tasks and workflows are
+      // "autonomous". Office treats a missing value as autonomous, so this stays safe even against an older caller.
+      const sendOrigin = record.source === "conversation" ? "staff_confirmed" : "autonomous";
       const response = await axios.post(
         `${resolveOfficeBaseUrl()}/api/lead-agents/admin/communications/whatsapp/send`,
         templateName
@@ -91,6 +95,7 @@ export class WhatsAppAdapter implements CommunicationAdapter {
               template_name: templateName,
               template_language: templateLanguage || "en_US",
               communication_id: record.communication_id,
+              send_origin: sendOrigin,
               // Oyi Communications Convergence, Slice 1 -- lets Office's
               // send bridge check ITS OWN authoritative lead_channel_states
               // takeover truth before dispatching to Meta (see
@@ -104,6 +109,7 @@ export class WhatsAppAdapter implements CommunicationAdapter {
               body: record.body,
               context_message_id: record.reply_to_message_id ? record.provider_conversation_id : undefined,
               communication_id: record.communication_id,
+              send_origin: sendOrigin,
               lead_id: record.recipient.lead_id || undefined,
             },
         { headers: { "x-office-api-key": key, "content-type": "application/json" }, timeout: 15000, validateStatus: () => true }
