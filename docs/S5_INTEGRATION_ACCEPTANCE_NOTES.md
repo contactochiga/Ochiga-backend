@@ -1,0 +1,7 @@
+# S5 integration acceptance — Backend notes
+
+`scripts/s5-integration-harness.mjs` is evidence tooling for the Office repository's `scripts/test-s5-integration-acceptance.js` (Office branch `feature/settings-s1-s2`). It serves the real compiled Office export router (so `GET /office/intelligence/providers` is the production route behind the production `requireOfficeExportKey`), a `/health` answer, and a variant path that reuses the same handler and guard with scenario ledgers and clocks (stale, empty, conflicting, verified, hostile). A loopback-only control endpoint switches scenarios and returns the request log and any non-loopback outbound attempts (none occurred). It is not the full Backend application and is not loaded by the server.
+
+## Test-lifecycle classification (not changed here)
+- `office-export-auth-compat-smoke.mjs` and `communications-office-auth-compat-smoke.mjs` print PASS and then do not exit. Identical on `origin/main` and this branch. For the first, `process._getActiveHandles()` shows two idle sockets to Redis (port 6379) opened by importing `officeExport.ts`; with `bullmq`/`ioredis` stubbed (as sibling smokes do) it exits in ~1 s. Classified as an existing test-lifecycle defect.
+- Historical failures preserved, identical on `origin/main`: `office-intelligence-memory-learning-smoke` (line 175, `complete` expected true), `intelligence-trace-live-smoke` and `intelligence-visibility-final-audit-smoke` (`null.name`: a seeded `devices` fixture row is absent).
