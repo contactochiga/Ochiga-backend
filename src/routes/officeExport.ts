@@ -29,6 +29,8 @@ import { recordOyiObservabilityEvent, observabilityStatusFromTruthState } from "
 import { analyzeCommunicationFrame, analyzeCommunicationDocument, synthesizeOyiSpeech } from "../services/communications/communicationsMediaAdapters";
 import { createWorkflow, transitionWorkflow, listWorkflows, getWorkflow, type WorkflowStatus } from "../intelligence-core/workflows";
 import type { IntelligenceAgentId } from "../intelligence-core/types";
+import { PROVIDER_APPROVAL_LEDGER } from "../intelligence-core/providerStatus/approvalLedger";
+import { createProviderStatusHandler } from "../intelligence-core/providerStatus/projection";
 // Tasks Domain UI (Office) — reuses the Shared Automation Runtime's own
 // validation, not a second automation engine. These routes only ever
 // read/write consumer_automations rows with surface forced to
@@ -2623,6 +2625,10 @@ function buildIntelligenceCapabilityInventory() {
     byConfirmationPolicy: countIntelligenceCapabilitiesBy(all.map((c) => c.confirmation_policy || "none")),
   };
 }
+
+// Settings S5 -- read-only AI provider status, projected from the governed approval-record ledger (src/intelligence-core/providerStatus). Same Office export auth
+// boundary as every sibling route. No provider is called, no credential is read, nothing is activated; unknown stays unknown. See docs/PROVIDER_STATUS_CONTRACT.md.
+router.get("/intelligence/providers", requireOfficeExportKey, createProviderStatusHandler(() => PROVIDER_APPROVAL_LEDGER));
 
 router.get("/intelligence/capabilities", requireOfficeExportKey, async (req: Request, res: Response) => {
   try {

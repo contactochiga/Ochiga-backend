@@ -21,6 +21,7 @@
     "sync:camera-media-distribution": "node scripts/sync-camera-media-distribution.mjs",
     "smoke:camera-media-phase4": "node scripts/camera-media-phase4-smoke.mjs",
     "smoke:camera-detection-phase5": "npm run build && node scripts/camera-detection-phase5-smoke.mjs",
+    "smoke:office-intelligence-providers": "npm run build && node scripts/office-intelligence-providers-smoke.mjs",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "dev:workers": "ts-node-dev --respawn --transpile-only src/worker.ts",
     "dev:events": "ts-node-dev --respawn --transpile-only src/events.ts",
