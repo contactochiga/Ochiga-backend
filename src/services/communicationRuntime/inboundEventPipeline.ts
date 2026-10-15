@@ -50,7 +50,10 @@ async function logDecisionEvent(input: {
     event_type: input.eventType,
     channel: input.channel,
     provider: input.provider,
-    provider_event_id: input.providerEventId,
+    // oyi_communication_events has a unique index on (provider, provider_event_id). Every decision event of ONE inbound message used to share the message's id, so only
+    // the first ("inbound.classified") was ever stored and "governance.opt_out_recorded", "goal.wake_triggered" ... were silently dropped as duplicates. The event
+    // type is appended so the decision trail is complete and still idempotent per (message, event type).
+    provider_event_id: input.providerEventId ? `${input.providerEventId}:${input.eventType}` : null,
     from_address: input.fromAddress,
     event_text: input.eventText,
     metadata: input.metadata,
@@ -60,19 +63,34 @@ async function logDecisionEvent(input: {
   }
 }
 
-export async function processInboundEvent(event: CanonicalInboundCommunicationEvent): Promise<InboundEventProcessingResult> {
+// True only for a unique violation on the inbound idempotency index. Any other unique violation, or any other error, is a real failure.
+export function isInboundDuplicateError(error: { code?: string; message?: string; details?: string } | null | undefined): boolean {
+  if (!error || String(error.code || "") !== "23505") return false;
+  return `${error.message || ""} ${error.details || ""}`.includes("uq_oyi_communications_inbound_provider_message");
+}
+
+export type ProcessInboundOptions = {
+  // Historical recovery (e.g. re-delivering inbound messages Office stored while Backend could not persist them). A replayed message is persisted with its ORIGINAL
+  // timestamp, classified and subject to opt-out governance (a past STOP must still be honoured), but it NEVER wakes goals: no goal evaluation, no automated
+  // follow-up, no outbound message can result from history being re-delivered. Idempotent on the provider message id like any live delivery.
+  replay?: boolean;
+};
+
+export async function processInboundEvent(event: CanonicalInboundCommunicationEvent, options: ProcessInboundOptions = {}): Promise<InboundEventProcessingResult> {
+  const replay = options.replay === true;
   const recipient = recipientForEvent(event);
   const threadReference = event.thread_reference || computeThreadReference(event.channel, recipient);
 
-  // 1) ATOMIC persist -- .upsert with ignoreDuplicates relies on the real
-  // DB unique index (provider, provider_message_id, direction='inbound')
-  // added in the Live Reply Loop migration, not a read-then-write check.
-  // Two webhook deliveries racing each other resolve at the database
-  // layer: exactly one insert wins, the other's upsert is a genuine no-op.
+  // 1) ATOMIC persist -- a plain INSERT, with the database's own unique index as the arbiter. The idempotency index
+  // (uq_oyi_communications_inbound_provider_message) is a PARTIAL unique index (WHERE provider_message_id IS NOT NULL AND direction = 'inbound'). The
+  // previous code used .upsert(..., { onConflict: "provider,provider_message_id,direction", ignoreDuplicates: true }); PostgREST turns that into
+  // ON CONFLICT (provider, provider_message_id, direction), which PostgreSQL cannot match to a partial index (it would need the index predicate), so every
+  // inbound message failed with 42P10 and nothing was ever persisted. An insert never needs conflict inference: two webhook deliveries racing each other
+  // resolve at the database layer -- exactly one insert wins, the loser gets unique_violation (23505) on that index and is reported as a duplicate.
   const now = new Date().toISOString();
   const { data: inserted, error: insertError } = await supabaseAdmin
     .from("oyi_communications")
-    .upsert(
+    .insert(
       {
         correlation_id: `inbound-${event.provider_event_id}`,
         surface: event.source_surface,
@@ -104,22 +122,19 @@ export async function processInboundEvent(event: CanonicalInboundCommunicationEv
         outcome: "received",
         created_at: event.occurred_at || now,
         delivered_at: event.occurred_at || now,
-      } as any,
-      { onConflict: "provider,provider_message_id,direction", ignoreDuplicates: true }
+      } as any
     )
     .select("id")
     .maybeSingle();
 
-  if (insertError) {
-    logger.error("inbound_event_persist_failed", { error: insertError, provider_event_id: event.provider_event_id });
-    return { ok: false, duplicate: false, communication_id: null, thread_reference: threadReference, outcome_classification: null, woke_goal_ids: [], reason: insertError.message };
+  if (insertError && isInboundDuplicateError(insertError)) {
+    // The duplicate-webhook-delivery case, handled honestly rather than re-processing (re-classifying, re-waking goals) a message twice.
+    logger.info("inbound_event_duplicate", { provider_event_id: event.provider_event_id, channel: event.channel, replay });
+    return { ok: true, duplicate: true, communication_id: null, thread_reference: threadReference, outcome_classification: null, woke_goal_ids: [], reason: null };
   }
-  if (!inserted) {
-    // ignoreDuplicates means a genuine conflict returns no row -- this IS
-    // the duplicate-webhook-delivery case, handled honestly rather than
-    // re-processing (re-classifying, re-waking goals) a message twice.
-    logger.info("inbound_event_duplicate", { provider_event_id: event.provider_event_id, channel: event.channel });
-    return { ok: true, duplicate: true, communication_id: null, thread_reference: threadReference, outcome_classification: null, woke_goal_ids: [] , reason: null };
+  if (insertError || !inserted) {
+    logger.error("inbound_event_persist_failed", { error: insertError, provider_event_id: event.provider_event_id });
+    return { ok: false, duplicate: false, communication_id: null, thread_reference: threadReference, outcome_classification: null, woke_goal_ids: [], reason: insertError?.message || "insert_returned_no_row" };
   }
   const communicationId = inserted.id as string;
 
@@ -199,7 +214,10 @@ export async function processInboundEvent(event: CanonicalInboundCommunicationEv
   // guarantees exactly-once evaluation even if this fires more than once
   // for the same goal (e.g. a wake here AND a concurrent scheduler tick).
   const wokeGoalIds: string[] = [];
-  if (threadReference) {
+  if (replay) {
+    // history is never allowed to trigger autonomous behaviour; record that the wake was deliberately skipped
+    await logDecisionEvent({ communicationId, eventType: "inbound.replayed", channel: event.channel, provider: event.provider, providerEventId: event.provider_event_id, fromAddress: event.sender_identifier, eventText: null, metadata: { goal_wake: "skipped_replay", original_occurred_at: event.occurred_at } });
+  } else if (threadReference) {
     try {
       const goals = await goalRuntime.findGoalsWatchingThread(threadReference);
       for (const goal of goals) {

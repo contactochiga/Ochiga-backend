@@ -2425,11 +2425,13 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         attachments: null,
         occurred_at: body.occurred_at || new Date().toISOString(),
         provider_delivery_state: null,
-        source_surface: "whatsapp_inbound",
+        // body.replay === true marks a HISTORICAL re-delivery (recovering messages Office stored while Backend could not persist them): persisted with the original
+        // timestamp and opt-out governance, but it never wakes goals (see inboundEventPipeline.ts::ProcessInboundOptions).
+        source_surface: body.replay === true ? "whatsapp_inbound_replay" : "whatsapp_inbound",
         resolution_confidence: leadId ? "high" : "unresolved",
         resolution_evidence: leadId ? `Matched an existing CRM lead by whatsapp_phone (${from}).` : `No CRM lead found for whatsapp_phone ${from}.`,
       };
-      const result = await processInboundEvent(canonicalEvent);
+      const result = await processInboundEvent(canonicalEvent, { replay: body.replay === true });
       logger.info("communication_webhook_inbound_persisted", {
         provider_message_id: providerMessageId,
         thread_reference: result.thread_reference,

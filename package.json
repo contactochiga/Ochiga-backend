@@ -46,6 +46,7 @@
     "smoke:milestone2-ordinal-mutation-and-filter-fix": "npm run build && node scripts/milestone2-ordinal-mutation-and-filter-fix-smoke.mjs",
     "smoke:office-export-auth-compat": "npm run build && node scripts/office-export-auth-compat-smoke.mjs",
     "smoke:communications-office-auth-compat": "npm run build && node scripts/communications-office-auth-compat-smoke.mjs",
+    "smoke:whatsapp-inbound-persistence-postgres": "npm run build && node scripts/whatsapp-inbound-persistence-postgres-smoke.mjs",
     "smoke:communication-runtime": "npm run build && node scripts/communication-runtime-smoke.mjs",
     "smoke:goal-runtime": "npm run build && node scripts/goal-runtime-smoke.mjs",
     "smoke:reply-loop-telephony": "npm run build && node scripts/reply-loop-telephony-smoke.mjs",
