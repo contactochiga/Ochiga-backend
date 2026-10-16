@@ -1,0 +1,266 @@
+{
+  "starting_head": "52c543268cd131379c82ff5f853eef4176c64152",
+  "observed_at": "2026-10-16T18:26:19.002Z",
+  "status": "BLOCKED_EXTERNAL_EVIDENCE",
+  "project": "gen-lang-client-0414833380",
+  "model": "gemini-3.1-flash-lite",
+  "signed_owner_valid": true,
+  "owner_expiry": "2026-10-23T18:06:32.385Z",
+  "credential_available": true,
+  "credential_comparison": {
+    "succeeded": true,
+    "method": "owner_controlled_masked_full_key_comparison",
+    "association_provenance": "owner_selected_project_key",
+    "credential_material_persisted": false,
+    "reusable_for_dispatch": false
+  },
+  "google_ui": {
+    "free_tier": true,
+    "quota_limits": {
+      "rpm": 15,
+      "tpm": 250000,
+      "rpd": 500
+    },
+    "displayed_peak_usage": {
+      "rpm": 0,
+      "tpm": 0,
+      "rpd": 0
+    },
+    "usage_delay_minutes": 15,
+    "current_remaining_quota_verified": false,
+    "no_linked_billing_verified": false,
+    "billing_observation": "Exact-project linked-account page remained loading",
+    "source": "https://aistudio.google.com/rate-limit?timeRange=last-28-days&project=gen-lang-client-0414833380"
+  },
+  "allowance_unused": true,
+  "execution_window_exists": false,
+  "inference_dispatched": false,
+  "paid_spend_authorized_usd": 0,
+  "input_accounting_verified": false,
+  "qualification_gate": 4096,
+  "output_cap": 1024,
+  "deadline_ms": 3000,
+  "response_bytes": 65536,
+  "suites": [
+    {
+      "name": "offline-tests",
+      "pass": 89,
+      "fail": 0,
+      "inherited": {
+        "iq11f": 25,
+        "iq11e": 91
+      }
+    },
+    {
+      "name": "gemini-shadow-tests",
+      "pass": 65,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "name": "gemini-compatibility-tests",
+      "pass": 107,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "name": "gemini-owner-authorization-tests",
+      "pass": 64,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "name": "owner-key-enrollment-tests",
+      "pass": 23,
+      "fail": 0,
+      "failures": []
+    },
+    {
+      "name": "owner-manifest-tests",
+      "pass": 20,
+      "fail": 1,
+      "failures": [
+        {
+          "id": "no-real-signing-artifacts-or-inference-reservations",
+          "status": "FAIL",
+          "error": "The expression evaluated to a falsy value:\n\n  assert(!fs.existsSync(manifestFile.replace('.unsigned.json', '.signed.json')))\n"
+        }
+      ]
+    },
+    {
+      "name": "gemini-live-runner-tests",
+      "pass": 37,
+      "fail": 0,
+      "failures": [],
+      "checks": [
+        {
+          "id": "preflight-does-not-issue-or-dispatch",
+          "status": "PASS"
+        },
+        {
+          "id": "single-controlled-compatibility-result-and-receipt",
+          "status": "PASS"
+        },
+        {
+          "id": "wrong-project",
+          "status": "PASS"
+        },
+        {
+          "id": "wrong-model",
+          "status": "PASS"
+        },
+        {
+          "id": "billing-unknown",
+          "status": "PASS"
+        },
+        {
+          "id": "linked-billing",
+          "status": "PASS"
+        },
+        {
+          "id": "paid-tier",
+          "status": "PASS"
+        },
+        {
+          "id": "quota-missing",
+          "status": "PASS"
+        },
+        {
+          "id": "quota-zero",
+          "status": "PASS"
+        },
+        {
+          "id": "quota-delayed",
+          "status": "PASS"
+        },
+        {
+          "id": "old-observation",
+          "status": "PASS"
+        },
+        {
+          "id": "future-observation",
+          "status": "PASS"
+        },
+        {
+          "id": "untrusted-provenance",
+          "status": "PASS"
+        },
+        {
+          "id": "wrong-credential",
+          "status": "PASS"
+        },
+        {
+          "id": "missing-comparator",
+          "status": "PASS"
+        },
+        {
+          "id": "missing-credential",
+          "status": "PASS"
+        },
+        {
+          "id": "expired-owner",
+          "status": "PASS"
+        },
+        {
+          "id": "invalid-signature",
+          "status": "PASS"
+        },
+        {
+          "id": "boolean-approval-no-handle",
+          "status": "PASS"
+        },
+        {
+          "id": "prepared-output-cannot-be-serialized-into-authority",
+          "status": "PASS"
+        },
+        {
+          "id": "duplicate-and-concurrent-handle",
+          "status": "PASS"
+        },
+        {
+          "id": "independently-prepared-concurrent-handles",
+          "status": "PASS"
+        },
+        {
+          "id": "existing-reservation",
+          "status": "PASS"
+        },
+        {
+          "id": "late-evidence-does-not-issue-window",
+          "status": "PASS"
+        },
+        {
+          "id": "owner-revoked-after-preflight",
+          "status": "PASS"
+        },
+        {
+          "id": "scenario-drift-after-preflight",
+          "status": "PASS"
+        },
+        {
+          "id": "malformed",
+          "status": "PASS"
+        },
+        {
+          "id": "wrong-model",
+          "status": "PASS"
+        },
+        {
+          "id": "no-usage",
+          "status": "PASS"
+        },
+        {
+          "id": "too-many-tokens",
+          "status": "PASS"
+        },
+        {
+          "id": "provider-error",
+          "status": "PASS"
+        },
+        {
+          "id": "timeout",
+          "status": "PASS"
+        },
+        {
+          "id": "receipt-write-failure-remains-consumed",
+          "status": "PASS"
+        },
+        {
+          "id": "masked-comparison-refuses-noninteractive",
+          "status": "PASS"
+        },
+        {
+          "id": "unknown-ui-observation-blocks",
+          "status": "PASS"
+        },
+        {
+          "id": "complete-owner-ui-observation",
+          "status": "PASS"
+        },
+        {
+          "id": "cli-cannot-dispatch-with-flags-or-noninteractive-input",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "total_pass": 521,
+  "total_fail": 1,
+  "syntax": "PASS",
+  "typecheck": "PASS",
+  "frozen_artifacts_preserved": true,
+  "source_hashes": [
+    {
+      "path": "scripts/iq11f-gateway/gemini-live-runner.mjs",
+      "sha256": "7b16a85bca738bb66b5fb4adcfeefeefa2062961490f283ee48b98724d86a4e2"
+    },
+    {
+      "path": "scripts/iq11f-gateway/gemini-live-runner-tests.mjs",
+      "sha256": "796aa9f3e915c92bcf19df4578d83b3b3ec882d2e4ed3c94213d15b21970317d"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11F_GEMINI_LIVE_RUNNER_READINESS.md",
+      "sha256": "8dfc212ffa06366dab994e240638b753487971dc6b083286d56b7b580e8dcfc9"
+    }
+  ]
+}
