@@ -1,0 +1,324 @@
+{
+  "programme": "IQ-11F Gemini governed shadow transport",
+  "date": "2026-10-16",
+  "starting_head": "ecc53e7cb4a62507e41899a7913d4aa0e387e63e",
+  "status": "BLOCKED_BEFORE_CANARY",
+  "credential_available": true,
+  "credential_value_exposed": false,
+  "approved_project": "gen-lang-client-0748205572",
+  "environment_key_project_association_verified": false,
+  "ownership_blocker": "No authorized Google IAM lookup access or equivalent exact key-to-project evidence available.",
+  "metadata_access": {
+    "method": "GET",
+    "resource": "models/gemini-3.1-flash-lite",
+    "http_status": 200,
+    "version": "3.1-flash-lite-05-2026",
+    "input_token_limit": 1048576,
+    "output_token_limit": 65536,
+    "proves_project_ownership": false
+  },
+  "profile": {
+    "model": "gemini-3.1-flash-lite",
+    "selection": "PROVISIONAL_UNTIL_PROJECT_OWNERSHIP_VERIFIED",
+    "input_tokens": 4096,
+    "output_tokens_including_thinking": 1024,
+    "deadline_ms": 3000,
+    "thinking_level": "minimal",
+    "include_thoughts": false,
+    "tools": false,
+    "retries": 0,
+    "fallback": false,
+    "max_inference_requests": 1
+  },
+  "live_approval": null,
+  "gemini_authorized_usd": 0,
+  "gemini_inference_calls": 0,
+  "gemini_inference_spend_usd": 0,
+  "metadata_calls_this_transport_task": 1,
+  "runtime_adoption": false,
+  "other_provider_calls": 0,
+  "offline": {
+    "pass": 59,
+    "fail": 0,
+    "checks": [
+      {
+        "id": "no-approval-no-network-no-receipt",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-ownership",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-credential-binding",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-wrong-project",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-billing-enabled",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-paid-tier",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-positive-price",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-unknown-quota",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-wrong-model",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-processing-unapproved",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-synthetic-unreviewed",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-changed-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-changed-schema",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-expired",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-long-approval",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-missing-token-proof",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-content-only-count",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-oversize-input",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-tools",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-fallback",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-multiple-requests",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-consumer",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-facility",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-office_internal",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-public_corporate",
+        "status": "PASS"
+      },
+      {
+        "id": "fixed-endpoint-minimal-thinking-no-tools",
+        "status": "PASS"
+      },
+      {
+        "id": "wrong-response-model",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-thought-count",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-usage",
+        "status": "PASS"
+      },
+      {
+        "id": "token-overrun",
+        "status": "PASS"
+      },
+      {
+        "id": "input-overrun",
+        "status": "PASS"
+      },
+      {
+        "id": "total-mismatch",
+        "status": "PASS"
+      },
+      {
+        "id": "tools-output",
+        "status": "PASS"
+      },
+      {
+        "id": "unexpected-signature",
+        "status": "PASS"
+      },
+      {
+        "id": "truncation",
+        "status": "PASS"
+      },
+      {
+        "id": "refusal",
+        "status": "PASS"
+      },
+      {
+        "id": "credential-echo",
+        "status": "PASS"
+      },
+      {
+        "id": "canonical-validation-unknown-entity",
+        "status": "PASS"
+      },
+      {
+        "id": "core-cancelled-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "core-hazard-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "core-denied-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "scope-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "expired-context",
+        "status": "PASS"
+      },
+      {
+        "id": "production-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "public-private-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "embedded-credential",
+        "status": "PASS"
+      },
+      {
+        "id": "http-403-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-429-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-503-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-400-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "thrown-provider-error-redacted",
+        "status": "PASS"
+      },
+      {
+        "id": "oversized-stream",
+        "status": "PASS"
+      },
+      {
+        "id": "duplicate-and-concurrent-delivery-reserved-once",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-terminal-receipt-blocks-replay",
+        "status": "PASS"
+      },
+      {
+        "id": "receipt-failure-prevents-dispatch",
+        "status": "PASS"
+      },
+      {
+        "id": "terminal-receipt-fsync-failure-not-success",
+        "status": "PASS"
+      },
+      {
+        "id": "exact-id-reconciliation-no-text-matching",
+        "status": "PASS"
+      },
+      {
+        "id": "caller-mutation-cannot-change-inflight-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "three-second-deadline-and-late-completion-immutable",
+        "status": "PASS"
+      }
+    ],
+    "network_calls": 0,
+    "inference_calls": 0,
+    "spend_usd": 0,
+    "proof_kind": "OFFLINE_MOCK_ONLY"
+  },
+  "regression": {
+    "pass": 89,
+    "fail": 0,
+    "inherited": {
+      "iq11f": 25,
+      "iq11e": 91
+    },
+    "failures": []
+  },
+  "syntax_checks": "PASS",
+  "adapter_declaration_typecheck": "PASS",
+  "source_hashes": [
+    {
+      "path": "scripts/iq11f-gateway/gemini-shadow.mjs",
+      "sha256": "deb6ba5d44a4c9136b4c687ae881fe0c16372b2feb802f769760649579aa80d7"
+    },
+    {
+      "path": "scripts/iq11f-gateway/gemini-shadow-tests.mjs",
+      "sha256": "ff4464b317a781d01f813f49b495ac128076beb03c1eacbc2e787b6cca0cb1f2"
+    },
+    {
+      "path": "docs/INTELLIGENCE_QUALITY_V1_IQ11F_GEMINI_SHADOW_TRANSPORT.md",
+      "sha256": "798f775294acb90981a973892b4603839c8d4e8dc1ce182689414100346a3813"
+    }
+  ],
+  "blockers": [
+    "Exact environment-key association with approved project unverified",
+    "Current billing-disabled/free quota evidence not yet bound to environment key",
+    "Full wire-input token bound including schema/framing not verified",
+    "Explicit future one-canary approval and packet/data-processing preflight not issued"
+  ],
+  "limitations": [
+    "Mocks prove guard behavior, not Google project ownership or invoice cost.",
+    "Server schema acceptance, response shape and latency remain unqualified.",
+    "Optional thought signature fields remain rejected by the existing strict adapter.",
+    "Local fsync journal is not a distributed execution ledger or live Core trace certification.",
+    "No production runtime code, frozen expectations or historical qualification artifacts changed."
+  ]
+}

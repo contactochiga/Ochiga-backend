@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "date": "2026-10-16",
+  "starting_head": "ecc53e7cb4a62507e41899a7913d4aa0e387e63e",
+  "status": "BLOCKED_BEFORE_INFERENCE",
+  "credential": "AVAILABLE_AND_ACCEPTED_BY_MODELS_LIST",
+  "credential_value_stored": false,
+  "metadata_verification": {
+    "method": "GET /v1beta/models",
+    "http_status": 200,
+    "requests": 1,
+    "catalog_complete": true,
+    "model_count": 63,
+    "catalog_is_inference_entitlement_proof": false,
+    "relevant_listed_models": ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview", "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash"],
+    "relevant_models_input_token_limit": 1048576,
+    "relevant_models_output_token_limit": 65536
+  },
+  "observed_ai_studio_project": {
+    "name": "Default Gemini Project",
+    "id": "gen-lang-client-0748205572",
+    "billing_tier": "Free tier",
+    "billing_action_visible": "Set up billing",
+    "evidence": "Authenticated AI Studio Projects, API Keys project labels and Rate Limit UI; read-only inspection",
+    "environment_key_association_verified": false,
+    "quota_display": "Peak usage over last 28 days; displayed peaks were zero; UI warns usage can lag by 15 minutes. Not an instantaneous remaining-quota guarantee.",
+    "text_model_limits": [
+      {"model": "gemini-2.5-flash", "rpm": 5, "input_tpm": 250000, "rpd": 20},
+      {"model": "gemini-2.5-flash-lite", "rpm": 10, "input_tpm": 250000, "rpd": 20},
+      {"model": "gemini-3-flash-preview", "ui_label": "Gemini 3 Flash", "rpm": 5, "input_tpm": 250000, "rpd": 20},
+      {"model": "gemini-3.1-flash-lite", "rpm": 15, "input_tpm": 250000, "rpd": 500},
+      {"model": "gemini-3.5-flash-lite", "rpm": 15, "input_tpm": 250000, "rpd": 500},
+      {"model": "gemini-3.6-flash", "rpm": 5, "input_tpm": 250000, "rpd": 20},
+      {"model": "gemini-3.7-flash", "rpm": 5, "input_tpm": 250000, "rpd": 20},
+      {"model": "gemini-3.8-flash", "rpm": 5, "input_tpm": 250000, "rpd": 20}
+    ],
+    "zero_text_quotas_observed": ["Gemini 2.5 Pro", "Gemini 3.1 Pro", "Gemini 4 Argon"],
+    "billing_or_quota_changes": false
+  },
+  "canary": {
+    "model_proposal": "gemini-3.1-flash-lite",
+    "model_selection_approved": false,
+    "live_sendable": false,
+    "packet": {
+      "version": 1,
+      "data_class": "synthetic",
+      "request_id": "gemini-connection-canary-001",
+      "context_epoch": "synthetic-canary-one",
+      "surface": "consumer",
+      "scope_token": "synthetic-home-one",
+      "now": "2026-10-16T12:00:00Z",
+      "utterance": "The living room light is showing offline. Can you tell me whether it is switched on?",
+      "active_objective": null,
+      "prior": [],
+      "allowed_fields": ["connectivity", "power_state"],
+      "entities": [{
+        "token": "synthetic-light-one",
+        "alias": "Synthetic living room light",
+        "surface": "consumer",
+        "scope_token": "synthetic-home-one",
+        "visibility": "authorized_synthetic",
+        "expires_at": "2026-10-16T12:30:00Z",
+        "withdrawn": false,
+        "facts": [
+          {"key": "connectivity", "value": "offline", "provenance": "caller_supplied_unverified", "expires_at": "2026-10-16T12:30:00Z"},
+          {"key": "power_state", "value": "unknown", "provenance": "recorded_synthetic", "expires_at": "2026-10-16T12:30:00Z"}
+        ]
+      }]
+    },
+    "expected_semantics": ["Read-only inquiry about actual power state, not a power-on command", "Bind to synthetic-light-one within synthetic-home-one", "Offline connectivity does not establish power state", "No authority grant, action proposal, execution or physical verification", "Return only the existing IQ-11E candidate contract; no live user answer"],
+    "input_token_cap": 4096,
+    "output_token_cap": 1024,
+    "deadline_ms": 3000,
+    "automatic_retries": 0,
+    "fallback": false,
+    "tools": [],
+    "maximum_inference_requests_when_unblocked": 1
+  },
+  "adapter_findings": [
+    "Existing Gemini adapter is offline_mock_only and sendable:false; no live transport",
+    "Freeze generateContent API/model/schema compatibility before sending; current descriptor is unqualified",
+    "Validate actual response modelVersion mapping without loosening arbitrary-model rejection",
+    "Validate thinking controls and usageMetadata: missing thoughtsTokenCount currently produces unknown output_total, not zero",
+    "Live deadlines, safe errors, request receipts and exact-ID reconciliation remain unimplemented; current tests simulate them",
+    "OfflineGateway currently requires positive price rates and does not represent verified free-tier quota eligibility; do not enable Gemini by setting fabricated zero prices",
+    "Do not export secret environment data in packets, errors, traces or request URLs"
+  ],
+  "blockers": ["Verify environment key belongs to the observed Free-tier project", "Freeze model and API/schema compatibility and prepare governed shadow transport using existing gateway", "Verify no paid fallback or billing transition; require current positive free quota before dispatch"],
+  "accounting": {"gemini_authorized_usd": 0, "inference_requests": 0, "paid_requests": 0, "openai_authorization_usd_unchanged": 50},
+  "production_adoption": false,
+  "sources": ["https://ai.google.dev/api/models", "https://ai.google.dev/gemini-api/docs/billing", "https://ai.google.dev/gemini-api/docs/rate-limits", "https://aistudio.google.com/projects", "https://aistudio.google.com/rate-limit?timeRange=last-28-days&project=gen-lang-client-0748205572"]
+}
