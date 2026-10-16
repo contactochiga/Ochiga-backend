@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "experiment": "IQ-11F Gemini two-request count-only schema accounting",
+  "starting_head": "113e1274362055b77989ff85d6d5469476a82e94",
+  "prepared_at": "2026-10-16T15:17:13.461Z",
+  "model": "gemini-3.1-flash-lite",
+  "schema_hash": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
+  "packet_hash": "e1ec68a0376725e43ec4cb15302f0dc33ad213f48319ce3f1786c5ca45e1d0c6",
+  "requests": [
+    {
+      "label": "A",
+      "response_schema_present": true,
+      "request_sha256": "0588c7f0247bf9161b74698ce68970fb377d0a772dace9ef04d53e85dbe90866",
+      "request_bytes": 7382,
+      "status": "COUNT_RETURNED",
+      "returned_total_tokens": 496,
+      "model": "gemini-3.1-flash-lite",
+      "started_at": "2026-10-16T15:17:35.282Z",
+      "http_status": 200,
+      "prompt_tokens_details": [
+        {
+          "modality": "TEXT",
+          "token_count": 496
+        }
+      ],
+      "finished_at": "2026-10-16T15:17:36.019Z",
+      "elapsed_ms": 737
+    },
+    {
+      "label": "B",
+      "response_schema_present": false,
+      "request_sha256": "6147e52453dfef97c15a72ef111e7c1085cb942aa0b1c7ef93039f1490182127",
+      "request_bytes": 2159,
+      "status": "COUNT_RETURNED",
+      "returned_total_tokens": 496,
+      "model": "gemini-3.1-flash-lite",
+      "started_at": "2026-10-16T15:17:36.020Z",
+      "http_status": 200,
+      "prompt_tokens_details": [
+        {
+          "modality": "TEXT",
+          "token_count": 496
+        }
+      ],
+      "finished_at": "2026-10-16T15:17:36.195Z",
+      "elapsed_ms": 175
+    }
+  ],
+  "only_difference": "generateContentRequest.generationConfig.responseJsonSchema",
+  "credential_available": true,
+  "project_id": "gen-lang-client-0748205572",
+  "credential_association": "Prior owner-controlled masked local full-key comparison succeeded; project association supplied by owner.",
+  "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:countTokens",
+  "pricing_preflight": {
+    "approved_usd": 0,
+    "documented_count_request_usd": 0,
+    "source": "https://firebase.google.com/docs/ai-logic/count-tokens",
+    "finding": "Google explicitly states Count Tokens API calls have no charge; selected model is listed as supported. Both requests use the same count-only endpoint with no generation, billing change or other services.",
+    "billing_basis": "Owner-confirmed Free-tier project, local exact-key comparison and earlier UI evidence; no billing change."
+  },
+  "policy": {
+    "max_count_requests": 2,
+    "max_inference_requests": 0,
+    "no_retries": true,
+    "no_fallback": true,
+    "no_tools": true,
+    "synthetic_only": true,
+    "input_limit": 4096,
+    "output_limit_including_thinking": 1024,
+    "inference_deadline_ms": 3000,
+    "count_deadline_ms": 3000,
+    "production_activation": false,
+    "canonical_schema_modified": false
+  },
+  "status": "MEASURED_COMPLETE_ACCOUNTING_BLOCKED",
+  "interpretation": {
+    "schema_difference_tokens": 0,
+    "schema_effect_observed": false,
+    "finding": "The same reported total of 496 was returned with and without responseJsonSchema. The count endpoint did not expose a schema-dependent token increment for this request. This does not prove schema overhead is zero at inference.",
+    "reported_count_below_input_limit": true,
+    "complete_input_within_limit_proven": false,
+    "complete_framing_verified": false,
+    "independently_justified_full_input_upper_bound": null,
+    "rejected_bounds": [
+      "496 alone: no schema-dependent increment or complete framing proof.",
+      "Characters/4 or JSON byte lengths: not a proven model-specific bound including provider-side schema processing and framing.",
+      "Model context-window maximum: exceeds the approved 4096 limit and is not this request accounting."
+    ],
+    "canary_ready": false,
+    "inference_approval_granted": false,
+    "next_requirement": "Obtain a provider-documented full-input accounting relation or conservative model-specific bound including schema processing and framing. No further provider calls authorized by this exhausted two-request experiment."
+  },
+  "execution": {
+    "count_requests_attempted": 2,
+    "count_requests_succeeded": 2,
+    "inference_requests": 0,
+    "retries": 0,
+    "fallback_attempts": 0,
+    "documented_api_charge_usd": 0,
+    "invoice_independently_observed": false
+  },
+  "validation": {
+    "transport_pass": 65,
+    "gateway_pass": 89,
+    "iq11f_pass": 25,
+    "iq11e_pass": 91,
+    "total_pass": 270,
+    "total_fail": 0,
+    "offline_tests_only": true,
+    "request_difference_verified": "Only responseJsonSchema removed; all other request values unchanged.",
+    "canonical_schema_modified": false
+  },
+  "sources": [
+    "https://firebase.google.com/docs/ai-logic/count-tokens",
+    "https://ai.google.dev/api/tokens",
+    "https://ai.google.dev/gemini-api/docs/billing",
+    "https://firebase.google.com/docs/ai-logic/generate-structured-output"
+  ]
+}
