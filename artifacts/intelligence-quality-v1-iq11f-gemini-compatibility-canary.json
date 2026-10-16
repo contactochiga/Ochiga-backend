@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "experiment_id": "iq11f-gemini-schema-compatibility-001",
+  "approval_id": "IQ11F-GEMINI-COMPATIBILITY-001",
+  "exception_type": "UNVERIFIED_INPUT_ACCOUNTING_COMPATIBILITY_ONLY",
+  "project": "gen-lang-client-0748205572",
+  "model": "gemini-3.1-flash-lite",
+  "response_version": "3.1-flash-lite-05-2026",
+  "packet": {
+    "version": 1,
+    "data_class": "synthetic",
+    "request_id": "iq11f-gemini-compatibility-001",
+    "context_epoch": "synthetic-compatibility-001",
+    "surface": "consumer",
+    "scope_token": "synthetic-home-one",
+    "now": "2026-10-16T15:38:27.539Z",
+    "utterance": "The living room light is showing offline. Can you tell me whether it is switched on?",
+    "active_objective": null,
+    "prior": [],
+    "allowed_fields": [
+      "connectivity",
+      "power_state"
+    ],
+    "entities": [
+      {
+        "token": "synthetic-light-one",
+        "alias": "Synthetic living room light",
+        "surface": "consumer",
+        "scope_token": "synthetic-home-one",
+        "visibility": "authorized_synthetic",
+        "expires_at": "2026-10-16T16:08:27.539Z",
+        "withdrawn": false,
+        "facts": [
+          {
+            "key": "connectivity",
+            "value": "offline",
+            "provenance": "caller_supplied_unverified",
+            "expires_at": "2026-10-16T16:08:27.539Z"
+          },
+          {
+            "key": "power_state",
+            "value": "unknown",
+            "provenance": "recorded_synthetic",
+            "expires_at": "2026-10-16T16:08:27.539Z"
+          }
+        ]
+      }
+    ]
+  },
+  "packet_hash": "5848ff6889680349c175cc25f46a69a7b9c589f3bc0710cbe1a440c688fc9539",
+  "body_hash": "d6df2af73f5a39c30ea57a274291bb4d02b4eb12550dbfe36e2cdc16548c3232",
+  "schema_hash": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
+  "body_bytes": 7316,
+  "final_owner_approval": null,
+  "live_dispatch_enabled": false,
+  "qualification_gate": 4096,
+  "input_accounting_verified": false,
+  "counts_toward_certification": false,
+  "approval_max_validity_ms": 300000,
+  "packet_freshness_window_ms": 300000
+}
