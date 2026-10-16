@@ -1,0 +1,459 @@
+{
+  "version": 1,
+  "checkpoint": "IQ-11F Gemini final preflight",
+  "starting_head": "480e68f4f5c809f12894351b98151b1b7d9b8f93",
+  "verified_starting_branch": "codex/intelligence-quality-v1",
+  "verified_starting_remote_head": "480e68f4f5c809f12894351b98151b1b7d9b8f93",
+  "starting_worktree_clean": true,
+  "status": "BLOCKED",
+  "checked_at": "2026-10-16T14:48:09.978Z",
+  "credential": {
+    "available": true,
+    "value_exposed": false,
+    "ownership_verified": false,
+    "oauth_token_configured": false,
+    "adc_configured": false,
+    "standard_adc_file_present": false,
+    "gcloud_installed": false,
+    "lookup_attempted": false
+  },
+  "project_observation": {
+    "project_id": "gen-lang-client-0748205572",
+    "project_name": "Default Gemini Project",
+    "billing_tier": "Free tier",
+    "billing_page": "No billing account",
+    "setup_billing_available": true,
+    "quota_model": "Gemini 3.1 Flash Lite",
+    "quota": {
+      "rpm": 15,
+      "input_tpm": 250000,
+      "rpd": 500
+    },
+    "displayed_peak_usage_zero": true,
+    "display_period_days": 28,
+    "reporting_delay_minutes": 15,
+    "exact_key_binding_verified": false,
+    "instantaneous_free_quota_reserved": false,
+    "method": "Read-only authenticated AI Studio Projects, Billing and project-specific Rate Limit UI",
+    "sources": [
+      "https://aistudio.google.com/projects",
+      "https://aistudio.google.com/billing",
+      "https://aistudio.google.com/rate-limit?timeRange=last-28-days&project=gen-lang-client-0748205572"
+    ]
+  },
+  "canary": {
+    "packet": {
+      "version": 1,
+      "data_class": "synthetic",
+      "request_id": "gemini-final-preflight-001",
+      "context_epoch": "synthetic-final-preflight",
+      "surface": "consumer",
+      "scope_token": "synthetic-home-one",
+      "now": "2026-10-16T14:48:09.978Z",
+      "utterance": "The living room light is showing offline. Can you tell me whether it is switched on?",
+      "active_objective": null,
+      "prior": [],
+      "allowed_fields": [
+        "connectivity",
+        "power_state"
+      ],
+      "entities": [
+        {
+          "token": "synthetic-light-one",
+          "alias": "Synthetic living room light",
+          "surface": "consumer",
+          "scope_token": "synthetic-home-one",
+          "visibility": "authorized_synthetic",
+          "expires_at": "2026-10-16T15:18:09.978Z",
+          "withdrawn": false,
+          "facts": [
+            {
+              "key": "connectivity",
+              "value": "offline",
+              "provenance": "caller_supplied_unverified",
+              "expires_at": "2026-10-16T15:18:09.978Z"
+            },
+            {
+              "key": "power_state",
+              "value": "unknown",
+              "provenance": "recorded_synthetic",
+              "expires_at": "2026-10-16T15:18:09.978Z"
+            }
+          ]
+        }
+      ]
+    },
+    "packet_validation_errors": [],
+    "synthetic_only": true,
+    "sent": false,
+    "live_approval": null,
+    "needs_refresh_if_expired": true
+  },
+  "token_accounting": {
+    "provider": "gemini",
+    "model": "gemini-3.1-flash-lite",
+    "body_hash": "9a3a2129b96e443d7eac4577cf125fa8247e3bd248bcc92867d42bf3b70eb434",
+    "packet_hash": "c4a70ec19733f213f3eccf65d5975a8499af85fbead080d748cc1607325d9f72",
+    "schema_hash": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
+    "count_request_hash": "2d131d78f2f4c8e66083031bf562cec2698b8902db1049b55c69cfbde59e47f9",
+    "body_bytes": 7304,
+    "component_json_bytes": {
+      "systemInstruction": 670,
+      "contents": 1207,
+      "generationConfig": 5373
+    },
+    "body_json_framing_bytes": 54,
+    "instruction_text_bytes": 647,
+    "user_payload_text_bytes": 1052,
+    "schema_json_bytes": 5201,
+    "count_request_bytes": 7370,
+    "input_token_cap": 4096,
+    "output_cap_including_thinking": 1024,
+    "measured_input_tokens": null,
+    "provider_internal_framing_tokens": null,
+    "full_input_upper_bound": null,
+    "full_request_verified": false,
+    "can_dispatch_inference": false,
+    "status": "UNVERIFIED_TOKEN_ACCOUNTING",
+    "missing_evidence": [
+      "Authorized zero-cost model-specific token measurement of this exact full count request",
+      "Authoritative coverage of instructions, responseJsonSchema and internal model framing",
+      "Verified full-input upper bound <=4096 bound to unchanged wire request and model"
+    ]
+  },
+  "documentation_review": {
+    "ownership_lookup": "Requires authorized OAuth access and apikeys.keys.lookup; unavailable in current executor.",
+    "count_only_price": "Reviewed billing page explicitly identifies GetTokens as unbilled. Applicability to the selected legacy countTokens endpoint and project is not independently established.",
+    "full_input_coverage": "The API accepts generateContentRequest, but reviewed references do not prove complete responseJsonSchema and provider-internal framing accounting. Full bound remains unknown.",
+    "sources": [
+      "https://docs.cloud.google.com/api-keys/docs/reference/rest/v2/keys/lookupKey",
+      "https://ai.google.dev/gemini-api/docs/billing",
+      "https://ai.google.dev/api/tokens"
+    ]
+  },
+  "limits": {
+    "input_tokens": 4096,
+    "combined_output_and_thinking_tokens": 1024,
+    "deadline_ms": 3000,
+    "retries": 0,
+    "fallback": false,
+    "tools": false,
+    "gemini_authorized_usd": 0,
+    "openai_authorized_usd_unchanged": 50
+  },
+  "verification": {
+    "transport_checks": {
+      "pass": 65,
+      "fail": 0,
+      "checks": [
+        {
+          "id": "no-approval-no-network-no-receipt",
+          "status": "PASS"
+        },
+        {
+          "id": "mock-approval-cannot-activate-ambient-network",
+          "status": "PASS"
+        },
+        {
+          "id": "ambient-fetch-cannot-be-explicitly-selected",
+          "status": "PASS"
+        },
+        {
+          "id": "token-preflight-covers-entire-wire-request",
+          "status": "PASS"
+        },
+        {
+          "id": "wire-byte-accounting-reconciles-without-token-estimates",
+          "status": "PASS"
+        },
+        {
+          "id": "token-proof-invalidated-by-packet-change",
+          "status": "PASS"
+        },
+        {
+          "id": "token-preflight-rejects-private-and-out-of-scope-input",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-ownership",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-credential-binding",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-wrong-project",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-billing-enabled",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-paid-tier",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-positive-price",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-unknown-quota",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-wrong-model",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-processing-unapproved",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-synthetic-unreviewed",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-changed-packet",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-changed-schema",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-expired",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-long-approval",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-missing-token-proof",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-content-only-count",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-oversize-input",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-tools",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-fallback",
+          "status": "PASS"
+        },
+        {
+          "id": "blocks-multiple-requests",
+          "status": "PASS"
+        },
+        {
+          "id": "valid-shadow-consumer",
+          "status": "PASS"
+        },
+        {
+          "id": "valid-shadow-facility",
+          "status": "PASS"
+        },
+        {
+          "id": "valid-shadow-office_internal",
+          "status": "PASS"
+        },
+        {
+          "id": "valid-shadow-public_corporate",
+          "status": "PASS"
+        },
+        {
+          "id": "fixed-endpoint-minimal-thinking-no-tools",
+          "status": "PASS"
+        },
+        {
+          "id": "wrong-response-model",
+          "status": "PASS"
+        },
+        {
+          "id": "missing-thought-count",
+          "status": "PASS"
+        },
+        {
+          "id": "missing-usage",
+          "status": "PASS"
+        },
+        {
+          "id": "token-overrun",
+          "status": "PASS"
+        },
+        {
+          "id": "input-overrun",
+          "status": "PASS"
+        },
+        {
+          "id": "total-mismatch",
+          "status": "PASS"
+        },
+        {
+          "id": "tools-output",
+          "status": "PASS"
+        },
+        {
+          "id": "unexpected-signature",
+          "status": "PASS"
+        },
+        {
+          "id": "truncation",
+          "status": "PASS"
+        },
+        {
+          "id": "refusal",
+          "status": "PASS"
+        },
+        {
+          "id": "credential-echo",
+          "status": "PASS"
+        },
+        {
+          "id": "canonical-validation-unknown-entity",
+          "status": "PASS"
+        },
+        {
+          "id": "core-cancelled-lock",
+          "status": "PASS"
+        },
+        {
+          "id": "core-hazard-lock",
+          "status": "PASS"
+        },
+        {
+          "id": "core-denied-lock",
+          "status": "PASS"
+        },
+        {
+          "id": "scope-lock",
+          "status": "PASS"
+        },
+        {
+          "id": "expired-context",
+          "status": "PASS"
+        },
+        {
+          "id": "production-packet",
+          "status": "PASS"
+        },
+        {
+          "id": "public-private-packet",
+          "status": "PASS"
+        },
+        {
+          "id": "embedded-credential",
+          "status": "PASS"
+        },
+        {
+          "id": "http-403-safe-no-retry",
+          "status": "PASS"
+        },
+        {
+          "id": "http-429-safe-no-retry",
+          "status": "PASS"
+        },
+        {
+          "id": "http-503-safe-no-retry",
+          "status": "PASS"
+        },
+        {
+          "id": "http-400-safe-no-retry",
+          "status": "PASS"
+        },
+        {
+          "id": "thrown-provider-error-redacted",
+          "status": "PASS"
+        },
+        {
+          "id": "oversized-stream",
+          "status": "PASS"
+        },
+        {
+          "id": "duplicate-and-concurrent-delivery-reserved-once",
+          "status": "PASS"
+        },
+        {
+          "id": "missing-terminal-receipt-blocks-replay",
+          "status": "PASS"
+        },
+        {
+          "id": "receipt-failure-prevents-dispatch",
+          "status": "PASS"
+        },
+        {
+          "id": "terminal-receipt-fsync-failure-not-success",
+          "status": "PASS"
+        },
+        {
+          "id": "exact-id-reconciliation-no-text-matching",
+          "status": "PASS"
+        },
+        {
+          "id": "caller-mutation-cannot-change-inflight-packet",
+          "status": "PASS"
+        },
+        {
+          "id": "three-second-deadline-and-late-completion-immutable",
+          "status": "PASS"
+        }
+      ],
+      "network_calls": 0,
+      "inference_calls": 0,
+      "spend_usd": 0,
+      "proof_kind": "OFFLINE_MOCK_ONLY"
+    },
+    "gateway_checks": {
+      "pass": 89,
+      "fail": 0,
+      "inherited": {
+        "iq11f": 25,
+        "iq11e": 91
+      },
+      "failures": []
+    },
+    "total_pass": 270,
+    "total_fail": 0,
+    "syntax": "PASS",
+    "adapter_typecheck": "PASS",
+    "runtime_and_frozen_files_changed": false
+  },
+  "source_hashes": [
+    {
+      "path": "scripts/iq11f-gateway/gemini-shadow.mjs",
+      "sha256": "60133bdaf91d5950a227f033b09b7516cd0ad716cae19c5b658d834796506e6e"
+    },
+    {
+      "path": "scripts/iq11f-gateway/gemini-token-preflight.mjs",
+      "sha256": "ee87189bc76f86d715e10868aa2f674d96ba1dd31faa0fb42c1cad36432d299b"
+    },
+    {
+      "path": "scripts/iq11f-gateway/gemini-shadow-tests.mjs",
+      "sha256": "e7f00b9576e9c385d679c2d3b3f4d075fbb8555fdb4dc8a1bb03235914b9b340"
+    }
+  ],
+  "network": {
+    "inference_requests": 0,
+    "count_only_api_requests": 0,
+    "ownership_api_requests": 0,
+    "provider_metadata_requests": 0,
+    "browser_read_only_admin_inspection": true,
+    "gemini_inference_spend_usd": 0
+  },
+  "outstanding_owner_actions": [
+    "Provide existing authorized read-only Google IAM access, or have an authorized administrator verify the exact environment key locally and return sanitized parent project/key resource evidence resolving to gen-lang-client-0748205572. Never send the credential value.",
+    "Bind current free-tier/billing-disabled/quota evidence to that verified key, without enabling or modifying billing.",
+    "Establish $0 applicability and complete schema/instruction/framing coverage for the exact count-only endpoint; measure the refreshed packet and prove a full-input upper bound <=4096 before inference.",
+    "Only after these checks pass, separately approve one synthetic inference request and explicit live transport wiring."
+  ],
+  "disposition": "Evidence-only checkpoint. Not a verified canary preflight. No runtime changes, merge, deployment or production activation."
+}
