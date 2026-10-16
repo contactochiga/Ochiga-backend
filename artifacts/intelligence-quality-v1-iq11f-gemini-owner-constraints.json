@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "purpose": "synthetic_schema_compatibility_only",
+  "approval_id": "IQ11F-GEMINI-COMPATIBILITY-001",
+  "experiment_id": "iq11f-gemini-schema-compatibility-001",
+  "exception_type": "UNVERIFIED_INPUT_ACCOUNTING_COMPATIBILITY_ONLY",
+  "provider": "gemini",
+  "policy": {
+    "project": "gen-lang-client-0414833380",
+    "model": "gemini-3.1-flash-lite",
+    "responseVersion": "3.1-flash-lite-05-2026",
+    "inputTokens": 4096,
+    "outputTokens": 1024,
+    "deadlineMs": 3000,
+    "responseBytes": 65536,
+    "authorizedUsd": 0,
+    "retries": 0,
+    "fallback": false
+  },
+  "template_packet": {
+    "version": 1,
+    "data_class": "synthetic",
+    "request_id": "iq11f-gemini-compatibility-001",
+    "context_epoch": "synthetic-compatibility-001",
+    "surface": "consumer",
+    "scope_token": "synthetic-home-one",
+    "now": "2000-01-01T00:00:00.000Z",
+    "utterance": "The living room light is showing offline. Can you tell me whether it is switched on?",
+    "active_objective": null,
+    "prior": [],
+    "allowed_fields": [
+      "connectivity",
+      "power_state"
+    ],
+    "entities": [
+      {
+        "token": "synthetic-light-one",
+        "alias": "Synthetic living room light",
+        "surface": "consumer",
+        "scope_token": "synthetic-home-one",
+        "visibility": "authorized_synthetic",
+        "expires_at": "2000-01-01T00:30:00.000Z",
+        "withdrawn": false,
+        "facts": [
+          {
+            "key": "connectivity",
+            "value": "offline",
+            "provenance": "caller_supplied_unverified",
+            "expires_at": "2000-01-01T00:30:00.000Z"
+          },
+          {
+            "key": "power_state",
+            "value": "unknown",
+            "provenance": "recorded_synthetic",
+            "expires_at": "2000-01-01T00:30:00.000Z"
+          }
+        ]
+      }
+    ]
+  },
+  "normalized_body_hash": "64efb2e1ef4ed8bf6b69099b0cec9ab089c187ff4d8a57f3db4b510cd7aeef26",
+  "schema_hash": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
+  "refresh_fields": [
+    "packet.now",
+    "packet.entities[0].expires_at",
+    "packet.entities[0].facts[0].expires_at",
+    "packet.entities[0].facts[1].expires_at"
+  ],
+  "fact_lifetime_ms": 1800000,
+  "execution_window_ms": 300000,
+  "max_owner_validity_ms": 2592000000,
+  "max_inference_attempts": 1,
+  "no_retries": true,
+  "no_fallback": true,
+  "no_tools": true,
+  "no_grounding": true,
+  "no_execution_callbacks": true,
+  "no_production_adoption": true,
+  "input_accounting_verified": false,
+  "counts_toward_certification": false,
+  "accept_google_free_tier_processing": true,
+  "accept_external_billing_enforcement": true,
+  "accept_remote_completion_uncertainty": true
+}

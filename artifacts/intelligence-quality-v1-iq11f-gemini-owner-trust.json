@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "enrolled": false,
+  "key_id": null,
+  "public_key_pem": null,
+  "enrollment": "Requires separately approved owner-controlled Ed25519 public key enrollment. No operator-generated approval key is trusted."
+}

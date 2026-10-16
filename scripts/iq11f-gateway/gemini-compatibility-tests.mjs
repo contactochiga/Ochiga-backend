@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {generateKeyPairSync, sign} from 'node:crypto';
 import {ROOT, hash} from '../iq11e/contract.mjs';
 import {candidate} from '../iq11e/fixtures.mjs';
 import {GEMINI_COMPATIBILITY as binding} from './gemini-compatibility-policy.mjs';
 import {GEMINI_SHADOW as policy, prepareGeminiShadow, geminiCompatibilityBlockers,
   geminiShadowBlockers, runGeminiShadow, runGeminiCompatibility, reconcileGeminiCompatibility} from './gemini-shadow.mjs';
 import {sealPreparedCanary, preparedDispatchBlockers, dispatchPreparedCanary} from './gemini-approval-workflow.mjs';
+import {ownerConstraints, ownerAuthorizationMessage, issueGeminiExecution, loadGeminiExecution} from './gemini-owner-authorization.mjs';
 
 // Mock-only. Never read environment credentials, call a provider, or write a real
 // experiment receipt. Redirect the fixed ledger at the filesystem boundary ONLY
@@ -19,17 +21,37 @@ const key = 'mock-compatibility-credential';
 const fixedRoot = path.join(ROOT, 'artifacts/iq11f-gemini-compatibility-receipts');
 assert(!fs.existsSync(fixedRoot), 'Do not run with a real compatibility ledger present');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'iq11f-compatibility-'));
+const authRoot = path.join(ROOT, 'artifacts/iq11f-gemini-execution-authorization');
+assert(!fs.existsSync(authRoot), 'Never run fixtures over a real execution authorization');
+const trustPath = path.join(ROOT, 'artifacts/intelligence-quality-v1-iq11f-gemini-owner-trust.json');
+const mockTrustPath = path.join(temp, 'mock-trust.json');
+const mockKey = generateKeyPairSync('ed25519');
+fs.writeFileSync(mockTrustPath, JSON.stringify({version: 1, enrolled: true, key_id: 'OFFLINE-TEST-ONLY', public_key_pem: mockKey.publicKey.export({type: 'spki', format: 'pem'})}));
+let authDirectory, authorizedFixture;
 let directory, index = 0, now = Date.parse(manifest.packet.now) + 1000;
 const originalNow = Date.now;
 Date.now = () => now;
 const originals = {};
-const redirect = p => typeof p === 'string' && (p === fixedRoot || p.startsWith(fixedRoot + path.sep)) ? directory + p.slice(fixedRoot.length) : p;
+const redirect = p => p === trustPath ? mockTrustPath : typeof p === 'string' && (p === authRoot || p.startsWith(authRoot + path.sep)) ? authDirectory + p.slice(authRoot.length) : typeof p === 'string' && (p === fixedRoot || p.startsWith(fixedRoot + path.sep)) ? directory + p.slice(fixedRoot.length) : p;
 for (const name of ['mkdirSync', 'openSync', 'readFileSync', 'statSync', 'lstatSync']) {
   originals[name] = fs[name]; fs[name] = (p, ...args) => originals[name](redirect(p), ...args);
 }
 const checks = [];
 const test = async (id, fn) => {
   directory = path.join(temp, String(++index)); now = Date.parse(manifest.packet.now) + 1000;
+  authDirectory = path.join(temp, `auth-${index}`);
+  const claims = {version: 1, purpose: 'synthetic_schema_compatibility_only', authorization_id: `mock-owner-${index}`,
+    key_id: 'OFFLINE-TEST-ONLY', issued_at_ms: now - 2000, expires_at_ms: now + 3600000,
+    constraint_sha256: hash(ownerConstraints()), approval_id: binding.approval_id};
+  const owner = {claims, signature: sign(null, Buffer.from(ownerAuthorizationMessage(claims)), mockKey.privateKey).toString('base64')};
+  const evidence = {observed_at_ms: now - 1000, project: policy.project, model: policy.model,
+    credential_match_verified: true, credential_sha256: hash(key), ownership_evidence_hash: hash('MOCK ownership'),
+    tier: 'FREE', billing_account_linked: false, billing_enabled: false, billing_quota_evidence_hash: hash('MOCK current billing'),
+    quota_remaining: {rpm: 15, tpm: 250000, rpd: 500}};
+  now -= 1000;
+  assert.equal(issueGeminiExecution(owner, evidence, key).status, 'issued');
+  authorizedFixture = loadGeminiExecution(evidence, key); assert.equal(authorizedFixture.status, 'ready');
+  now += 1000;
   try { await fn(); checks.push({id, status: 'PASS'}); }
   catch (e) { checks.push({id, status: 'FAIL', error: e.message}); }
 };
@@ -54,7 +76,7 @@ const body = (p = packet()) => ({modelVersion: policy.responseVersion,
   candidates: [{finishReason: 'STOP', content: {parts: [{text: JSON.stringify(validCandidate(p))}]}}],
   usageMetadata: {promptTokenCount: 496, candidatesTokenCount: 100, thoughtsTokenCount: 10, totalTokenCount: 606}});
 const response = b => new Response(JSON.stringify(b));
-const input = () => ({packet: packet(), baseline: {decision: 'deterministic'}, apiKey: key, approval: approval(), locks: {}});
+const input = () => ({packet: packet(), baseline: {decision: 'deterministic'}, apiKey: key, approval: structuredClone(authorizedFixture.approval), locks: {}});
 async function run({value = input(), raw = body(), fetch: custom} = {}) {
   let calls = 0;
   const out = await runGeminiCompatibility(value, {fetchImpl: async (...args) => { calls++; return custom ? custom(...args) : response(raw); }});
@@ -239,7 +261,7 @@ await test('three-second-timeout-late-result-no-replay', async () => {
 });
 const workflowInput = () => {
   const value = input();
-  value.bundle = sealPreparedCanary(value.packet, hash('MOCK preparation review'), now - 100);
+  value.bundle = sealPreparedCanary(value.packet, hash('MOCK preparation review'), Date.parse(value.packet.now));
   delete value.packet;
   value.verification = {observed_at_ms: now, project: policy.project, model: policy.model,
     credential_match_verified: true, credential_sha256: hash(key), ownership_evidence_hash: value.approval.ownership_evidence_hash,

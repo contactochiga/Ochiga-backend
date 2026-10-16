@@ -2,18 +2,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {performance} from 'node:perf_hooks';
-import {ROOT, checkPacket, hash, validateCandidate} from '../iq11e/contract.mjs';
+import {ROOT, hash, validateCandidate} from '../iq11e/contract.mjs';
 import {defaultRegistry} from './registry.mjs';
 import {GEMINI_COMPATIBILITY} from './gemini-compatibility-policy.mjs';
+import {executionBindingBlockers, ordinaryGeminiAllowanceUnused} from './gemini-owner-authorization.mjs';
 
-export const GEMINI_SHADOW = Object.freeze({
-  // Current development target only; live credential/project proof is still required.
-  project: 'gen-lang-client-0414833380', model: 'gemini-3.1-flash-lite',
-  // Catalog metadata, NOT a separately verified endpoint or immutable snapshot.
-  responseVersion: '3.1-flash-lite-05-2026',
-  inputTokens: 4096, outputTokens: 1024, deadlineMs: 3000,
-  responseBytes: 65536, authorizedUsd: 0, retries: 0, fallback: false,
-});
+import {GEMINI_SHADOW, prepareGeminiShadow} from './gemini-request.mjs';
+export {GEMINI_SHADOW, prepareGeminiShadow} from './gemini-request.mjs';
 const adapter = defaultRegistry().get('gemini');
 const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_SHADOW.model}:generateContent`;
 const receiptRoot = path.join(ROOT, 'artifacts/iq11f-gemini-shadow-receipts');
@@ -25,17 +20,6 @@ const freeze = value => {
   return value;
 };
 const result = (status, extra = {}) => freeze({status, adopted: false, canonical_decision_changed: false, shadow_candidate: null, ...extra});
-
-export function prepareGeminiShadow(packet) {
-  if (checkPacket(packet).length) throw Error('invalid_packet');
-  // Additional credential hygiene; synthetic labels alone are not proof of data origin.
-  if (/AIza[\w-]{20,}/.test(JSON.stringify(packet))) throw Error('sensitive_material');
-  const body = adapter.describe(packet, GEMINI_SHADOW.model, {output: GEMINI_SHADOW.outputTokens}).body;
-  body.generationConfig.thinkingConfig = {thinkingLevel: 'minimal', includeThoughts: false};
-  // No SDK continuation, tools, cache, file references, URL context, grounding or streaming.
-  return freeze({body, body_hash: hash(body), packet_hash: hash(packet),
-    schema_hash: hash(body.generationConfig.responseJsonSchema), model: GEMINI_SHADOW.model});
-}
 
 // Approval is a TRUSTED operator preflight result, never a model/user packet field.
 // This module cannot establish Google ownership or billing from an API key alone.
@@ -74,7 +58,8 @@ export function geminiCompatibilityBlockers(prepared, apiKey, approval, now = Da
   if (a.live_canary_approved !== false || a.exception_type !== GEMINI_COMPATIBILITY.exception_type ||
       a.experiment_id !== GEMINI_COMPATIBILITY.experiment_id || a.approval_id !== GEMINI_COMPATIBILITY.approval_id ||
       !digest(a.owner_approval_evidence_hash)) reasons.push('exception_approval_mismatch');
-  for (const field of ['packet_hash', 'body_hash', 'schema_hash']) {
+  if (a.execution_authorization_hash) reasons.push(...executionBindingBlockers(prepared, a, apiKey, now));
+  else for (const field of ['packet_hash', 'body_hash', 'schema_hash']) {
     if (prepared[field] !== GEMINI_COMPATIBILITY[field] || a[field] !== GEMINI_COMPATIBILITY[field]) reasons.push('exception_request_not_pinned');
   }
   const t = a.input_accounting;
@@ -153,8 +138,13 @@ async function runGeminiRead({packet, baseline, locks, approval, apiKey, wireBod
     p = structuredClone(packet); a = structuredClone(approval); l = structuredClone(locks);
     baselineHash = hash(baseline); prepared = prepareGeminiShadow(p);
   } catch { return result('invalid_input'); }
-  const admission = compatibility ? geminiCompatibilityBlockers : geminiShadowBlockers;
+  // Historical exact-hash flags are still inspectable, but no compatibility
+  // dispatch can bypass signed owner consent and the fixed execution record.
+  const admission = compatibility ? (p, key, a) => [...new Set([
+    ...geminiCompatibilityBlockers(p, key, a), ...executionBindingBlockers(p, a, key),
+  ])] : geminiShadowBlockers;
   const blockers = admission(prepared, apiKey, a);
+  if (compatibility && !ordinaryGeminiAllowanceUnused()) blockers.push('ordinary_attempt_reserved_or_unverifiable');
   // A prepared compatibility packet is sent byte-for-byte, never refreshed after
   // approval. Canonical recomputation here is validation only, not packet mutation.
   const bodyBytes = JSON.stringify(prepared.body);
@@ -173,6 +163,7 @@ async function runGeminiRead({packet, baseline, locks, approval, apiKey, wireBod
     baseline_hash: baselineHash, provider: 'gemini', model: GEMINI_SHADOW.model,
     ...(compatibility ? {experiment_kind: 'schema_compatibility_exception', experiment_id: GEMINI_COMPATIBILITY.experiment_id,
       approval_id: a.approval_id, schema_hash: prepared.schema_hash, input_accounting_verified: false,
+      execution_authorization_hash: a.execution_authorization_hash, owner_authorization_hash: a.owner_approval_evidence_hash,
       qualification_gate: GEMINI_SHADOW.inputTokens, counts_toward_certification: false} : {})};
   let journal;
   try { journal = reserve(receiptDirectory, {event: 'pending', ...correlation, at_ms: Date.now()}); }
@@ -228,6 +219,7 @@ export function reconcileGeminiShadow(directory = receiptRoot) {
     const keys = ['request_id', 'context_epoch', 'packet_hash', 'body_hash', 'baseline_hash', 'provider', 'model'];
     if (start.experiment_kind || end?.experiment_kind) {
       keys.push('experiment_kind', 'experiment_id', 'approval_id', 'schema_hash', 'qualification_gate', 'input_accounting_verified', 'counts_toward_certification');
+      if (start.execution_authorization_hash || end?.execution_authorization_hash) keys.push('execution_authorization_hash', 'owner_authorization_hash');
       if (start.experiment_kind !== 'schema_compatibility_exception' || start.experiment_id !== GEMINI_COMPATIBILITY.experiment_id ||
           start.approval_id !== GEMINI_COMPATIBILITY.approval_id || start.qualification_gate !== GEMINI_SHADOW.inputTokens ||
           start.input_accounting_verified !== false || start.counts_toward_certification !== false ||

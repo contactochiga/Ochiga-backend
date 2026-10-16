@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "status": "UNSIGNED_REQUIRES_OWNER_KEY_ENROLLMENT_AND_APPROVAL",
+  "constraint_sha256": "69f7db264ac0a83639abc5d5ef0322dc2d85158416eb543c5d8743f71c9d6a63",
+  "constraints_file": "artifacts/intelligence-quality-v1-iq11f-gemini-owner-constraints.json",
+  "trust_file": "artifacts/intelligence-quality-v1-iq11f-gemini-owner-trust.json",
+  "claims_template": {
+    "version": 1,
+    "purpose": "synthetic_schema_compatibility_only",
+    "authorization_id": null,
+    "key_id": null,
+    "issued_at_ms": null,
+    "expires_at_ms": null,
+    "constraint_sha256": "69f7db264ac0a83639abc5d5ef0322dc2d85158416eb543c5d8743f71c9d6a63",
+    "approval_id": "IQ11F-GEMINI-COMPATIBILITY-001"
+  },
+  "signature": null,
+  "signing_contract": "Ed25519 signature, canonical base64, over UTF-8 OYI-IQ11F-OWNER-AUTHORIZATION-V1 followed by newline followed by JSON of claims with sorted keys, no whitespace. Use exported ownerAuthorizationMessage; no private signing key is needed by Oyi.",
+  "owner_fields": "Owner chooses a unique 8-100 character alphanumeric/underscore/hyphen authorization_id, enrolled key_id and explicit issue/expiry timestamps no more than 30 days apart.",
+  "enrollment_requirement": "Separately approve and review the owner-controlled Ed25519 public key. Do not generate or enroll an operator key as owner identity. Never supply the owner's private key to Oyi or chat.",
+  "execution_authorization_issued": false,
+  "inference_authorized_by_this_template": false,
+  "input_qualification_verified": false,
+  "production_activation": false
+}

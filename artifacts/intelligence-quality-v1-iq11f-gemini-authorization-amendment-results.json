@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "status": "IMPLEMENTATION_READY_FOR_OWNER_APPROVAL_NOT_LIVE_AUTHORIZATION",
+  "starting_head": "63422a87a4662135b8578092bbc63d4fb3c89c91",
+  "contract_commit": "c11d5486c51c8ae1e8a026f5d70100bcd4276f92",
+  "branch": "codex/intelligence-quality-v1",
+  "constraints_sha256": "69f7db264ac0a83639abc5d5ef0322dc2d85158416eb543c5d8743f71c9d6a63",
+  "schema_sha256": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
+  "tests": [
+    {"suite": "gemini-owner-authorization-tests.mjs", "pass": 63, "fail": 0, "elapsed_ms": 4734},
+    {"suite": "gemini-compatibility-tests.mjs", "pass": 107, "fail": 0, "elapsed_ms": 4967},
+    {"suite": "gemini-shadow-tests.mjs", "pass": 65, "fail": 0, "elapsed_ms": 3758},
+    {"suite": "gateway/offline-tests.mjs", "pass": 89, "fail": 0, "elapsed_ms_including_inherited": 4043},
+    {"suite": "inherited IQ-11F", "pass": 25, "fail": 0},
+    {"suite": "inherited IQ-11E", "pass": 91, "fail": 0}
+  ],
+  "total_pass": 440,
+  "total_fail": 0,
+  "proof_kind": "OFFLINE_MOCK_ONLY",
+  "syntax_checks": "PASS",
+  "adapter_typecheck": "PASS",
+  "diff_check": "PASS",
+  "secret_scan_matches": 0,
+  "historical_untracked_files_preserved": true,
+  "canonical_core_files_changed": false,
+  "historical_qualification_artifacts_changed": false,
+  "owner_trust_enrolled": false,
+  "real_owner_keys_generated": 0,
+  "real_authorizations_issued": 0,
+  "real_execution_windows_issued": 0,
+  "real_inference_reservations_created": 0,
+  "real_inference_allowance": "UNUSED",
+  "provider_calls": 0,
+  "paid_spend_usd": 0,
+  "input_qualification_gate": 4096,
+  "input_accounting_verified": false,
+  "counts_toward_certification": false,
+  "production_adoption": false,
+  "approval_required": [
+    "Owner-controlled Ed25519 public-key enrollment in fixed reviewed trust file",
+    "Owner signature over the frozen purpose-bound constraint manifest",
+    "Authorized fresh credential/project and billing/quota observations before issuance and dispatch"
+  ],
+  "limitations": [
+    "Trust-anchor, executable code and local journal integrity are deployment prerequisites",
+    "No distributed anti-replay guarantee across copied worktrees or hosts",
+    "No automatic execution-window renewal or reservation reset",
+    "Google free-tier billing/quota enforcement and remote completion remain external dependencies",
+    "No complete-input accounting proof or intelligence certification"
+  ]
+}

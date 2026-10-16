@@ -8,6 +8,7 @@ import {GEMINI_SHADOW as policy, prepareGeminiShadow, geminiCompatibilityBlocker
   runGeminiCompatibility} from './gemini-shadow.mjs';
 
 const codeFiles = ['gemini-approval-workflow.mjs', 'gemini-shadow.mjs',
+  'gemini-request.mjs', 'gemini-owner-authorization.mjs',
   'gemini-compatibility-policy.mjs', 'registry.mjs', 'adapters/gemini.mjs', 'adapters/common.mjs'];
 export const workflowSourceHash = () => hash([
   ...codeFiles.map(file => [file, hash(fs.readFileSync(path.join(ROOT, 'scripts/iq11f-gateway', file), 'utf8'))]),
