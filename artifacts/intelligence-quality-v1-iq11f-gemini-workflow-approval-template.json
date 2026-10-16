@@ -25,16 +25,16 @@
   "authorized_usd": 0,
   "synthetic_reviewed": true,
   "data_processing_approved": true,
-  "packet_hash": "8bb69dfe4d9de737dc6da54fe272e00e454f059f13683baf098a84bb98dc4651",
-  "body_hash": "08f8b505faf554f99eafe752ef9bcde8a6a5d19348a015d18475c87569e17226",
+  "packet_hash": "8fd2860edb3339e7b12f69d23c53082d4c68e4e7d7977bf4813de642e8e9da78",
+  "body_hash": "de9d2f42ee49a0dbd31f29b0230bd9fc825ceff2291d130fbec3682ee07583d9",
   "schema_hash": "45bef064beadba0002b060d36b681eab0a8e6c14ccd174ec98d62e37730cb3e3",
   "verified_at_ms": null,
   "expires_at_ms": null,
-  "prepared_at": "2026-10-16T16:47:48.246Z",
+  "prepared_at": "2026-10-16T17:03:21.324Z",
   "expires_at": null,
   "expires_at_lagos": null,
   "input_accounting": {
-    "body_hash": "08f8b505faf554f99eafe752ef9bcde8a6a5d19348a015d18475c87569e17226",
+    "body_hash": "de9d2f42ee49a0dbd31f29b0230bd9fc825ceff2291d130fbec3682ee07583d9",
     "model": "gemini-3.1-flash-lite",
     "full_request_verified": false,
     "upper_bound": null,
@@ -45,7 +45,7 @@
   "accept_google_free_tier_processing": true,
   "accept_external_billing_enforcement": true,
   "accept_remote_completion_uncertainty": true,
-  "scope_acceptance_source": "Existing owner-approved synthetic compatibility exception; this does NOT authorize this new exact request hash.",
+  "scope_acceptance_source": "Existing synthetic compatibility exception only; final preparation does not authorize inference for this new hash.",
   "max_inference_requests": 1,
   "output_tokens": 1024,
   "deadline_ms": 3000,
@@ -66,5 +66,5 @@
     "Final allowance check and explicitly approved transport injection"
   ],
   "expiry_policy": "On genuine owner approval: verified_at_ms=actual authorization timestamp; expires_at_ms=min(authorization+300000, sealed packet deadline). Never extend or refresh after approval.",
-  "packet_deadline": "2026-10-16T16:52:35.388Z"
+  "packet_deadline": "2026-10-16T17:08:10.674Z"
 }
