@@ -138,14 +138,14 @@ export async function runGeminiCompatibility(input, options = {}) {
   const metadata = {experiment_kind: 'schema_compatibility_exception', counts_toward_certification: false,
     qualification_gate: GEMINI_SHADOW.inputTokens, input_accounting_verified: false, qualification_status: 'UNRESOLVED'};
   if (!input || typeof input !== 'object' || Array.isArray(input) || !options || typeof options !== 'object' || Array.isArray(options) ||
-      Object.keys(input).some(k => !['packet', 'baseline', 'locks', 'approval', 'apiKey'].includes(k)) ||
+      Object.keys(input).some(k => !['packet', 'baseline', 'locks', 'approval', 'apiKey', 'wireBody'].includes(k)) ||
       Object.keys(options).some(k => k !== 'fetchImpl')) return result('blocked', {...metadata, blockers: ['unexpected_compatibility_argument']});
   const out = await runGeminiRead({locks: {}, approval: null, ...input},
     {fetchImpl: options.fetchImpl, receiptDirectory: compatibilityReceiptRoot}, true);
   return freeze({...out, ...metadata, shadow_candidate: null});
 }
 
-async function runGeminiRead({packet, baseline, locks, approval, apiKey}, {fetchImpl, receiptDirectory}, compatibility) {
+async function runGeminiRead({packet, baseline, locks, approval, apiKey, wireBody}, {fetchImpl, receiptDirectory}, compatibility) {
   const start = performance.now();
   let p, a, l, prepared, baselineHash;
   try {
@@ -155,6 +155,10 @@ async function runGeminiRead({packet, baseline, locks, approval, apiKey}, {fetch
   } catch { return result('invalid_input'); }
   const admission = compatibility ? geminiCompatibilityBlockers : geminiShadowBlockers;
   const blockers = admission(prepared, apiKey, a);
+  // A prepared compatibility packet is sent byte-for-byte, never refreshed after
+  // approval. Canonical recomputation here is validation only, not packet mutation.
+  const bodyBytes = JSON.stringify(prepared.body);
+  if (wireBody !== undefined && (!compatibility || typeof wireBody !== 'string' || wireBody !== bodyBytes)) blockers.push('prepared_wire_mismatch');
   const wallNow = Date.now();
   if (Math.abs(Date.parse(p.now) - wallNow) > 300000 || p.entities.some(e => Date.parse(e.expires_at) <= wallNow || e.facts.some(f => Date.parse(f.expires_at) <= wallNow))) blockers.push('context_expired');
   if (JSON.stringify(prepared.body).includes(apiKey || '\u0000')) blockers.push('credential_in_packet');
@@ -182,7 +186,7 @@ async function runGeminiRead({packet, baseline, locks, approval, apiKey}, {fetch
       if (performance.now() - start >= GEMINI_SHADOW.deadlineMs) return {status: 'deadline_before_dispatch', usage: null};
       if (admission(prepared, apiKey, a).length) return {status: 'preflight_expired', usage: null};
       const response = await fetchImpl(endpoint, {method: 'POST', redirect: 'error', signal: controller.signal,
-        headers: {'content-type': 'application/json', 'x-goog-api-key': apiKey}, body: JSON.stringify(prepared.body)});
+        headers: {'content-type': 'application/json', 'x-goog-api-key': apiKey}, body: wireBody ?? bodyBytes});
       if (!response.ok) {
         void response.body?.cancel().catch(() => {});
         return {status: response.status === 401 || response.status === 403 ? 'access_denied' : response.status === 429 ? 'quota_exhausted' : response.status >= 500 ? 'provider_unavailable' : 'provider_rejected', usage: null};

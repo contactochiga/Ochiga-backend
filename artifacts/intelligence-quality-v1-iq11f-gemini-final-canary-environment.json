@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "observed_at": "2026-10-16T16:36:04.795Z",
+  "project_id": "gen-lang-client-0414833380",
+  "project_name": "Oyi Intelligence Development",
+  "tier": "FREE",
+  "billing_enabled": false,
+  "billing_account_linked": false,
+  "billing_source": "https://console.cloud.google.com/billing/linkedaccount?project=gen-lang-client-0414833380",
+  "billing_text": [
+    "This project has no billing account",
+    "This project is not linked to a billing account"
+  ],
+  "quota_source": "https://aistudio.google.com/rate-limit",
+  "quota_selected_project": "Oyi Intelligence Development",
+  "model": "gemini-3.1-flash-lite",
+  "quota_model_label": "Gemini 3.1 Flash Lite",
+  "quota": {
+    "rpm": 15,
+    "tpm": 250000,
+    "rpd": 500,
+    "displayed_usage_each": 0,
+    "view": "28 days peak",
+    "lag_warning_minutes": 15,
+    "quota_reserved": false
+  },
+  "method": "Read-only authenticated Google UI; no inference/count/model-list API call this turn",
+  "credential_available": true,
+  "credential_comparison_evidence": "artifacts/intelligence-quality-v1-iq11f-gemini-new-project-key-verification.json",
+  "fresh_full_key_comparison_this_turn": false,
+  "previous_owner_controlled_comparison_succeeded": true,
+  "local_allowance": {
+    "compatibility_ledger_absent": true,
+    "ordinary_ledger_absent": true,
+    "uncertain_receipt_found": false,
+    "reservation_created": false
+  },
+  "external_dependency": "Google enforces pricing/quota and model-side limits; local abort does not prove remote cancellation. No paid spend authorized."
+}

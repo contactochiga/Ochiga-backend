@@ -7,6 +7,7 @@ import {candidate} from '../iq11e/fixtures.mjs';
 import {GEMINI_COMPATIBILITY as binding} from './gemini-compatibility-policy.mjs';
 import {GEMINI_SHADOW as policy, prepareGeminiShadow, geminiCompatibilityBlockers,
   geminiShadowBlockers, runGeminiShadow, runGeminiCompatibility, reconcileGeminiCompatibility} from './gemini-shadow.mjs';
+import {sealPreparedCanary, preparedDispatchBlockers, dispatchPreparedCanary} from './gemini-approval-workflow.mjs';
 
 // Mock-only. Never read environment credentials, call a provider, or write a real
 // experiment receipt. Redirect the fixed ledger at the filesystem boundary ONLY
@@ -23,7 +24,7 @@ const originalNow = Date.now;
 Date.now = () => now;
 const originals = {};
 const redirect = p => typeof p === 'string' && (p === fixedRoot || p.startsWith(fixedRoot + path.sep)) ? directory + p.slice(fixedRoot.length) : p;
-for (const name of ['mkdirSync', 'openSync', 'readFileSync', 'statSync']) {
+for (const name of ['mkdirSync', 'openSync', 'readFileSync', 'statSync', 'lstatSync']) {
   originals[name] = fs[name]; fs[name] = (p, ...args) => originals[name](redirect(p), ...args);
 }
 const checks = [];
@@ -235,6 +236,77 @@ await test('three-second-timeout-late-result-no-replay', async () => {
   const before = fs.readFileSync(journalPath(), 'utf8'); finish(response(body())); await new Promise(resolve => setTimeout(resolve, 25));
   assert.equal(fs.readFileSync(journalPath(), 'utf8'), before); assert.equal((await run()).calls, 0);
   assert.equal(reconcileGeminiCompatibility().compatibility_observed, false);
+});
+const workflowInput = () => {
+  const value = input();
+  value.bundle = sealPreparedCanary(value.packet, hash('MOCK preparation review'), now - 100);
+  delete value.packet;
+  value.verification = {observed_at_ms: now, project: policy.project, model: policy.model,
+    credential_match_verified: true, credential_sha256: hash(key), ownership_evidence_hash: value.approval.ownership_evidence_hash,
+    tier: 'FREE', billing_account_linked: false, billing_enabled: false,
+    billing_quota_evidence_hash: value.approval.billing_quota_evidence_hash,
+    quota_remaining: {rpm: 15, tpm: 250000, rpd: 500}};
+  return value;
+};
+const workflowRun = async (value, fetch = async () => response(body())) => {
+  let calls = 0;
+  const out = await dispatchPreparedCanary(value, {fetchImpl: async (...args) => {calls++; return fetch(...args);}});
+  return {out, calls};
+};
+await test('workflow-preparation-does-not-authorize-or-reserve', () => {
+  const v = workflowInput(); assert.equal(v.bundle.status, 'PREPARED_NOT_AUTHORIZED');
+  assert(!fs.existsSync(directory)); assert.equal(v.bundle.approval_max_validity_ms, 300000);
+  assert.equal(v.bundle.packet_deadline_ms, Date.parse(v.bundle.packet.now) + 300000);
+  assert.deepEqual(preparedDispatchBlockers(v.bundle, v.approval, v.verification, key), []);
+});
+await test('workflow-byte-identical-dispatch-without-refresh', async () => {
+  const v = workflowInput(), before = JSON.stringify(v.bundle);
+  const r = await workflowRun(v, async (_url, init) => {
+    assert.equal(init.body, v.bundle.wire_body); assert.equal(hash(init.body), binding.body_hash);
+    return response(body());
+  });
+  assert.equal(r.calls, 1); assert.equal(r.out.status, 'compatible_unqualified');
+  assert.equal(JSON.stringify(v.bundle), before);
+});
+for (const [id, change] of [
+  ['expired-approval', v => v.approval.expires_at_ms = now],
+  ['extended-approval', v => v.approval.expires_at_ms = now + 300001],
+  ['preparation-time-is-not-owner-approval', v => v.approval.verified_at_ms = v.bundle.prepared_at_ms - 1],
+  ['no-owner-approval', v => v.approval.compatibility_canary_approved = false],
+  ['delayed-verification', () => now += 300001],
+  ['old-billing-proof', v => v.verification.observed_at_ms = v.approval.verified_at_ms - 1],
+  ['future-billing-proof', v => v.verification.observed_at_ms = now + 1],
+  ['billing-now-linked', v => v.verification.billing_account_linked = true],
+  ['quota-now-exhausted', v => v.verification.quota_remaining.rpm = 0],
+  ['quota-unknown', v => delete v.verification.quota_remaining],
+  ['credential-changed', v => v.apiKey = 'different-mock-key'],
+  ['project-changed', v => v.verification.project = 'other'],
+  ['credential-proof-missing', v => v.verification.credential_match_verified = false],
+  ['body-changed', v => v.bundle.wire_body += ' '],
+  ['packet-refreshed-after-approval', v => v.bundle.packet.now = new Date(now).toISOString()],
+  ['code-changed-after-review', v => v.bundle.source_hash = hash('other')],
+  ['packet-expiry-raised', v => v.bundle.packet_deadline_ms += 300000],
+]) await test(`workflow-blocks-${id}`, async () => {
+  const v = structuredClone(workflowInput()); change(v); const r = await workflowRun(v);
+  assert.equal(r.out.status, 'blocked'); assert.equal(r.calls, 0); assert(!fs.existsSync(directory));
+});
+await test('workflow-delayed-owner-approval-does-not-refresh-packet', async () => {
+  const v = workflowInput(); now = v.bundle.packet_deadline_ms;
+  v.approval.verified_at_ms = now; v.approval.expires_at_ms = now + 300000; v.verification.observed_at_ms = now;
+  const r = await workflowRun(v); assert.equal(r.calls, 0); assert(r.out.blockers.includes('packet_expired'));
+});
+await test('workflow-duplicate-attempt-stays-consumed', async () => {
+  const v = workflowInput(); assert.equal((await workflowRun(v)).calls, 1);
+  const r = await workflowRun(v); assert.equal(r.calls, 0); assert(r.out.blockers.includes('attempt_reserved_or_unverifiable'));
+});
+await test('workflow-uncertain-receipt-blocks-without-reset', async () => {
+  const v = workflowInput(); fs.mkdirSync(directory); fs.writeFileSync(journalPath(), JSON.stringify({event: 'pending'}) + '\n');
+  const before = fs.readFileSync(journalPath(), 'utf8'); const r = await workflowRun(v);
+  assert.equal(r.calls, 0); assert.equal(r.out.status, 'blocked'); assert.equal(fs.readFileSync(journalPath(), 'utf8'), before);
+});
+await test('transport-prepared-wire-mismatch-blocks', async () => {
+  const v = input(); v.wireBody = JSON.stringify(prepareGeminiShadow(v.packet).body) + ' ';
+  const r = await run({value: v}); assert.equal(r.calls, 0); assert(r.out.blockers.includes('prepared_wire_mismatch'));
 });
 Date.now = originalNow;
 for (const [name, fn] of Object.entries(originals)) fs[name] = fn;
