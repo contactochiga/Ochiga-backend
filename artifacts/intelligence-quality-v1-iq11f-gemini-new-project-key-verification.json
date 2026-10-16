@@ -1,0 +1,5 @@
+{
+  "comparison_succeeded": true,
+  "project_id": "gen-lang-client-0414833380",
+  "verification_method": "Owner entered the existing new-project API key in a local macOS masked dialog; the entire input was compared in memory with GEMINI_API_KEY. The process returned only FULL_KEY_MATCH. Project selection is owner-attested and supported by read-only Google project/key metadata. Neither credential was printed, logged, persisted or transmitted for comparison."
+}

@@ -72,6 +72,24 @@ await test('no-owner-approval-no-dispatch', async () => {
   const v = input(); v.approval = null; const r = await run({value: v});
   assert.equal(r.out.status, 'blocked'); assert.equal(r.calls, 0); assert(!fs.existsSync(directory));
 });
+await test('current-development-project-is-explicit', () => {
+  assert.equal(policy.project, 'gen-lang-client-0414833380');
+  assert.equal(policy.model, 'gemini-3.1-flash-lite');
+  assert.equal(policy.authorizedUsd, 0);
+});
+await test('historical-project-approval-cannot-transfer', async () => {
+  const v = input(); v.approval.project = 'gen-lang-client-0748205572';
+  const r = await run({value: v}); assert.equal(r.out.status, 'blocked');
+  assert(r.out.blockers.includes('recipient_or_model_mismatch')); assert.equal(r.calls, 0);
+});
+await test('verified-project-is-not-final-canary-approval', async () => {
+  const a = JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts/intelligence-quality-v1-iq11f-gemini-development-approval.json'), 'utf8'));
+  assert.equal(a.project, policy.project); assert.equal(a.ownership_verified, true);
+  assert.equal(a.credential_sha256, null); assert.equal(a.body_hash, null);
+  assert.equal(a.compatibility_canary_approved, false); assert.equal(a.live_canary_approved, false);
+  const v = input(); v.approval = a; const r = await run({value: v});
+  assert.equal(r.out.status, 'blocked'); assert.equal(r.calls, 0); assert(!fs.existsSync(directory));
+});
 await test('default-and-explicit-ambient-fetch-blocked', async () => {
   for (const options of [undefined, {fetchImpl: globalThis.fetch}]) {
     const r = await runGeminiCompatibility(input(), options); assert.equal(r.status, 'blocked'); assert(r.blockers.includes('live_dispatch_not_enabled'));

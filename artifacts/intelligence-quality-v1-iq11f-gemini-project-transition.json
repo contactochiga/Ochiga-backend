@@ -1,0 +1,391 @@
+{
+  "version": 1,
+  "observed_on": "2026-10-16",
+  "starting_head": "0324cc6c87d744add1a005362d8e28eeb6d6ff0c",
+  "status": "PROJECT_AND_OWNER_CONTROLLED_CREDENTIAL_ASSOCIATION_VERIFIED",
+  "previous_project": "gen-lang-client-0748205572",
+  "new_project": "gen-lang-client-0414833380",
+  "project_name": "Oyi Intelligence Development",
+  "project_created_on": "2026-10-16",
+  "verification": {
+    "credential_available": true,
+    "credential_authenticates_model_listing": true,
+    "exact_credential_project_association_verified": true,
+    "project_visibility": "Google Cloud project selector and AI Studio Projects",
+    "tier": "FREE",
+    "tier_source": "https://aistudio.google.com/projects",
+    "billing_account_linked": false,
+    "billing_source": "https://console.cloud.google.com/billing/linkedaccount?project=gen-lang-client-0414833380",
+    "billing_observation": "This project has no billing account. This project is not linked to a billing account.",
+    "billing_enablement_or_paid_tier_eligibility": "NOT_EVALUATED_NO_BILLING_CHANGES_AUTHORIZED",
+    "key_metadata": {
+      "source": "https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0414833380",
+      "key_count_observed": 1,
+      "status": "AVAILABLE",
+      "restriction": "Gemini API",
+      "browser_key_value_not_revealed_or_read": true,
+      "ai_studio_all_projects_key_listing": "PERMISSION_DENIED",
+      "metadata_does_not_prove_env_key_identity": true
+    },
+    "quota": {
+      "source": "https://aistudio.google.com/rate-limit",
+      "selected_project": "Oyi Intelligence Development",
+      "selected_project_id": "gen-lang-client-0414833380",
+      "selected_model_ui": "Gemini 3.1 Flash Lite",
+      "rpm": 15,
+      "tpm": 250000,
+      "rpd": 500,
+      "displayed_usage": 0,
+      "usage_window": "28 days peak",
+      "lag_warning": "Usage data may take up to 15 minutes to update.",
+      "live_remaining_quota_guaranteed": false,
+      "reverified_at": "2026-10-16T16:31:29.585Z"
+    },
+    "credential_association_method": "OWNER_CONTROLLED_MASKED_LOCAL_FULL_KEY_EQUALITY",
+    "credential_association_evidence": "artifacts/intelligence-quality-v1-iq11f-gemini-new-project-key-verification.json",
+    "administrative_key_lookup_performed": false,
+    "billing_reverified_at": "2026-10-16T16:31:29.585Z"
+  },
+  "model_catalog": {
+    "http_status": 200,
+    "model_list_verified": true,
+    "project_association_proven": false,
+    "flash_models": [
+      {
+        "name": "models/gemini-2.5-flash",
+        "version": "001",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-preview-tts",
+        "version": "gemini-2.5-flash-exp-tts-2025-05-19",
+        "inputTokenLimit": 8192,
+        "outputTokenLimit": 16384,
+        "supportedGenerationMethods": [
+          "countTokens",
+          "generateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-flash-latest",
+        "version": "Gemini Flash Latest",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-flash-lite-latest",
+        "version": "Gemini Flash-Lite Latest",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-lite",
+        "version": "001",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-image",
+        "version": "2.0",
+        "inputTokenLimit": 32768,
+        "outputTokenLimit": 32768,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3-flash-preview",
+        "version": "3-flash-preview-12-2025",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-lite-preview",
+        "version": "3.1-flash-lite-preview-03-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-lite",
+        "version": "3.1-flash-lite-05-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-image-preview",
+        "version": "3.0",
+        "inputTokenLimit": 65536,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-image",
+        "version": "3.0",
+        "inputTokenLimit": 65536,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-lite-image",
+        "version": "3.0",
+        "inputTokenLimit": 65536,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.5-flash",
+        "version": "3.5-flash-05-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.5-flash-lite",
+        "version": "3.5-flash-lite-07-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-omni-flash-preview",
+        "version": "001",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens"
+        ]
+      },
+      {
+        "name": "models/gemini-omni-1.1-flash",
+        "version": "001",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens"
+        ]
+      },
+      {
+        "name": "models/gemini-3.6-flash",
+        "version": "3.6-flash-07-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.7-flash",
+        "version": "3.7-flash-08-2026",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.8-flash",
+        "version": "3.0",
+        "inputTokenLimit": 1048576,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "createCachedContent",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-tts-preview",
+        "version": "3.1-flash-tts-preview",
+        "inputTokenLimit": 8192,
+        "outputTokenLimit": 16384,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.8-flash-tts",
+        "version": "3.8-flash-tts",
+        "inputTokenLimit": 8192,
+        "outputTokenLimit": 16384,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.8-flash-lite-tts",
+        "version": "3.8-flash-lite-tts",
+        "inputTokenLimit": 8192,
+        "outputTokenLimit": 16384,
+        "supportedGenerationMethods": [
+          "generateContent",
+          "countTokens",
+          "batchGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-native-audio-latest",
+        "version": "Gemini 2.5 Flash Native Audio Latest",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 8192,
+        "supportedGenerationMethods": [
+          "countTokens",
+          "bidiGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-native-audio-preview-09-2025",
+        "version": "gemini-2.5-flash-preview-native-audio-dialog-2025-05-19",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 8192,
+        "supportedGenerationMethods": [
+          "countTokens",
+          "bidiGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-2.5-flash-native-audio-preview-12-2025",
+        "version": "12-2025",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 8192,
+        "supportedGenerationMethods": [
+          "countTokens",
+          "bidiGenerateContent"
+        ]
+      },
+      {
+        "name": "models/gemini-3.1-flash-live-preview",
+        "version": "3.1-flash-live-03-2026",
+        "inputTokenLimit": 131072,
+        "outputTokenLimit": 65536,
+        "supportedGenerationMethods": [
+          "bidiGenerateContent"
+        ]
+      }
+    ],
+    "complete": true,
+    "inference_calls": 0
+  },
+  "model_selection": {
+    "unchanged": true,
+    "model": "gemini-3.1-flash-lite",
+    "response_version": "3.1-flash-lite-05-2026",
+    "listed_model_is_not_project_binding_proof": true,
+    "listed_model_is_not_free_quota_guarantee": true
+  },
+  "limits": {
+    "authorized_gemini_usd": 0,
+    "openai_ceiling_unchanged": 50,
+    "input_gate": 4096,
+    "full_input_accounting_verified": false,
+    "output_including_thinking": 1024,
+    "deadline_ms": 3000,
+    "response_bytes": 65536,
+    "retries": 0,
+    "fallback": false,
+    "tools": false,
+    "execution_callbacks": false,
+    "maximum_compatibility_attempts": 1
+  },
+  "activity": {
+    "model_list_get_requests": 1,
+    "new_model_api_requests_during_local_key_verification": 0,
+    "count_requests": 0,
+    "inference_requests": 0,
+    "cloud_admin_writes": 0,
+    "credential_values_logged_or_stored": 0,
+    "production_activation": false,
+    "note": "Catalog evidence retained from the prior read-only HTTP 200 listing. This verification made no Gemini API, count or inference call."
+  },
+  "preservation": {
+    "historical_evidence_unchanged": true,
+    "old_approval_not_transferred": true,
+    "old_uncommitted_canary_and_hash_binding_untouched": true,
+    "existing_one_attempt_ledger_not_reset": true
+  },
+  "blockers": [
+    "Expired synthetic packet requires refresh and final exact-hash authorization.",
+    "Fresh short-lived runtime preflight and in-memory credential binding are required before the single request.",
+    "Full 4096-input-token qualification remains unresolved; compatibility exception does not certify intelligence."
+  ],
+  "reverified_at": "2026-10-16T16:31:29.585Z"
+}

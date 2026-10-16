@@ -1,0 +1,642 @@
+{
+  "version": 1,
+  "kind": "OFFLINE_PROJECT_TRANSITION_VALIDATION",
+  "verification_stage": "RERUN_AFTER_SUCCESSFUL_MASKED_NEW_PROJECT_KEY_COMPARISON",
+  "committed_packet_policy_snapshot": {"pass": 84, "fail": 0, "included_in_354": false},
+  "project": "gen-lang-client-0414833380",
+  "runtime_head": "0324cc6c87d744add1a005362d8e28eeb6d6ff0c",
+  "compatibility": {
+    "pass": 84,
+    "fail": 0,
+    "checks": [
+      {
+        "id": "manifest-is-exact-synthetic-unapproved-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "no-owner-approval-no-dispatch",
+        "status": "PASS"
+      },
+      {
+        "id": "current-development-project-is-explicit",
+        "status": "PASS"
+      },
+      {
+        "id": "historical-project-approval-cannot-transfer",
+        "status": "PASS"
+      },
+      {
+        "id": "verified-project-is-not-final-canary-approval",
+        "status": "PASS"
+      },
+      {
+        "id": "default-and-explicit-ambient-fetch-blocked",
+        "status": "PASS"
+      },
+      {
+        "id": "no-custom-ledger-no-callback-no-mode-override",
+        "status": "PASS"
+      },
+      {
+        "id": "malformed-call-options-fail-closed",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-approval-id",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-experiment-id",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-exception-type",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-approval-evidence",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-ordinary-approval",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-exception-not-approved",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-project",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-model",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-response-version",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-credential-binding",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-ownership",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-billing-enabled",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-paid-tier",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-nonzero-price",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-quota-unverified",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-nonzero-budget",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-billing-evidence",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-data-processing",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-synthetic-review",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-unpaid-processing",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-external-billing-risk",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-remote-completion-risk",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-packet-hash",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-body-hash",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-schema-hash",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-expired",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-future-approval",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-over-five-minutes",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-verified-input-claim",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-496-as-proof",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-raised-gate",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-missing-accounting",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-no-exception-acceptance",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-certification-credit",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-two-requests",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-retries",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-tools",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-fallback",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-larger-output",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-longer-deadline",
+        "status": "PASS"
+      },
+      {
+        "id": "ordinary-qualification-still-requires-real-token-proof",
+        "status": "PASS"
+      },
+      {
+        "id": "new-business-text-cannot-be-approved-through-new-hashes",
+        "status": "PASS"
+      },
+      {
+        "id": "private-or-cross-scope-input-rejected",
+        "status": "PASS"
+      },
+      {
+        "id": "pinned-context-expiry-not-waived",
+        "status": "PASS"
+      },
+      {
+        "id": "compatibility-is-never-intelligence-or-token-certification",
+        "status": "PASS"
+      },
+      {
+        "id": "wire-request-unchanged-and-bounded",
+        "status": "PASS"
+      },
+      {
+        "id": "wrong-version",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-usage",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-thinking",
+        "status": "PASS"
+      },
+      {
+        "id": "negative-usage",
+        "status": "PASS"
+      },
+      {
+        "id": "usage-total-mismatch",
+        "status": "PASS"
+      },
+      {
+        "id": "reported-input-over-limit",
+        "status": "PASS"
+      },
+      {
+        "id": "combined-output-over-limit",
+        "status": "PASS"
+      },
+      {
+        "id": "truncated",
+        "status": "PASS"
+      },
+      {
+        "id": "refusal",
+        "status": "PASS"
+      },
+      {
+        "id": "tool-output",
+        "status": "PASS"
+      },
+      {
+        "id": "malformed-candidate",
+        "status": "PASS"
+      },
+      {
+        "id": "credential-echo",
+        "status": "PASS"
+      },
+      {
+        "id": "preserves-cancelled-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "preserves-hazard-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "preserves-denied-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "scope-lock-preserved",
+        "status": "PASS"
+      },
+      {
+        "id": "provider-400-no-retry-safe-error",
+        "status": "PASS"
+      },
+      {
+        "id": "provider-403-no-retry-safe-error",
+        "status": "PASS"
+      },
+      {
+        "id": "provider-429-no-retry-safe-error",
+        "status": "PASS"
+      },
+      {
+        "id": "provider-503-no-retry-safe-error",
+        "status": "PASS"
+      },
+      {
+        "id": "malformed-json",
+        "status": "PASS"
+      },
+      {
+        "id": "oversize",
+        "status": "PASS"
+      },
+      {
+        "id": "safe-thrown-error",
+        "status": "PASS"
+      },
+      {
+        "id": "concurrent-and-repeated-attempts-consume-one-fixed-slot",
+        "status": "PASS"
+      },
+      {
+        "id": "uncertain-pending-receipt-prevents-another-attempt",
+        "status": "PASS"
+      },
+      {
+        "id": "unwritable-ledger-prevents-dispatch",
+        "status": "PASS"
+      },
+      {
+        "id": "terminal-write-failure-not-success",
+        "status": "PASS"
+      },
+      {
+        "id": "exact-receipt-binding-and-no-qualification-promotion",
+        "status": "PASS"
+      },
+      {
+        "id": "caller-mutation-cannot-change-captured-request",
+        "status": "PASS"
+      },
+      {
+        "id": "three-second-timeout-late-result-no-replay",
+        "status": "PASS"
+      }
+    ],
+    "provider_calls": 0,
+    "inference_calls": 0,
+    "spend_usd": 0,
+    "clock": "MOCK_WALL_CLOCK_REAL_DEADLINE",
+    "proof_kind": "OFFLINE_MOCK_ONLY"
+  },
+  "shadow": {
+    "pass": 65,
+    "fail": 0,
+    "checks": [
+      {
+        "id": "no-approval-no-network-no-receipt",
+        "status": "PASS"
+      },
+      {
+        "id": "mock-approval-cannot-activate-ambient-network",
+        "status": "PASS"
+      },
+      {
+        "id": "ambient-fetch-cannot-be-explicitly-selected",
+        "status": "PASS"
+      },
+      {
+        "id": "token-preflight-covers-entire-wire-request",
+        "status": "PASS"
+      },
+      {
+        "id": "wire-byte-accounting-reconciles-without-token-estimates",
+        "status": "PASS"
+      },
+      {
+        "id": "token-proof-invalidated-by-packet-change",
+        "status": "PASS"
+      },
+      {
+        "id": "token-preflight-rejects-private-and-out-of-scope-input",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-ownership",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-credential-binding",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-wrong-project",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-billing-enabled",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-paid-tier",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-positive-price",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-unknown-quota",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-wrong-model",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-processing-unapproved",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-synthetic-unreviewed",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-changed-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-changed-schema",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-expired",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-long-approval",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-missing-token-proof",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-content-only-count",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-oversize-input",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-tools",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-fallback",
+        "status": "PASS"
+      },
+      {
+        "id": "blocks-multiple-requests",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-consumer",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-facility",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-office_internal",
+        "status": "PASS"
+      },
+      {
+        "id": "valid-shadow-public_corporate",
+        "status": "PASS"
+      },
+      {
+        "id": "fixed-endpoint-minimal-thinking-no-tools",
+        "status": "PASS"
+      },
+      {
+        "id": "wrong-response-model",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-thought-count",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-usage",
+        "status": "PASS"
+      },
+      {
+        "id": "token-overrun",
+        "status": "PASS"
+      },
+      {
+        "id": "input-overrun",
+        "status": "PASS"
+      },
+      {
+        "id": "total-mismatch",
+        "status": "PASS"
+      },
+      {
+        "id": "tools-output",
+        "status": "PASS"
+      },
+      {
+        "id": "unexpected-signature",
+        "status": "PASS"
+      },
+      {
+        "id": "truncation",
+        "status": "PASS"
+      },
+      {
+        "id": "refusal",
+        "status": "PASS"
+      },
+      {
+        "id": "credential-echo",
+        "status": "PASS"
+      },
+      {
+        "id": "canonical-validation-unknown-entity",
+        "status": "PASS"
+      },
+      {
+        "id": "core-cancelled-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "core-hazard-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "core-denied-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "scope-lock",
+        "status": "PASS"
+      },
+      {
+        "id": "expired-context",
+        "status": "PASS"
+      },
+      {
+        "id": "production-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "public-private-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "embedded-credential",
+        "status": "PASS"
+      },
+      {
+        "id": "http-403-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-429-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-503-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "http-400-safe-no-retry",
+        "status": "PASS"
+      },
+      {
+        "id": "thrown-provider-error-redacted",
+        "status": "PASS"
+      },
+      {
+        "id": "oversized-stream",
+        "status": "PASS"
+      },
+      {
+        "id": "duplicate-and-concurrent-delivery-reserved-once",
+        "status": "PASS"
+      },
+      {
+        "id": "missing-terminal-receipt-blocks-replay",
+        "status": "PASS"
+      },
+      {
+        "id": "receipt-failure-prevents-dispatch",
+        "status": "PASS"
+      },
+      {
+        "id": "terminal-receipt-fsync-failure-not-success",
+        "status": "PASS"
+      },
+      {
+        "id": "exact-id-reconciliation-no-text-matching",
+        "status": "PASS"
+      },
+      {
+        "id": "caller-mutation-cannot-change-inflight-packet",
+        "status": "PASS"
+      },
+      {
+        "id": "three-second-deadline-and-late-completion-immutable",
+        "status": "PASS"
+      }
+    ],
+    "network_calls": 0,
+    "inference_calls": 0,
+    "spend_usd": 0,
+    "proof_kind": "OFFLINE_MOCK_ONLY"
+  },
+  "gateway": {
+    "pass": 89,
+    "fail": 0,
+    "inherited": {
+      "iq11f": 25,
+      "iq11e": 91
+    },
+    "failures": []
+  },
+  "total_pass": 354,
+  "total_fail": 0,
+  "adapter_typecheck": "PASS",
+  "syntax": "PASS",
+  "diff_check": "PASS",
+  "inference_calls": 0,
+  "production_changes": false,
+  "live_approval": false
+}

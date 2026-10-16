@@ -7,7 +7,8 @@ import {defaultRegistry} from './registry.mjs';
 import {GEMINI_COMPATIBILITY} from './gemini-compatibility-policy.mjs';
 
 export const GEMINI_SHADOW = Object.freeze({
-  project: 'gen-lang-client-0748205572', model: 'gemini-3.1-flash-lite',
+  // Current development target only; live credential/project proof is still required.
+  project: 'gen-lang-client-0414833380', model: 'gemini-3.1-flash-lite',
   // Catalog metadata, NOT a separately verified endpoint or immutable snapshot.
   responseVersion: '3.1-flash-lite-05-2026',
   inputTokens: 4096, outputTokens: 1024, deadlineMs: 3000,
