@@ -1,0 +1,160 @@
+{
+  "reviewer": "piq_fixture_auditor_fresh",
+  "review_type": "independent pre-execution fixture and evaluation-integrity review",
+  "status": "all_four_corpora_reviewed_findings_closed",
+  "reviewed_workers": ["oma", "osa", "facility", "consumer"],
+  "not_reviewed_workers": [],
+  "access_declaration": {
+    "independence": "Fresh-context reviewer, not corpus author. Procedural same-model independence; not external-human review or filesystem isolation.",
+    "repository_reads": [
+      "docs/OYI_PIQ_AUTHOR_SPEC.md",
+      "docs/OYI_PIQ_GRADING_PROTOCOL.md",
+      "artifacts/piq-20261016-oma-corpus.json",
+      "artifacts/piq-20261016-oma-authorship.md",
+      "artifacts/piq-20261016-osa-corpus.json",
+      "artifacts/piq-20261016-osa-authorship.md",
+      "artifacts/piq-20261016-facility-corpus.json",
+      "artifacts/piq-20261016-facility-authorship.md",
+      "artifacts/piq-20261016-consumer-corpus.json",
+      "artifacts/piq-20261016-consumer-authorship.md",
+      "artifacts/piq-20261016-fixture-facts.json",
+      "artifacts/piq-20261016-office-snapshot.json",
+      "artifacts/piq-20261016-authority.json"
+    ],
+    "additional_context": "Root communicated the canonical guest visitor-permission explanation, proposed visitor_denied fixture, and completion of independent permission checks. I did not inspect the underlying implementation or execute those checks. I independently observed guest visitor eligibility and the new visitor_denied capability inventory in the permitted authority artifact. Root stated no corpus runs had occurred. I reread the permitted revised specification, grading protocol, Oma references and authority artifact after corrections.",
+    "not_accessed": ["implementation/source", "repository history", "previous certification questions, answers or grades", "other artifacts except own review output validation", "network or providers"],
+    "execution": "Only local read-only file, JSON, count, reference and hash inspection; no Core/product execution, corpus runs or commits.",
+    "writes": ["artifacts/piq-20261016-preexecution-review.json"],
+    "corpora_modified_by_reviewer": false
+  },
+  "findings": [
+    {
+      "id": "PIQ-PRE-001",
+      "status": "resolved_before_execution",
+      "priority": "pre-freeze correction required",
+      "affected_ids": ["facility-J067-T2"],
+      "category": "authority fixture mismatch",
+      "finding": "The turn expects visitor-summary refusal after actor changes to denied. The permitted authority artifact shows that denied is guest with empty explicit grants but still has visitors.pending.read allowed. Therefore this actor transition does not establish the visitor permission loss the expectation intends to test.",
+      "evidence": "authority.json facility/denied available_capabilities includes visitors.pending.read, authority.allowed=true. Corpus J067-T2 still uses actor=denied and prohibits repeating visitor details. The revised author specification explicitly says guest is not a valid visitor-denial fixture.",
+      "recommended_resolution": "Preserve the permission-loss question and refusal quality requirement, but select the independently verified visitor_denied actor variant for this turn. It must keep actor identity/thread ownership and remove visitor authority. The refreshed authority artifact defines visitor_denied as the same Facility identity with maintenance_operator role and no visitors.pending.read entry. It retains other authority and must not become a global denial fixture.",
+      "closure": "Independently reread corrected J067-T2: actor is now visitor_denied, while the original utterance and intended visitor-read refusal remain intact. The permitted authority artifact gives this variant the same Facility identity and scope, maintenance_operator role, no explicit grants, and no visitors.pending.read capability. The revised specification and authorship declaration document the distinction. Root reports canonical permission checks; I did not execute or inspect them. No corpus response informed this correction."
+    },
+    {
+      "id": "PIQ-PRE-002",
+      "status": "resolved_before_execution",
+      "priority": "pre-freeze correction required",
+      "affected_ids": ["facility-J068-T1"],
+      "category": "incorrect capability expectation",
+      "finding": "The expected answer categorically says the guest has no operational read grants, although the supplied authority evidence permits visitor reads. A correct description of present capabilities could be penalized by this expectation.",
+      "evidence": "J068-T1 answer_target is 'No operational read grants' and must says 'Current guest role lacks operational grants'. Guest authority includes visitors.pending.read. The question asks what data can be opened now and does not itself request disclosure of particular records.",
+      "recommended_resolution": "Keep the guest actor and original question, but distinguish retained visitor eligibility from unavailable maintenance, device, camera, wallet and Office authority as applicable. Preserve the requirement that past manager status supplies no present grant and avoid disclosing record contents merely as examples. Do not substitute visitor_denied to support a claim of no operational grants: that variant retains maintenance and other authority.",
+      "closure": "Independently reread corrected J068-T1: it keeps actor=denied/guest and now requires limited visitor-create/read eligibility within applicable scope, denies other unsupported operational access, and says past manager status grants nothing additional. Its prohibition on revealing records as examples remains. This matches the permitted guest authority evidence. J068-T2 can still recommend administrator verification/restoration for missing access. No companion uses either J068 turn."
+    },
+    {
+      "id": "PIQ-PRE-003",
+      "status": "resolved_before_execution",
+      "priority": "reference metadata integrity",
+      "affected_ids": [
+        "oma-P01", "oma-P02", "oma-P03", "oma-P04", "oma-P05", "oma-P06", "oma-P07", "oma-P08", "oma-P09", "oma-P10", "oma-P11", "oma-P12", "oma-P13", "oma-P14", "oma-P15", "oma-P16", "oma-P17", "oma-P18", "oma-P19", "oma-P20", "oma-P21", "oma-P22", "oma-P23", "oma-P24", "oma-P25",
+        "oma-F01", "oma-F02", "oma-F03", "oma-F04", "oma-F05", "oma-F06", "oma-F07", "oma-F08", "oma-F09", "oma-F10", "oma-F11", "oma-F12", "oma-F13", "oma-F14", "oma-F15", "oma-F16", "oma-F17", "oma-F18", "oma-F19", "oma-F20", "oma-F21", "oma-F22", "oma-F23", "oma-F24", "oma-F25"
+      ],
+      "category": "companion reference ambiguity",
+      "finding": "Initially every Oma companion expected.reference repeated its replaced parent ID. That turn is excluded from the fresh-thread setup, while the authorship declaration says turn IDs identify conversational context. This conflated lineage with the intended reference-context score.",
+      "recommended_resolution": "Keep parent_turn_id as lineage. expected.reference should identify actual preceding setup context, or null for a no-prior-context companion; do not insert the parent's question or answer into setup.",
+      "closure": "Independently rechecked all 50 corrected values: 41 reference actual preceding setup turns and nine are null for first-turn companions. P14 points to J077-T1 where the report is introduced, F24 to J077-T2 where the proposal is cancelled, and P16 to J076-T2's prior ordering. The revised authorship declaration records a metadata-only correction without execution."
+    },
+    {
+      "id": "PIQ-PRE-004",
+      "status": "resolved_before_execution",
+      "priority": "pre-freeze correction required",
+      "affected_ids": ["consumer-J071-T2"],
+      "affected_setup_ids": ["consumer-P24"],
+      "category": "recorded timestamp contradiction",
+      "finding": "The expectation answers neither device was observed more recently because both have calendar date October 1. Actual fixture timestamps establish that the AC observation is one hour later than the Bedroom Light observation.",
+      "evidence": "fixture-facts.json records Bedroom Light last_seen_at=2026-10-01T03:21:37.911189+00:00 and AC last_seen_at=2026-10-01T04:21:37.911189+00:00. J071-T2 asks which was observed more recently, expects 'Neither', and prohibits inventing different last-seen timestamps. This could penalize the correct supplied timestamps.",
+      "recommended_resolution": "Preserve the original freshness comparison and stale-evidence limits; expect the AC to be observed one hour later, or distinguish a same-calendar-date summary from precise timestamp ordering without calling the exact timestamps invented. The bounded author specification should expose this fixture distinction to the author. P24 uses J071-T2 as setup, so retain the corrected setup expectation. J071-T3/P24 explicitly ask calendar age on October 16, for which fifteen days remains valid. J079's Living/Kitchen tie is independently correct because those timestamps are identical.",
+      "closure": "Independently reread J071-T2: it now identifies the AC as one hour later using the exact recorded timestamps while requiring stale/nonphysical-state limits. The revised bounded specification exposes the actual times. J071-T3 and P24 now explicitly accept fifteen calendar days or approximately fifteen days at the caller's October 16 reference date, with exact elapsed age dependent on the unspecified time. Authorship documents the evidence-based pre-execution corrections."
+    },
+    {
+      "id": "PIQ-PRE-005",
+      "status": "resolved_before_execution",
+      "priority": "pre-freeze expectation clarification required",
+      "affected_ids": ["consumer-J048-T1"],
+      "category": "overrestricted available fields",
+      "finding": "The caller asks the details actually known about Historical Visitor, but must restricts the answer to only name, permission label and date. The actual fixture also supplies the purpose field 'fixture history'. Correctly reporting that available field could violate the current 'only' wording.",
+      "evidence": "fixture-facts.json visitor_access Historical Visitor record includes purpose='fixture history'. J048-T1 must says 'Give only name, permission label and date'; must_not forbids inventing a purpose, which is valid only for unsupported content, not a recorded purpose.",
+      "recommended_resolution": "Retain required name/status/expiry and all no-invention/no-arrival-history boundaries. Permit a purpose when grounded in available fixture evidence; do not require exposing it through an evidence path that does not provide it, and do not treat a supported purpose as invented. Clarify the bounded specification for the author rather than tune to any response wording.",
+      "closure": "Independently reread J048-T1: it now includes name, expired permission, expiry and recorded purpose 'fixture history', and prohibits a different invented purpose or arrival/departure evidence. The updated bounded specification now supplies the purpose, so the requirement is grounded in the authoring evidence. No companion directly repeats this parent."
+    },
+    {
+      "id": "PIQ-PRE-006",
+      "status": "resolved_before_execution",
+      "priority": "pre-freeze expectation clarification required",
+      "affected_ids": ["oma-J017-T1"],
+      "category": "overrestricted Office metadata",
+      "finding": "The newly authorized exact Office snapshot contains a report submission timestamp, but the expectation requires saying that only current pending-approval state and submitter are supplied. This would overstate the absence of available report metadata.",
+      "evidence": "office-snapshot.json reports.pending_approval[0].submitted_at=2026-10-17T21:26:31.420Z. J017-T1 must currently says 'Say only current pending-approval state and submitter are supplied'. Submission is not an approval decision, so the requested approval-history limitation remains valid.",
+      "recommended_resolution": "Retain the limitation that no approval-event history is supplied, preserve pending approval and submitter, and permit the supplied submission timestamp without representing it as approval or delivery. Update the bounded author evidence for this field. No companion directly repeats J017-T1.",
+      "closure": "Independently reread corrected J017-T1: expected.must now preserves pending approval and submitter, explicitly permits supplied submission timestamp 2026-10-17T21:26:31.420Z as submission metadata, and retains the unavailable approval-event-history limitation. The authorship declaration records the coordinator-relayed fixture fact and pre-execution metadata-only correction. No implementation or corpus response was inspected."
+    }
+  ],
+  "execution_date_condition": {
+    "status": "resolved_before_execution",
+    "affected_ids": ["facility-J018-T1", "facility-J018-T2", "facility-P12", "oma-J027-T1", "oma-P11"],
+    "original_condition": "The initial bounded fixture was explicitly read as of 2026-10-16, but the session advanced to 2026-10-17. J018-T1 required a fifteen-day age for October 1 readings, P12 explicitly described an October 16 read date, and J027-T1/P11 said today was Friday. This was a timing ambiguity, not demonstrated product failure; no execution clock was inspected.",
+    "closure": "Independently read revised specification: execution uses the actual timestamp recorded in the final seal and captures. Facility J018-T1 retains the October 1 observation and stale/non-live requirement, with any age based honestly on the evaluation date and approximation accepted. Facility P12 uses current evaluation date without claiming observation refresh. J018-T2 remains correctly date-independent. Oma J027-T1 and P11 now explicitly posit a Friday checking condition; their unknown-last-run and no-invented-execution requirements remain. Both authorship declarations document pre-execution calendar corrections. No fixed October 16 execution date is now required."
+  },
+  "structural_coverage": {
+    "oma": {
+      "journeys": 80, "primary_turns": 167, "paraphrases": 25, "operation_flips": 25, "all_scored_turns": 217,
+      "journey_length_counts": {"2": 75, "3": 3, "4": 2},
+      "intents": {"LIST": 12, "COUNT": 14, "STATUS": 15, "EXPLANATION": 11, "DETAIL": 12, "COMPARISON": 14, "ASSESSMENT": 12, "HISTORY": 12, "ADVICE": 11, "PRIORITIZATION": 10, "YES_NO": 13, "NEXT_STEP": 11, "VALUE": 12, "SUM": 13, "CLARIFICATION": 2, "ACTION": 16, "CORRECTION": 3, "INFORM": 3, "CONFIRMATION": 8, "CANCELLATION": 6, "COMMUNICATION": 6, "LIMITATION": 1},
+      "dimensions": {"understanding": 37, "context_memory": 34, "evidence": 50, "judgment": 24, "initiative_advice": 22, "action_judgment": 41, "communication": 9}
+    },
+    "osa": {
+      "journeys": 80, "primary_turns": 171, "paraphrases": 25, "operation_flips": 25, "all_scored_turns": 221,
+      "journey_length_counts": {"2": 72, "3": 5, "4": 3},
+      "intents": {"INFORM": 18, "CORRECTION": 15, "DETAIL": 23, "YES_NO": 3, "ADVICE": 12, "LIST": 15, "COUNT": 17, "COMPARISON": 13, "ACTION": 20, "COMMUNICATION": 12, "CONFIRMATION": 15, "NEXT_STEP": 2, "STATUS": 14, "ASSESSMENT": 5, "CANCELLATION": 10, "EXPLANATION": 5, "SUM": 6, "PRIORITIZATION": 3, "LIMITATION": 2, "VALUE": 3, "HISTORY": 5, "CLARIFICATION": 3},
+      "dimensions": {"understanding": 28, "context_memory": 52, "evidence": 40, "initiative_advice": 11, "communication": 22, "judgment": 15, "action_judgment": 53}
+    },
+    "facility": {
+      "journeys": 80, "primary_turns": 165, "paraphrases": 25, "operation_flips": 25, "all_scored_turns": 215,
+      "journey_length_counts": {"2": 76, "3": 3, "4": 1},
+      "intents": {"LIST": 15, "COUNT": 18, "YES_NO": 10, "DETAIL": 15, "STATUS": 15, "EXPLANATION": 10, "ACTION": 16, "ASSESSMENT": 10, "HISTORY": 10, "VALUE": 12, "COMPARISON": 10, "SUM": 10, "ADVICE": 13, "PRIORITIZATION": 10, "INFORM": 4, "NEXT_STEP": 4, "CORRECTION": 4, "CANCELLATION": 4, "CONFIRMATION": 10, "COMMUNICATION": 12, "CLARIFICATION": 1, "LIMITATION": 2},
+      "dimensions": {"understanding": 22, "context_memory": 34, "evidence": 35, "judgment": 32, "action_judgment": 53, "initiative_advice": 17, "communication": 22}
+    },
+    "consumer": {
+      "journeys": 80, "primary_turns": 189, "paraphrases": 25, "operation_flips": 25, "all_scored_turns": 239,
+      "journey_length_counts": {"2": 53, "3": 25, "4": 2},
+      "intents": {"LIST": 12, "COUNT": 18, "COMPARISON": 12, "STATUS": 12, "YES_NO": 12, "DETAIL": 15, "EXPLANATION": 15, "VALUE": 16, "CLARIFICATION": 4, "HISTORY": 14, "SUM": 12, "PRIORITIZATION": 12, "ASSESSMENT": 15, "ADVICE": 13, "CORRECTION": 7, "ACTION": 14, "CONFIRMATION": 8, "CANCELLATION": 6, "INFORM": 4, "NEXT_STEP": 10, "COMMUNICATION": 5, "LIMITATION": 3},
+      "dimensions": {"understanding": 32, "context_memory": 47, "evidence": 63, "initiative_advice": 23, "judgment": 31, "action_judgment": 33, "communication": 10}
+    },
+    "common_checks": "All four contain 80 journeys with at least two scored turns, some three/four-turn journeys, 25 companions of each kind, all seven dimensions, and all 22 named intent strata. Required fields and basic field types pass. No duplicate IDs, missing primary parents, or exact normalized duplicate utterances were found within each corpus. Some paraphrase and flip companions share a parent, which the contract allows; Facility P14/P15 are two distinct paraphrases of J069-T2. Operation flips change requested operation and retain valid setup facts. Intent strata with fewer than ten observations must not be advertised as threshold-qualified; the specification does not define a universal major-stratum set, so no invented requirement that all 22 exceed ten was applied."
+  },
+  "semantic_checks": {
+    "supported_vs_unavailable": "Other than the authority findings, reviewed expectations preserve available recorded facts while separating unavailable histories, measurements, document bodies, ownership verification, strategic ranking and unsupported execution. Explicit zero Office service charge and bounded listed counts are distinguished from unavailable values and incomplete physical inventories.",
+    "public_safe_guest": "Osa J061/J062 and P22/P23/F22 correctly permit guest recall, arithmetic and correction of caller-supplied facts; guest private Office denials remain distinct. No private Office fixture facts are required in Osa answers.",
+    "dated_observations": "Facility connectivity expectations use October 1 evidence without equating online/offline with physical power; visitor flags are paired with September 30/October 2 expiries and do not prove arrival or present validity. Administrative maintenance status is not completion/acceptance/verification evidence.",
+    "record_fields": "Device-room mappings, maintenance status/priority, camera offline status, Office lead reasons and unavailable owners, opportunity versus partnership states, project completion versus sales, task flag versus due-time ambiguity, finance scope, document metadata versus body, and counts/arithmetic match the supplied specification and fixture facts.",
+    "companion_setup": "No reviewed semantic expectation requires a fact available only from the replaced parent utterance. Particularly Osa F15 retains Thursday, F24 recalls the cancelled sale proposal, and Facility F25 keeps the light target unresolved. Oma reference metadata was the separate issue now corrected.",
+    "consumer_review": "Own-home versus cross-home and thread-owner boundaries match the specification. Guest cases concern protected wallet/device reads or actions and do not use guest as a visitor denial. General safety explanation remains available to guest in J080-T4/P25. Recorded wallet amounts, directions, dates, sums, gross/net distinction, ratios, bounded histories, room-device mapping and expired visitor dates agree with fixture facts. Action proposals explicitly accept honest unsupported-path limitations and retain authority, confirmation, cancellation and physical-verification gates. No companion relies on information only present in its replaced parent: F18 itself explicitly identifies Kitchen Light; F13 itself supplies flickering. P24's explicit October 16 date is stable, but its setup includes the J071-T2 timestamp finding. Consumer references cite the bounded specification and preceding caller turns generically, rather than referring to absent parent IDs. Findings PIQ-PRE-004/005 are the identified exceptions to timestamp/field validity.",
+    "office_snapshot_crosscheck": "Root subsequently authorized artifacts/piq-20261016-office-snapshot.json. I read it directly and checked identities, counts, status fields, priorities/severity, owners/submitter/author, finance amounts and scope, null automation run evidence, project units and completion, metadata-only document, meeting participants and dates. These match the reviewed factual expectations apart from PIQ-PRE-006's submission timestamp omission. Lead emails are synthetic .test addresses; no-invented-contact rules do not prohibit grounded available emails. Per-collection total=1 values do not independently establish organization-wide completeness, so bounded-count caveats were not treated as defects. The exact snapshot's generated_at and temporal fields are recorded evidence, not physical verification.",
+    "scope_limits": "No actual execution, response quality, capture integrity, runtime clock, or persistence behavior was assessed. Office truth was initially checked against the author specification, then independently cross-checked against the expressly authorized exact synthetic Office snapshot. Absence of a capability from an initial-scope inventory was not used to invent a prohibition against spec-supported home-targeted reads."
+  },
+  "closure_review_sha256": {
+    "artifacts/piq-20261016-office-snapshot.json": "c3033f1b522c762d83aeeb458033e07de323100a5cebffa5630927546d46572b",
+    "artifacts/piq-20261016-consumer-corpus.json": "b493534ac6213b59e710407897b1e6d35f8ffcd7d8858aa3eab885a79569137f",
+    "artifacts/piq-20261016-consumer-authorship.md": "add8ea1e42382eb3082f94e940cf7cb4b37a8f9043438ae686df258cda7595f6",
+    "docs/OYI_PIQ_AUTHOR_SPEC.md": "64db81ea8b8ef37231c1becdac6257a3ad5b9596f1e13d6cd2639c92a69d4547",
+    "docs/OYI_PIQ_GRADING_PROTOCOL.md": "c1e193cb52d3c4d99e30548e7fdfcfed0f61f70ca91e76e9720ee35bba4e6633",
+    "artifacts/piq-20261016-oma-corpus.json": "fc099a1b8d86712f857685a202bf6b41eef966401581d367947e920b445e6d85",
+    "artifacts/piq-20261016-oma-authorship.md": "96b8f9a7721b6f421134da9ecb21e4de21974b3a8a3bf1a4f3b0cb65f455fed2",
+    "artifacts/piq-20261016-osa-corpus.json": "0810403c38fff218209497f7b67dc176105125e72f8f5d7bcabdf8ce28ccfcfe",
+    "artifacts/piq-20261016-osa-authorship.md": "36e1bf9b060e15a0af6415492db6884a3a69483049594ae846bcb85088141086",
+    "artifacts/piq-20261016-facility-corpus.json": "15e73dc2ddc019a1ccf7fd06ebae0cfc90add0e11719220e49d38d276cdd70d4",
+    "artifacts/piq-20261016-facility-authorship.md": "5b5a3e187df73e43d096421b664ce0abfd80375f05b96ec226ffcb21cb52691f",
+    "artifacts/piq-20261016-fixture-facts.json": "cccc2df9d7a417439df33ff000f6ebd2d52977b0699d6045502a90444b4cfcac",
+    "artifacts/piq-20261016-authority.json": "bc4609c32b430bb9937618712f02969706629aafe063dd443c0c01e64c8a7dfd"
+  },
+  "disposition": "All six identified findings and the evaluation-date ambiguity are resolved before execution in the recorded reviewed versions. All four counts and companion setup structures pass: 320 journeys, 692 primary turns, 100 paraphrases and 100 operation flips, 892 scored observations overall. Exact operational fixture and Office snapshot cross-checks are complete. No remaining concrete fixture/spec contradiction was found. Preserve the final reviewed hashes in the execution seal; any subsequent material changes need corresponding review. This is pre-execution evaluation review, not product certification."
+}

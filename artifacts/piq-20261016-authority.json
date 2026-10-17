@@ -1,0 +1,4616 @@
+{
+  "captured_at": "2026-10-17T10:44:29.456Z",
+  "actors": [
+    {
+      "worker": "oma",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000005",
+        "role": "ochiga_staff",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [
+          "crm.read",
+          "reports.read",
+          "reports.write",
+          "development.manage",
+          "financial.read",
+          "tasks.read",
+          "meetings.read",
+          "support.read",
+          "portfolio.read",
+          "documents.read",
+          "content.read",
+          "partnerships.read"
+        ],
+        "permission_scopes": [
+          "crm.read",
+          "reports.read",
+          "reports.write",
+          "development.manage",
+          "financial.read",
+          "tasks.read",
+          "meetings.read",
+          "support.read",
+          "portfolio.read",
+          "documents.read",
+          "content.read",
+          "partnerships.read"
+        ]
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "crm.leads.read",
+          "domain": "crm",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "crm.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "crm.opportunities.read",
+          "domain": "crm",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "crm.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "reports.approvals.read",
+          "domain": "office_reports",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "reports.write"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "development.status.read",
+          "domain": "office_development",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "development.manage"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "financial.summary.read",
+          "domain": "office_financial",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "financial.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_tasks.read",
+          "domain": "office_tasks",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "tasks.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_tasks.query.read",
+          "domain": "office_tasks",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "tasks.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_automations.read",
+          "domain": "automations",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "tasks.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_automations.query.read",
+          "domain": "automations",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "tasks.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_meetings.read",
+          "domain": "office_meetings",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "meetings.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_meetings.query.read",
+          "domain": "office_meetings",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "meetings.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_support.read",
+          "domain": "office_support",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "support.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_support.query.read",
+          "domain": "office_support",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "support.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_portfolio.read",
+          "domain": "office_portfolio",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "portfolio.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_portfolio.query.read",
+          "domain": "office_portfolio",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "portfolio.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_partnerships.read",
+          "domain": "corporate_partnerships",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "partnerships.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_partnerships.query.read",
+          "domain": "corporate_partnerships",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "partnerships.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_documents.read",
+          "domain": "office_documents",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "documents.generate"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_documents.query.read",
+          "domain": "office_documents",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "documents.generate"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "office_support.write",
+          "domain": "office_support",
+          "operations": [
+            "resolve_case",
+            "reassign_owner",
+            "change_priority"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "consequential_action",
+          "supported_surfaces": [
+            "office_internal"
+          ],
+          "presentation_policy": {
+            "primary": "approval",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "support.assign"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "oma",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000005",
+        "role": "guest",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "office_internal",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "osa",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000006",
+        "role": "public",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": null,
+        "permission_scopes": null
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.company.read",
+          "domain": "corporate_company",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.development.read",
+          "domain": "corporate_development",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.development.identity.read",
+          "domain": "corporate_development",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.oyi.read",
+          "domain": "corporate_oyi",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.private.read",
+          "domain": "corporate_private",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.partnerships.read",
+          "domain": "corporate_partnerships",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.opportunity.read",
+          "domain": "corporate_opportunity",
+          "operations": [
+            "inform",
+            "inspect",
+            "summarize",
+            "reject"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "osa",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000006",
+        "role": "guest",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.company.read",
+          "domain": "corporate_company",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.development.read",
+          "domain": "corporate_development",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.development.identity.read",
+          "domain": "corporate_development",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.oyi.read",
+          "domain": "corporate_oyi",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.private.read",
+          "domain": "corporate_private",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.partnerships.read",
+          "domain": "corporate_partnerships",
+          "operations": [
+            "inform",
+            "summarize",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "corporate.opportunity.read",
+          "domain": "corporate_opportunity",
+          "operations": [
+            "inform",
+            "inspect",
+            "summarize",
+            "reject"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "public_corporate",
+            "scope": {
+              "estate_id": null,
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "facility",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000003",
+        "role": "facility_manager",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null,
+        "permissions": [
+          "devices.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "utilities.read",
+          "services.read",
+          "community.read",
+          "cameras.view"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "utilities.read",
+          "services.read",
+          "community.read",
+          "cameras.view"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "automations.suggest",
+          "domain": "automations",
+          "operations": [
+            "automation.suggest"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "review",
+            "expose_evidence": "hidden",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "facility.overview.read",
+          "domain": "global",
+          "operations": [
+            "summarize",
+            "inform",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "facility.cameras.read",
+          "domain": "cameras",
+          "operations": [
+            "list",
+            "inspect",
+            "summarize"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "cameras.view"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.active.read",
+          "domain": "utilities",
+          "operations": [
+            "utilities.active",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "utilities.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.tariff.read",
+          "domain": "utilities",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "utilities.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "maintenance.requests.read",
+          "domain": "maintenance",
+          "operations": [
+            "list",
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "visitors.pending.read",
+          "domain": "visitors",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "visitors.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "security.incidents.read",
+          "domain": "security",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "community.latest.read",
+          "domain": "community",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "community.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "facility",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000003",
+        "role": "guest",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "visitors.pending.read",
+          "domain": "visitors",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "visitors.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "facility",
+      "variant": "visitor_denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000003",
+        "role": "maintenance_operator",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null
+      },
+      "available_capabilities": [
+        {
+          "key": "automations.suggest",
+          "domain": "automations",
+          "operations": [
+            "automation.suggest"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "review",
+            "expose_evidence": "hidden",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "facility.overview.read",
+          "domain": "global",
+          "operations": [
+            "summarize",
+            "inform",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "maintenance.requests.read",
+          "domain": "maintenance",
+          "operations": [
+            "list",
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "security.incidents.read",
+          "domain": "security",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "facility",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": null,
+              "room_id": null
+            },
+            "required_permissions": [
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "consumer",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "role": "resident",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001",
+        "permissions": [
+          "devices.read",
+          "devices.control",
+          "wallet.read",
+          "wallets.read",
+          "utilities.read",
+          "services.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "community.read",
+          "automations.read",
+          "scenes.read"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "devices.control",
+          "wallet.read",
+          "wallets.read",
+          "utilities.read",
+          "services.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "community.read",
+          "automations.read",
+          "scenes.read"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001"
+      },
+      "available_capabilities": [
+        {
+          "key": "automations.suggest",
+          "domain": "automations",
+          "operations": [
+            "automation.suggest"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "review",
+            "expose_evidence": "hidden",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "context.memory.recall",
+          "domain": "global",
+          "operations": [
+            "memory.recall"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.status.read",
+          "domain": "devices",
+          "operations": [
+            "inform",
+            "inspect",
+            "list",
+            "device.status"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.availability.read",
+          "domain": "devices",
+          "operations": [
+            "list",
+            "summarize",
+            "device.availability"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.activity.read",
+          "domain": "devices",
+          "operations": [
+            "device.activity",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.failures.read",
+          "domain": "devices",
+          "operations": [
+            "device.failures",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.diagnosis.read",
+          "domain": "devices",
+          "operations": [
+            "device.diagnosis",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.relationships.read",
+          "domain": "devices",
+          "operations": [
+            "device.relationships",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.capabilities.read",
+          "domain": "devices",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "wallet.transactions.read",
+          "domain": "wallet",
+          "operations": [
+            "wallet.history",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "wallet.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "wallet.balance.read",
+          "domain": "wallet",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "wallet.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.spending.read",
+          "domain": "utilities",
+          "operations": [
+            "utilities.spending",
+            "summarize"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "wallet.read",
+              "services.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.active.read",
+          "domain": "utilities",
+          "operations": [
+            "utilities.active",
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "utilities.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.tariff.read",
+          "domain": "utilities",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "utilities.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "utilities.purchases.read",
+          "domain": "utilities",
+          "operations": [
+            "list",
+            "utilities.history"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "utilities.read",
+              "wallet.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "maintenance.requests.read",
+          "domain": "maintenance",
+          "operations": [
+            "list",
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "visitors.pending.read",
+          "domain": "visitors",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "visitors.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "security.incidents.read",
+          "domain": "security",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "services.active.read",
+          "domain": "services",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "services.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "community.latest.read",
+          "domain": "community",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "community.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "scenes.list.read",
+          "domain": "scenes",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.list.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.runs.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "home.summary.read",
+          "domain": "home",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "wallet.read",
+              "services.read",
+              "community.read",
+              "automations.read",
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "home.attention.read",
+          "domain": "home",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "wallet.read",
+              "services.read",
+              "community.read",
+              "automations.read",
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "home.activity.read",
+          "domain": "home",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "wallet.read",
+              "services.read",
+              "community.read",
+              "automations.read",
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.status.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.attention.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.activity.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "rooms.inventory.read",
+          "domain": "rooms",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "homes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "anomalies.read",
+          "domain": "reports",
+          "operations": [
+            "list",
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "predictions.read",
+          "domain": "reports",
+          "operations": [
+            "list",
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "forecasts.read",
+          "domain": "reports",
+          "operations": [
+            "list",
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "recommendations.read",
+          "domain": "reports",
+          "operations": [
+            "list",
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "visitors.read",
+              "security.read",
+              "utilities.read",
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.power.control",
+          "domain": "devices",
+          "operations": [
+            "device.power.on",
+            "device.power.off"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "low_risk_action",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "approval",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "consumer",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "role": "guest",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001",
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001"
+      },
+      "available_capabilities": [
+        {
+          "key": "context.memory.recall",
+          "domain": "global",
+          "operations": [
+            "memory.recall"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "visitors.pending.read",
+          "domain": "visitors",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "visitors.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "consumer",
+      "variant": "visitor_denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "role": "maintenance_operator",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001",
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001"
+      },
+      "available_capabilities": [
+        {
+          "key": "automations.suggest",
+          "domain": "automations",
+          "operations": [
+            "automation.suggest"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "review",
+            "expose_evidence": "hidden",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "context.memory.recall",
+          "domain": "global",
+          "operations": [
+            "memory.recall"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.status.read",
+          "domain": "devices",
+          "operations": [
+            "inform",
+            "inspect",
+            "list",
+            "device.status"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.availability.read",
+          "domain": "devices",
+          "operations": [
+            "list",
+            "summarize",
+            "device.availability"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.activity.read",
+          "domain": "devices",
+          "operations": [
+            "device.activity",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.failures.read",
+          "domain": "devices",
+          "operations": [
+            "device.failures",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.diagnosis.read",
+          "domain": "devices",
+          "operations": [
+            "device.diagnosis",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.relationships.read",
+          "domain": "devices",
+          "operations": [
+            "device.relationships",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.capabilities.read",
+          "domain": "devices",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "maintenance.requests.read",
+          "domain": "maintenance",
+          "operations": [
+            "list",
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "maintenance.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "security.incidents.read",
+          "domain": "security",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "scenes.list.read",
+          "domain": "scenes",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.list.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.runs.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.status.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.attention.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "room.activity.read",
+          "domain": "rooms",
+          "operations": [
+            "summarize",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read",
+              "maintenance.read",
+              "security.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "rooms.inventory.read",
+          "domain": "rooms",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "homes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.power.control",
+          "domain": "devices",
+          "operations": [
+            "device.power.on",
+            "device.power.off"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "low_risk_action",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "approval",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000001",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.control"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    },
+    {
+      "worker": "consumer",
+      "variant": "resident_b",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000002",
+        "role": "resident_b",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000002",
+        "permissions": [
+          "devices.read",
+          "wallet.read",
+          "homes.read"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "wallet.read",
+          "homes.read"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000002"
+      },
+      "available_capabilities": [
+        {
+          "key": "context.memory.recall",
+          "domain": "global",
+          "operations": [
+            "memory.recall"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "global.capabilities.read",
+          "domain": "global",
+          "operations": [
+            "inform",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility",
+            "office_internal",
+            "public_corporate"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.status.read",
+          "domain": "devices",
+          "operations": [
+            "inform",
+            "inspect",
+            "list",
+            "device.status"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.availability.read",
+          "domain": "devices",
+          "operations": [
+            "list",
+            "summarize",
+            "device.availability"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.activity.read",
+          "domain": "devices",
+          "operations": [
+            "device.activity",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.failures.read",
+          "domain": "devices",
+          "operations": [
+            "device.failures",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.diagnosis.read",
+          "domain": "devices",
+          "operations": [
+            "device.diagnosis",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.relationships.read",
+          "domain": "devices",
+          "operations": [
+            "device.relationships",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "devices.capabilities.read",
+          "domain": "devices",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "devices.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "wallet.transactions.read",
+          "domain": "wallet",
+          "operations": [
+            "wallet.history",
+            "list"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "table",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "wallet.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "wallet.balance.read",
+          "domain": "wallet",
+          "operations": [
+            "inspect",
+            "inform"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "text",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "wallet.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "visitors.pending.read",
+          "domain": "visitors",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "visitors.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "scenes.list.read",
+          "domain": "scenes",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "scenes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.list.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "automations.runs.read",
+          "domain": "automations",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "automations.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        },
+        {
+          "key": "rooms.inventory.read",
+          "domain": "rooms",
+          "operations": [
+            "list",
+            "inspect"
+          ],
+          "rollout_status": "enabled",
+          "risk_class": "read",
+          "supported_surfaces": [
+            "consumer",
+            "facility"
+          ],
+          "presentation_policy": {
+            "primary": "list",
+            "expose_evidence": "summary",
+            "allow_internal_ids": false
+          },
+          "authority": {
+            "surface": "consumer",
+            "scope": {
+              "estate_id": "10000000-0000-4000-8000-000000000001",
+              "building_id": null,
+              "home_id": "20000000-0000-4000-8000-000000000002",
+              "room_id": null
+            },
+            "required_permissions": [
+              "homes.read"
+            ],
+            "allowed": true,
+            "reason": null
+          }
+        }
+      ]
+    }
+  ],
+  "eligible_preexisting_resident_memory": 0,
+  "empty_explicit_grants_do_not_revoke_role": true,
+  "denied_fixture_role": "guest"
+}

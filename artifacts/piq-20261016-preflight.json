@@ -1,0 +1,143 @@
+{
+  "source_sha256": "eccb571c66975b03b71f20aad6f774b507d1813c5545ffb37fb87e2fdfa0e273",
+  "manifest_sha256": "29c4a89ee84e78ce8e4105bdb592e0757c638fe71852dd9c4360a48423d62729",
+  "fixture_hash": "50bcfde2183310157f2017d715edfd44e8ca78852a399d65ccbe2c6ee6b8c488",
+  "preflight": {
+    "ready": true,
+    "failed": []
+  },
+  "checks": [
+    {
+      "id": "preflight-schema-rpc",
+      "status": "PASS"
+    },
+    {
+      "id": "ordinary-all-worker-correlation",
+      "status": "PASS"
+    },
+    {
+      "id": "own-read-and-effective-authority",
+      "status": "PASS"
+    },
+    {
+      "id": "ownership-rejection-retains-correlation-without-save",
+      "status": "PASS"
+    },
+    {
+      "id": "multipart-exact-consolidation",
+      "status": "PASS"
+    },
+    {
+      "id": "insert-failure-permission",
+      "status": "PASS"
+    },
+    {
+      "id": "insert-failure-schema",
+      "status": "PASS"
+    },
+    {
+      "id": "insert-failure-database_rejection",
+      "status": "PASS"
+    },
+    {
+      "id": "insert-failure-database_unavailable",
+      "status": "PASS"
+    },
+    {
+      "id": "insert-failure-transport",
+      "status": "PASS"
+    },
+    {
+      "id": "unknown-error-not-overdiagnosed",
+      "status": "PASS"
+    },
+    {
+      "id": "pending-and-late-commit-reconciliation",
+      "status": "PASS"
+    },
+    {
+      "id": "slow-success-before-deadline",
+      "status": "PASS"
+    },
+    {
+      "id": "lost-receipt-exact-manifest-recovery",
+      "status": "PASS"
+    },
+    {
+      "id": "captured-reference-survives-key-rotation",
+      "status": "PASS"
+    },
+    {
+      "id": "acknowledged-without-durable-row-is-not-saved",
+      "status": "PASS"
+    },
+    {
+      "id": "save-failure-independent-of-successful-trace",
+      "status": "PASS"
+    },
+    {
+      "id": "retry-uncertain-save-does-not-reexecute-capability",
+      "status": "PASS"
+    },
+    {
+      "id": "unconfirmed-save-with-durable-pair-is-not-silent-success",
+      "status": "PASS"
+    },
+    {
+      "id": "multipart-consolidation-failure-remains-visible",
+      "status": "PASS"
+    },
+    {
+      "id": "default-trace-transport-lost-first-ack",
+      "status": "PASS"
+    },
+    {
+      "id": "default-trace-transport-retry-exhausted",
+      "status": "PASS"
+    },
+    {
+      "id": "default-trace-transport-transport-timeout",
+      "status": "PASS"
+    },
+    {
+      "id": "duplicate-stable-read-request-one-message-pair",
+      "status": "PASS"
+    },
+    {
+      "id": "concurrent-requests-remain-distinct",
+      "status": "PASS"
+    },
+    {
+      "id": "reconciliation-rejects-mismatched-or-missing-identifiers",
+      "status": "PASS"
+    },
+    {
+      "id": "invalid-empty-or-duplicated-attempt-manifest",
+      "status": "PASS"
+    },
+    {
+      "id": "reconciliation-outage-bounded",
+      "status": "PASS"
+    },
+    {
+      "id": "noncooperative-lookup-bounded",
+      "status": "PASS"
+    },
+    {
+      "id": "preflight-fails-each-required-gate",
+      "status": "PASS"
+    },
+    {
+      "id": "trace-structural-privacy",
+      "status": "PASS"
+    },
+    {
+      "id": "runtime-and-fixture-stable-no-provider-no-execution",
+      "status": "PASS"
+    }
+  ],
+  "pass": 32,
+  "fail": 0,
+  "executed": 0,
+  "attempts": 29
+}

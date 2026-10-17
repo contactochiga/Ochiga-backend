@@ -1,0 +1,243 @@
+{
+  "captured_at": "2026-10-16T19:59:22.090Z",
+  "actors": [
+    {
+      "worker": "oma",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000005",
+        "role": "ochiga_staff",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [
+          "crm.read",
+          "reports.read",
+          "reports.write",
+          "development.manage",
+          "financial.read",
+          "tasks.read",
+          "meetings.read",
+          "support.read",
+          "portfolio.read",
+          "documents.read",
+          "content.read",
+          "partnerships.read"
+        ],
+        "permission_scopes": [
+          "crm.read",
+          "reports.read",
+          "reports.write",
+          "development.manage",
+          "financial.read",
+          "tasks.read",
+          "meetings.read",
+          "support.read",
+          "portfolio.read",
+          "documents.read",
+          "content.read",
+          "partnerships.read"
+        ]
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "oma",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000005",
+        "role": "guest",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "osa",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000006",
+        "role": "public",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": null,
+        "permission_scopes": null
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "osa",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000006",
+        "role": "guest",
+        "estate_id": null,
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": null,
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "facility",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000003",
+        "role": "facility_manager",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null,
+        "permissions": [
+          "devices.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "utilities.read",
+          "services.read",
+          "community.read",
+          "cameras.view"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "utilities.read",
+          "services.read",
+          "community.read",
+          "cameras.view"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "facility",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000003",
+        "role": "guest",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null,
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": null
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "consumer",
+      "variant": "default",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "role": "resident",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001",
+        "permissions": [
+          "devices.read",
+          "devices.control",
+          "wallet.read",
+          "wallets.read",
+          "utilities.read",
+          "services.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "community.read",
+          "automations.read",
+          "scenes.read"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "devices.control",
+          "wallet.read",
+          "wallets.read",
+          "utilities.read",
+          "services.read",
+          "homes.read",
+          "maintenance.read",
+          "visitors.read",
+          "security.read",
+          "community.read",
+          "automations.read",
+          "scenes.read"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001"
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "consumer",
+      "variant": "denied",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "role": "guest",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001",
+        "permissions": [],
+        "permission_scopes": []
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000001"
+      },
+      "available_capabilities": []
+    },
+    {
+      "worker": "consumer",
+      "variant": "resident_b",
+      "actor": {
+        "id": "30000000-0000-4000-8000-000000000002",
+        "role": "resident_b",
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000002",
+        "permissions": [
+          "devices.read",
+          "wallet.read",
+          "homes.read"
+        ],
+        "permission_scopes": [
+          "devices.read",
+          "wallet.read",
+          "homes.read"
+        ]
+      },
+      "scope": {
+        "estate_id": "10000000-0000-4000-8000-000000000001",
+        "home_id": "20000000-0000-4000-8000-000000000002"
+      },
+      "available_capabilities": []
+    }
+  ],
+  "eligible_preexisting_resident_memory": 0,
+  "empty_explicit_grants_do_not_revoke_role": true,
+  "denied_fixture_role": "guest"
+}
