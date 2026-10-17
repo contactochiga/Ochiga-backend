@@ -1,0 +1,787 @@
+{
+  "targeted": {
+    "suites": 19,
+    "pass": 17,
+    "fail": 2,
+    "results": [
+      {
+        "suite": "iq11b-contracts",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 200,
+        "stdout": "/tmp/piq-regression-targeted-iq11b-contracts.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq11b-contracts.stderr"
+      },
+      {
+        "suite": "iq11b-safety-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 5147,
+        "stdout": "/tmp/piq-regression-targeted-iq11b-safety-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq11b-safety-live.stderr"
+      },
+      {
+        "suite": "iq11b-additional-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 4676,
+        "stdout": "/tmp/piq-regression-targeted-iq11b-additional-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq11b-additional-live.stderr"
+      },
+      {
+        "suite": "piq-reconciliation-repair",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 16453,
+        "stdout": "/tmp/piq-regression-targeted-piq-reconciliation-repair.stdout",
+        "stderr": "/tmp/piq-regression-targeted-piq-reconciliation-repair.stderr"
+      },
+      {
+        "suite": "iq10b-contract-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 473,
+        "stdout": "/tmp/piq-regression-targeted-iq10b-contract-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10b-contract-smoke.stderr"
+      },
+      {
+        "suite": "iq10b-reliability-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 8730,
+        "stdout": "/tmp/piq-regression-targeted-iq10b-reliability-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10b-reliability-live.stderr"
+      },
+      {
+        "suite": "iq10b-trace-export-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 6204,
+        "stdout": "/tmp/piq-regression-targeted-iq10b-trace-export-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10b-trace-export-smoke.stderr"
+      },
+      {
+        "suite": "iq10c-context-contracts",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 288,
+        "stdout": "/tmp/piq-regression-targeted-iq10c-context-contracts.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10c-context-contracts.stderr"
+      },
+      {
+        "suite": "iq10c-context-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 6333,
+        "stdout": "/tmp/piq-regression-targeted-iq10c-context-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10c-context-live.stderr"
+      },
+      {
+        "suite": "iq10d-evidence-contracts",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 134,
+        "stdout": "/tmp/piq-regression-targeted-iq10d-evidence-contracts.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10d-evidence-contracts.stderr"
+      },
+      {
+        "suite": "iq10d-additional-contracts",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 239,
+        "stdout": "/tmp/piq-regression-targeted-iq10d-additional-contracts.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10d-additional-contracts.stderr"
+      },
+      {
+        "suite": "iq10d-evidence-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 1766,
+        "stdout": "/tmp/piq-regression-targeted-iq10d-evidence-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10d-evidence-live.stderr"
+      },
+      {
+        "suite": "iq10e-contracts",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 180,
+        "stdout": "/tmp/piq-regression-targeted-iq10e-contracts.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10e-contracts.stderr"
+      },
+      {
+        "suite": "iq10e-additional",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 160,
+        "stdout": "/tmp/piq-regression-targeted-iq10e-additional.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10e-additional.stderr"
+      },
+      {
+        "suite": "iq10e-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 2095,
+        "stdout": "/tmp/piq-regression-targeted-iq10e-live.stdout",
+        "stderr": "/tmp/piq-regression-targeted-iq10e-live.stderr"
+      },
+      {
+        "suite": "intelligence-trace-projection-contract-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "elapsed_ms": 371,
+        "stdout": "/tmp/piq-regression-targeted-intelligence-trace-projection-contract-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-intelligence-trace-projection-contract-smoke.stderr"
+      },
+      {
+        "suite": "intelligence-authority-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 68,
+        "stdout": "/tmp/piq-regression-targeted-intelligence-authority-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-intelligence-authority-smoke.stderr"
+      },
+      {
+        "suite": "conversation-foundation-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "elapsed_ms": 174,
+        "stdout": "/tmp/piq-regression-targeted-conversation-foundation-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-conversation-foundation-smoke.stderr"
+      },
+      {
+        "suite": "oyi-core-convergence-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "elapsed_ms": 117,
+        "stdout": "/tmp/piq-regression-targeted-oyi-core-convergence-smoke.stdout",
+        "stderr": "/tmp/piq-regression-targeted-oyi-core-convergence-smoke.stderr"
+      }
+    ]
+  },
+  "chain": {
+    "suites": 58,
+    "pass": 53,
+    "fail": 5,
+    "results": [
+      {
+        "suite": "iq9a-invariant-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 467,
+        "stdout": "/tmp/piq-regression-chain-iq9a-invariant-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a-invariant-tests.stderr"
+      },
+      {
+        "suite": "iq9a2-closure-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 80,
+        "stdout": "/tmp/piq-regression-chain-iq9a2-closure-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a2-closure-tests.stderr"
+      },
+      {
+        "suite": "iq9a4-r0-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 297,
+        "stdout": "/tmp/piq-regression-chain-iq9a4-r0-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a4-r0-tests.stderr"
+      },
+      {
+        "suite": "iq9a5-r2-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 319,
+        "stdout": "/tmp/piq-regression-chain-iq9a5-r2-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a5-r2-tests.stderr"
+      },
+      {
+        "suite": "iq9a6-r1-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 289,
+        "stdout": "/tmp/piq-regression-chain-iq9a6-r1-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a6-r1-tests.stderr"
+      },
+      {
+        "suite": "iq9a7-r3-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 293,
+        "stdout": "/tmp/piq-regression-chain-iq9a7-r3-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a7-r3-tests.stderr"
+      },
+      {
+        "suite": "iq9a8-r4-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 272,
+        "stdout": "/tmp/piq-regression-chain-iq9a8-r4-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a8-r4-tests.stderr"
+      },
+      {
+        "suite": "iq9a9-r5-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 279,
+        "stdout": "/tmp/piq-regression-chain-iq9a9-r5-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a9-r5-tests.stderr"
+      },
+      {
+        "suite": "iq9a10-r6-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 118,
+        "stdout": "/tmp/piq-regression-chain-iq9a10-r6-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a10-r6-tests.stderr"
+      },
+      {
+        "suite": "iq9a11-r7-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 127,
+        "stdout": "/tmp/piq-regression-chain-iq9a11-r7-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a11-r7-tests.stderr"
+      },
+      {
+        "suite": "iq8-answer-target-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 176,
+        "stdout": "/tmp/piq-regression-chain-iq8-answer-target-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8-answer-target-tests.stderr"
+      },
+      {
+        "suite": "iq8b-bridge-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 72,
+        "stdout": "/tmp/piq-regression-chain-iq8b-bridge-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8b-bridge-tests.stderr"
+      },
+      {
+        "suite": "iq8b-metamorphic-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 119,
+        "stdout": "/tmp/piq-regression-chain-iq8b-metamorphic-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8b-metamorphic-tests.stderr"
+      },
+      {
+        "suite": "iq8d2-contract-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 150,
+        "stdout": "/tmp/piq-regression-chain-iq8d2-contract-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8d2-contract-tests.stderr"
+      },
+      {
+        "suite": "iq8d-projector-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 200,
+        "stdout": "/tmp/piq-regression-chain-iq8d-projector-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8d-projector-tests.stderr"
+      },
+      {
+        "suite": "iq8e-routing-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 368,
+        "stdout": "/tmp/piq-regression-chain-iq8e-routing-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq8e-routing-tests.stderr"
+      },
+      {
+        "suite": "iq2-objective-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 5402,
+        "stdout": "/tmp/piq-regression-chain-iq2-objective-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq2-objective-smoke.stderr"
+      },
+      {
+        "suite": "iq3a-source-certification",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 691,
+        "stdout": "/tmp/piq-regression-chain-iq3a-source-certification.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq3a-source-certification.stderr"
+      },
+      {
+        "suite": "iq3a-benchmark-source-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 807,
+        "stdout": "/tmp/piq-regression-chain-iq3a-benchmark-source-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq3a-benchmark-source-tests.stderr"
+      },
+      {
+        "suite": "iq3a-source-local-isolation",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 695,
+        "stdout": "/tmp/piq-regression-chain-iq3a-source-local-isolation.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq3a-source-local-isolation.stderr"
+      },
+      {
+        "suite": "iq3b-planner-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 1004,
+        "stdout": "/tmp/piq-regression-chain-iq3b-planner-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq3b-planner-tests.stderr"
+      },
+      {
+        "suite": "iq4-judgment-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 435,
+        "stdout": "/tmp/piq-regression-chain-iq4-judgment-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq4-judgment-tests.stderr"
+      },
+      {
+        "suite": "iq5-reference-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 318,
+        "stdout": "/tmp/piq-regression-chain-iq5-reference-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq5-reference-tests.stderr"
+      },
+      {
+        "suite": "iq5-conversation-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 3121,
+        "stdout": "/tmp/piq-regression-chain-iq5-conversation-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq5-conversation-tests.stderr"
+      },
+      {
+        "suite": "iq6-reassessment-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 381,
+        "stdout": "/tmp/piq-regression-chain-iq6-reassessment-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq6-reassessment-tests.stderr"
+      },
+      {
+        "suite": "iq6-conversation-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 2462,
+        "stdout": "/tmp/piq-regression-chain-iq6-conversation-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq6-conversation-tests.stderr"
+      },
+      {
+        "suite": "iq1-truth-safety-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 246,
+        "stdout": "/tmp/piq-regression-chain-iq1-truth-safety-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq1-truth-safety-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-action-phase-c-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 127,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-action-phase-c-runtime-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 502,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-runtime-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-runtime-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-action-phase-c-reload-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "latency_ms": 394,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-reload-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-reload-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-action-phase-c-multigang-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "latency_ms": 477,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-multigang-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-multigang-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-action-phase-c-correction-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "latency_ms": 441,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-correction-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-action-phase-c-correction-smoke.stderr"
+      },
+      {
+        "suite": "oyi-workflow-durable-continuation-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "latency_ms": 398,
+        "stdout": "/tmp/piq-regression-chain-oyi-workflow-durable-continuation-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-workflow-durable-continuation-smoke.stderr"
+      },
+      {
+        "suite": "device-command-truth-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 68,
+        "stdout": "/tmp/piq-regression-chain-device-command-truth-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-device-command-truth-smoke.stderr"
+      },
+      {
+        "suite": "oyi-security-adversarial-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 124,
+        "stdout": "/tmp/piq-regression-chain-oyi-security-adversarial-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-security-adversarial-smoke.stderr"
+      },
+      {
+        "suite": "oyi-security-closure-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 120,
+        "stdout": "/tmp/piq-regression-chain-oyi-security-closure-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-security-closure-smoke.stderr"
+      },
+      {
+        "suite": "oyi-programme4-authority-privacy-closure-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 118,
+        "stdout": "/tmp/piq-regression-chain-oyi-programme4-authority-privacy-closure-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-oyi-programme4-authority-privacy-closure-smoke.stderr"
+      },
+      {
+        "suite": "consumer-context-resolution-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 119,
+        "stdout": "/tmp/piq-regression-chain-consumer-context-resolution-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-consumer-context-resolution-smoke.stderr"
+      },
+      {
+        "suite": "wave9-context-authority-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 63,
+        "stdout": "/tmp/piq-regression-chain-wave9-context-authority-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave9-context-authority-smoke.stderr"
+      },
+      {
+        "suite": "wave9-memory-context-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 293,
+        "stdout": "/tmp/piq-regression-chain-wave9-memory-context-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave9-memory-context-smoke.stderr"
+      },
+      {
+        "suite": "wave9-conversation-ownership-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 109,
+        "stdout": "/tmp/piq-regression-chain-wave9-conversation-ownership-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave9-conversation-ownership-smoke.stderr"
+      },
+      {
+        "suite": "wave11-intent-capability-contract-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 305,
+        "stdout": "/tmp/piq-regression-chain-wave11-intent-capability-contract-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave11-intent-capability-contract-smoke.stderr"
+      },
+      {
+        "suite": "wave11-terminal-persistence-guard-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 66,
+        "stdout": "/tmp/piq-regression-chain-wave11-terminal-persistence-guard-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave11-terminal-persistence-guard-smoke.stderr"
+      },
+      {
+        "suite": "wave11-public-opportunity-generalization-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 838,
+        "stdout": "/tmp/piq-regression-chain-wave11-public-opportunity-generalization-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave11-public-opportunity-generalization-smoke.stderr"
+      },
+      {
+        "suite": "wave10-canonical-fallback-retirement-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 74,
+        "stdout": "/tmp/piq-regression-chain-wave10-canonical-fallback-retirement-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave10-canonical-fallback-retirement-smoke.stderr"
+      },
+      {
+        "suite": "wave10-legacy-command-router-guard",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 66,
+        "stdout": "/tmp/piq-regression-chain-wave10-legacy-command-router-guard.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave10-legacy-command-router-guard.stderr"
+      },
+      {
+        "suite": "wave10-automation-authority-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 64,
+        "stdout": "/tmp/piq-regression-chain-wave10-automation-authority-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave10-automation-authority-smoke.stderr"
+      },
+      {
+        "suite": "wave9-slice1-canonical-knowledge-authority-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 132,
+        "stdout": "/tmp/piq-regression-chain-wave9-slice1-canonical-knowledge-authority-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave9-slice1-canonical-knowledge-authority-smoke.stderr"
+      },
+      {
+        "suite": "wave9-capability-inventory",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 254,
+        "stdout": "/tmp/piq-regression-chain-wave9-capability-inventory.stdout",
+        "stderr": "/tmp/piq-regression-chain-wave9-capability-inventory.stderr"
+      },
+      {
+        "suite": "iq10a-invariants",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 203,
+        "stdout": "/tmp/piq-regression-chain-iq10a-invariants.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq10a-invariants.stderr"
+      },
+      {
+        "suite": "iq10a-safety-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 4476,
+        "stdout": "/tmp/piq-regression-chain-iq10a-safety-live.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq10a-safety-live.stderr"
+      },
+      {
+        "suite": "iq9a14-remediation-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 176,
+        "stdout": "/tmp/piq-regression-chain-iq9a14-remediation-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a14-remediation-tests.stderr"
+      },
+      {
+        "suite": "iq9a14-disclosure-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 6007,
+        "stdout": "/tmp/piq-regression-chain-iq9a14-disclosure-live.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a14-disclosure-live.stderr"
+      },
+      {
+        "suite": "iq9a15-focused-tests",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 194,
+        "stdout": "/tmp/piq-regression-chain-iq9a15-focused-tests.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a15-focused-tests.stderr"
+      },
+      {
+        "suite": "iq9a15-boundary-live",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 523,
+        "stdout": "/tmp/piq-regression-chain-iq9a15-boundary-live.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a15-boundary-live.stderr"
+      },
+      {
+        "suite": "iq9a15-owned-workflow-smoke",
+        "status": "FAIL",
+        "exit": 1,
+        "signal": null,
+        "latency_ms": 1990,
+        "stdout": "/tmp/piq-regression-chain-iq9a15-owned-workflow-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a15-owned-workflow-smoke.stderr"
+      },
+      {
+        "suite": "iq9a14-iq7-regression",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 7155,
+        "stdout": "/tmp/piq-regression-chain-iq9a14-iq7-regression.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq9a14-iq7-regression.stderr"
+      },
+      {
+        "suite": "iq1-cancellation-live-smoke",
+        "status": "PASS",
+        "exit": 0,
+        "signal": null,
+        "latency_ms": 3831,
+        "stdout": "/tmp/piq-regression-chain-iq1-cancellation-live-smoke.stdout",
+        "stderr": "/tmp/piq-regression-chain-iq1-cancellation-live-smoke.stderr"
+      }
+    ]
+  },
+  "failure_classification": {
+    "intelligence-trace-projection-contract-smoke": "Static run-body regex still requires the old direct runTurn/catch/finalize shape. Existing multipart/correlation wrapper differs; canonical dynamic trace preflight and all first-contact exact-ID reconciliation pass. Assertion retained as FAIL, no runtime or expectation edit.",
+    "conversation-foundation-smoke": "Static source assertion requires pre-atomic per-message verification sequence. Existing canonical persistence uses oyi_persist_canonical_turn RPC. Assertion retained as FAIL; no expectation edit.",
+    "historical_workflow": "Five existing workflow suites remain FAIL: reload, multigang, correction, durable continuation and owned aggregate. Release exclusions remain."
+  },
+  "wave11": {
+    "total": 132,
+    "counts": {
+      "PASS": 132
+    }
+  },
+  "iq7_parser": {
+    "objective": {
+      "n": 226,
+      "correct": 219,
+      "rate": 0.969
+    },
+    "subject": {
+      "n": 79,
+      "correct": 76,
+      "rate": 0.962
+    },
+    "fact": {
+      "n": 66,
+      "correct": 65,
+      "rate": 0.985
+    },
+    "followup": {
+      "n": 72,
+      "correct": 70,
+      "rate": 0.972
+    },
+    "action": {
+      "n": 89,
+      "correct": 89,
+      "rate": 1
+    },
+    "safety": {
+      "n": 19,
+      "correct": 19,
+      "rate": 1
+    },
+    "not_capability": {
+      "n": 5,
+      "correct": 5,
+      "rate": 1
+    },
+    "not_assessment": {
+      "n": 4,
+      "correct": 4,
+      "rate": 1
+    }
+  },
+  "iq7_e2e": {
+    "items": 45,
+    "pass": 45,
+    "menu_leakage": {
+      "in_scope": 40,
+      "leaked": 0,
+      "rate": 0,
+      "ids": []
+    },
+    "private_ack_leaks": [],
+    "discovery_routing": {
+      "n": 2,
+      "correct": 2
+    },
+    "route_failures": [],
+    "executed": 0
+  },
+  "archive": {
+    "artifact": "artifacts/piq-20261016-regression-evidence.json.gz",
+    "sha256": "88ac5374760d608626b601fce624492ec6c973189a044f6932053b0cc99c97d0",
+    "uncompressed_sha256": "9093e1a10ab9a4ae6045326929f320403fb82a68b0c265f7b08068281ba41e36",
+    "files": 201,
+    "synthetic_sentinel_redactions": 2,
+    "credential_scan": "no findings after documented synthetic-sentinel redaction"
+  }
+}

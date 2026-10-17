@@ -1,0 +1,97 @@
+{
+  "runtime": "bd97cc9c21c0bd1b4073e6a955b774a7a8af12b9",
+  "seal_sha256": "274cee608512b25efe0479c2c99dc2cddbd5716cb6ad8070544ba7a33881419f",
+  "attempted": 1092,
+  "persisted_pairs": 1090,
+  "correlated_traces": 1092,
+  "correctly_rejected_without_conversation_save": 2,
+  "workers": {
+    "oma": {
+      "attempted": 264,
+      "scored": 217,
+      "setup": 47,
+      "persisted_pairs": 264,
+      "correlated_traces": 264,
+      "rejected_correlated": 0,
+      "raw_sha256": "1ea421edb4bee57dab73d859f391329d3467010337a25d804b24d0d817cab625",
+      "journal_sha256": "44823f923ce9e90b780c6df2ab3d406f0c5938ae6477f8366e4c9e9c0a81c60e",
+      "duplicate_request_ids": 0,
+      "journal_complete": true,
+      "fixture_and_runtime_stable": true,
+      "external_network_attempts": 0,
+      "physical_executor_attempts": 0,
+      "trace_payload_marker_check": "PASS",
+      "latency_ms": {
+        "p50": 69,
+        "p95": 133,
+        "max": 205
+      }
+    },
+    "osa": {
+      "attempted": 289,
+      "scored": 221,
+      "setup": 68,
+      "persisted_pairs": 289,
+      "correlated_traces": 289,
+      "rejected_correlated": 0,
+      "raw_sha256": "cfb9e2c426f9bbf3585e215c0292baa306f12d7e7ae65afd167d049be97097a2",
+      "journal_sha256": "bcd1df7225d6c73c8f2904a2d812f8c4d35f5bc3ce248d099896bf7132cdf5e4",
+      "duplicate_request_ids": 0,
+      "journal_complete": true,
+      "fixture_and_runtime_stable": true,
+      "external_network_attempts": 0,
+      "physical_executor_attempts": 0,
+      "trace_payload_marker_check": "PASS",
+      "latency_ms": {
+        "p50": 68,
+        "p95": 127,
+        "max": 448
+      }
+    },
+    "facility": {
+      "attempted": 255,
+      "scored": 215,
+      "setup": 40,
+      "persisted_pairs": 255,
+      "correlated_traces": 255,
+      "rejected_correlated": 0,
+      "raw_sha256": "f7dba917addadacb122e34cc35802c9cbde2df563bce358f7c2dbcc6e226722a",
+      "journal_sha256": "ae202855416db46644864c30aa322daddd343172afeb252288fe6be25b4bbc67",
+      "duplicate_request_ids": 0,
+      "journal_complete": true,
+      "fixture_and_runtime_stable": true,
+      "external_network_attempts": 0,
+      "physical_executor_attempts": 0,
+      "trace_payload_marker_check": "PASS",
+      "latency_ms": {
+        "p50": 62,
+        "p95": 156,
+        "max": 10217
+      }
+    },
+    "consumer": {
+      "attempted": 284,
+      "scored": 239,
+      "setup": 45,
+      "persisted_pairs": 282,
+      "correlated_traces": 284,
+      "rejected_correlated": 2,
+      "raw_sha256": "263b50db56ea11a95cf9c0a81ad1ec02dffa2253e58dcdd72588d72be4cc4956",
+      "journal_sha256": "eac0a5033fa0a67b5760d2f55ac137f426bbbba789570ecb1dfb8207190faf19",
+      "duplicate_request_ids": 0,
+      "journal_complete": true,
+      "fixture_and_runtime_stable": true,
+      "external_network_attempts": 0,
+      "physical_executor_attempts": 0,
+      "trace_payload_marker_check": "PASS",
+      "latency_ms": {
+        "p50": 55,
+        "p95": 103,
+        "max": 265
+      }
+    }
+  },
+  "all_sealed_file_hashes_match": true,
+  "privacy_scope": "Structural trace field/known-fixture marker checks plus separate canonical privacy suites; full synthetic Core responses are retained for independent safety review. No claim about HTTP-layer serialization.",
+  "performance_scope": "Sequential local synthetic provider-off run; response latency excludes final reconciliation and is not a production SLO."
+}

@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-preservation-candidate280.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-preservation-candidate280.json.gz",
+  "raw_bytes": 8952467,
+  "compressed_bytes": 867194,
+  "raw_sha256": "04977da361915fa86b77aae1ebb699a6243288813e6c78dcb43ec2c661402575",
+  "compressed_sha256": "0ee79c9bf3a3d64911cfd0440cbb82452a727478d01516ecca3bb4dda6d8b507",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

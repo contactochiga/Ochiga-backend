@@ -1,0 +1,40 @@
+{
+  "turns": 280,
+  "comparison": "IQ-11C archived 280 preservation answers; no historical independent sealed corpus replay",
+  "unchanged": 277,
+  "changed": [
+    {
+      "id": "IQ-EVAL-CON-004:1",
+      "original_status": "PASS",
+      "prompt": "Is everything okay?",
+      "before": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). A maintenance request has remained open for about 12 days. It may need follow-up. A maintenance request has remained open for about 12 days. It may need follow-up.",
+      "after": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). A maintenance request has remained open for about 16 days. It may need follow-up. A maintenance request has remained open for about 16 days. It may need follow-up."
+    },
+    {
+      "id": "IQ-EVAL-CON-005:3",
+      "original_status": "FAIL",
+      "prompt": "Show my wallet balance.",
+      "before": "Wallet balance: NGN 12,500 (as of 2026-10-13T07:58:41.024803+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after": "Wallet balance: NGN 12,500 (as of 2026-10-17T21:32:52.59964+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+    },
+    {
+      "id": "IQ-EVAL-CON-008:4",
+      "original_status": "FAIL",
+      "prompt": "Show my wallet balance.",
+      "before": "Wallet balance: NGN 12,500 (as of 2026-10-13T07:58:41.024803+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after": "Wallet balance: NGN 12,500 (as of 2026-10-17T21:32:52.59964+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500."
+    }
+  ],
+  "frozen_pass_total": 40,
+  "frozen_pass_unchanged": 39,
+  "changed_frozen_pass_ids": [
+    "IQ-EVAL-CON-004:1"
+  ],
+  "saved": 280,
+  "original_frozen_status_counts": {
+    "FAIL": 235,
+    "PASS": 40,
+    "BLOCKED": 5
+  },
+  "score_policy": "Preservation only. No promotion of old failure cases and no new 280 score claimed."
+}

@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-wave11.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-wave11.json.gz",
+  "raw_bytes": 180509,
+  "compressed_bytes": 15121,
+  "raw_sha256": "0814379c174c86c23c2f6ef92e0dcf5ff15d293b81c009adeed851165aaa0cd0",
+  "compressed_sha256": "34fe81626630098bb7913773f0efbd352e869ca3d9b4e432b209a5f884dcb077",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}
