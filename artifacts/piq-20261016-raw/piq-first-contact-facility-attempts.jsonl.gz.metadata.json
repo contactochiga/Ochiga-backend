@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-facility-attempts.jsonl",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-facility-attempts.jsonl.gz",
+  "raw_bytes": 6924197,
+  "compressed_bytes": 469727,
+  "raw_sha256": "ae202855416db46644864c30aa322daddd343172afeb252288fe6be25b4bbc67",
+  "compressed_sha256": "ffe853c325478b730fa6d1a6e49be0bf4e9f1a2a00406f40b8e1cdae7f4c9928",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

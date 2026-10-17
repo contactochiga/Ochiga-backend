@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/iq11c-piq-qualification-preflight-02.json",
+  "artifact": "artifacts/piq-20261016-raw/iq11c-piq-qualification-preflight-02.json.gz",
+  "raw_bytes": 634476,
+  "compressed_bytes": 37951,
+  "raw_sha256": "eccb571c66975b03b71f20aad6f774b507d1813c5545ffb37fb87e2fdfa0e273",
+  "compressed_sha256": "ace72dd8f55a9d01049148c349958ff548fa1d16215e89f022deff6f598196c9",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

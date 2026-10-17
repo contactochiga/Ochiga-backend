@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-facility.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-facility.json.gz",
+  "raw_bytes": 6966362,
+  "compressed_bytes": 598008,
+  "raw_sha256": "f7dba917addadacb122e34cc35802c9cbde2df563bce358f7c2dbcc6e226722a",
+  "compressed_sha256": "f892804fc9be0e1e26e28963cb0f4656400e9c06e907e72e4d8c2907f5159eba",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

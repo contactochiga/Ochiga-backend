@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-consumer-attempts.jsonl",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-consumer-attempts.jsonl.gz",
+  "raw_bytes": 10058857,
+  "compressed_bytes": 736838,
+  "raw_sha256": "eac0a5033fa0a67b5760d2f55ac137f426bbbba789570ecb1dfb8207190faf19",
+  "compressed_sha256": "1fdc53273fa5c643c9343265e5bfdcddf83f4bd8a89982e738071e7444caf4bf",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

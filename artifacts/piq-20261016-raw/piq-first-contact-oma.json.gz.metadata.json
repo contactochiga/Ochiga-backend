@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-oma.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-oma.json.gz",
+  "raw_bytes": 10321296,
+  "compressed_bytes": 1232411,
+  "raw_sha256": "1ea421edb4bee57dab73d859f391329d3467010337a25d804b24d0d817cab625",
+  "compressed_sha256": "94752de3b88052e1b2d23333067169c4ac8094a852867dededa91828e623f019",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-osa-attempts.jsonl",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-osa-attempts.jsonl.gz",
+  "raw_bytes": 7694642,
+  "compressed_bytes": 466021,
+  "raw_sha256": "bcd1df7225d6c73c8f2904a2d812f8c4d35f5bc3ce248d099896bf7132cdf5e4",
+  "compressed_sha256": "41740409853fe8108205190e8b3a89c487d415df6dc74a80e25b36713d06e0da",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}
