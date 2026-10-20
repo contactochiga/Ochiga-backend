@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-osa-grading-index.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-osa-grading-index.json.gz",
+  "raw_bytes": 2239,
+  "compressed_bytes": 787,
+  "raw_sha256": "50778077b50006277db26945f5e0acb4a80260ca1c45a77734c68e212b19d11d",
+  "compressed_sha256": "763a59e0b3cccfa9cf4a231d778317ca0b41384b5ecd20b3c51bcde3b90a3a29",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

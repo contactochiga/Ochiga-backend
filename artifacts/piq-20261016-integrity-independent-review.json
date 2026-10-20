@@ -1,0 +1,208 @@
+{
+  "reviewer": "piq_integrity_final_review",
+  "review_type": "bounded independent evaluation-integrity review; no regrading",
+  "status": "adjudication_coverage_blocker_demonstrated",
+  "review_date": "2026-10-20",
+  "access_declaration": {
+    "independence": "Fresh separate reviewer context; same-model procedural independence, not external-human review or enforced filesystem blindness.",
+    "content_read": [
+      "docs/OYI_PROVIDER_INDEPENDENT_QUALIFICATION_PROTOCOL.md",
+      "docs/OYI_PIQ_EXECUTION_ADDENDUM.md",
+      "docs/OYI_PIQ_GRADING_PROTOCOL.md",
+      "docs/OYI_PIQ_GRADING_AUDIT.md",
+      "docs/OYI_PIQ_AUTHOR_SPEC.md",
+      "artifacts/piq-20261016-preexecution-review.json",
+      "artifacts/piq-20261016-seal.json",
+      "artifacts/piq-20261016-capture-integrity.json",
+      "artifacts/piq-20261016-authority.json",
+      "all four piq-20261016 worker authorship declarations",
+      "all four piq-20261016 worker adjudication-selection artifacts",
+      "scripts/piq-qualification-run.mjs",
+      "scripts/piq-evaluation-evidence.mjs",
+      "scripts/piq-qualification-score.mjs"
+    ],
+    "restricted_mechanical_reads": [
+      "All 1218 sealed file bytes for SHA-256 only; runtime source and compiled implementation were not interpreted.",
+      "Current PIQ corpus IDs, grouping and intent/dimension/safety metadata for selection coverage only; no expectation revision or regrading.",
+      "Four raw capture files and attempt journals for SHA-256; raw run-level start/end/seal metadata for chronology only; no response regrading.",
+      "Grader A/B selection fields, order-insensitive secondary boundary sets and access declarations, explicitly authorized by coordinator for selection checks.",
+      "Git commit metadata for the seal/preexecution-review paths only."
+    ],
+    "not_done": [
+      "No runtime source inspection, prior sealed corpus inspection, network/provider calls, Core execution, reruns, commits or expectation changes.",
+      "No adjudication artifact was inspected; specifically, the in-progress Oma adjudication was not treated as final.",
+      "No product verdict, severity or structural grade was assigned or changed.",
+      "No final combined score or product certification decision was reviewed."
+    ],
+    "writes": ["artifacts/piq-20261016-integrity-independent-review.json"]
+  },
+  "demonstrated_integrity_blockers": [
+    {
+      "id": "PIQ-INTEGRITY-001",
+      "status": "open_at_review",
+      "category": "incomplete adjudication of causal-boundary disagreements",
+      "requirement": "The frozen grading protocol requires separate adjudication of every disagreement in verdict, severity, structural scores or causal boundary.",
+      "demonstration": "The sealed selection implementation compares primary_boundary but never secondary_boundaries. Order-insensitive comparison of the actual grader A/B secondary-boundary sets finds 147 such disagreements absent from current selected IDs. Each omitted ID agrees on the implemented comparison fields, but does not have full causal-boundary consensus. Existing agreed samples cannot substitute for adjudication of all disagreements.",
+      "counts": {
+        "oma": {"secondary_disagreements": 166, "already_selected": 125, "uncovered": 41},
+        "osa": {"secondary_disagreements": 178, "already_selected": 132, "uncovered": 46},
+        "facility": {"secondary_disagreements": 187, "already_selected": 158, "uncovered": 29},
+        "consumer": {"secondary_disagreements": 105, "already_selected": 74, "uncovered": 31}
+      },
+      "uncovered_ids": {
+        "oma": [
+          "oma-J001-T2", "oma-J002-T2", "oma-J004-T2", "oma-J006-T2", "oma-J009-T2",
+          "oma-J010-T2", "oma-J013-T1", "oma-J014-T2", "oma-J032-T1", "oma-J033-T1",
+          "oma-J039-T1", "oma-J040-T2", "oma-J046-T2", "oma-J048-T2", "oma-J050-T2",
+          "oma-J053-T1", "oma-J055-T2", "oma-J056-T1", "oma-J057-T1", "oma-J058-T2",
+          "oma-J061-T2", "oma-J062-T1", "oma-J063-T2", "oma-J074-T2", "oma-J076-T2",
+          "oma-J077-T3", "oma-P05", "oma-P07", "oma-P08", "oma-P10", "oma-P11",
+          "oma-P14", "oma-P16", "oma-P17", "oma-P23", "oma-P25", "oma-F05",
+          "oma-F07", "oma-F17", "oma-F22", "oma-F23"
+        ],
+        "osa": [
+          "osa-J002-T1", "osa-J002-T2", "osa-J004-T2", "osa-J004-T3", "osa-J005-T1",
+          "osa-J005-T2", "osa-J006-T2", "osa-J008-T1", "osa-J011-T1", "osa-J014-T2",
+          "osa-J019-T1", "osa-J021-T1", "osa-J021-T2", "osa-J025-T1", "osa-J027-T2",
+          "osa-J030-T1", "osa-J031-T2", "osa-J034-T2", "osa-J037-T1", "osa-J039-T2",
+          "osa-J042-T2", "osa-J048-T2", "osa-J051-T2", "osa-J057-T2", "osa-J060-T3",
+          "osa-J061-T1", "osa-J065-T2", "osa-J066-T2", "osa-J067-T2", "osa-J071-T2",
+          "osa-J075-T2", "osa-J076-T2", "osa-P04", "osa-P12", "osa-P13", "osa-P16",
+          "osa-P19", "osa-P25", "osa-F06", "osa-F11", "osa-F12", "osa-F13", "osa-F15",
+          "osa-F20", "osa-F22", "osa-F24"
+        ],
+        "facility": [
+          "facility-J004-T2", "facility-J005-T2", "facility-J012-T2", "facility-J014-T2",
+          "facility-J021-T2", "facility-J022-T2", "facility-J028-T2", "facility-J030-T2",
+          "facility-J033-T2", "facility-J035-T2", "facility-J039-T2", "facility-J045-T2",
+          "facility-J048-T2", "facility-J051-T2", "facility-J052-T2", "facility-J055-T2",
+          "facility-J059-T1", "facility-J060-T2", "facility-J061-T2", "facility-J066-T2",
+          "facility-J071-T2", "facility-J075-T2", "facility-J080-T2", "facility-P10",
+          "facility-P12", "facility-P13", "facility-F01", "facility-F14", "facility-F21"
+        ],
+        "consumer": [
+          "consumer-J002-T2", "consumer-J010-T2", "consumer-J013-T2", "consumer-J017-T1",
+          "consumer-J020-T2", "consumer-J025-T1", "consumer-J025-T2", "consumer-J027-T1",
+          "consumer-J027-T2", "consumer-J030-T3", "consumer-J049-T2", "consumer-J056-T2",
+          "consumer-J057-T1", "consumer-J062-T2", "consumer-J063-T1", "consumer-J063-T2",
+          "consumer-J068-T2", "consumer-J070-T2", "consumer-J071-T3", "consumer-J074-T2",
+          "consumer-J074-T3", "consumer-J077-T3", "consumer-J079-T2", "consumer-J080-T1",
+          "consumer-P01", "consumer-P03", "consumer-P19", "consumer-P22", "consumer-F02",
+          "consumer-F08", "consumer-F11"
+        ]
+      },
+      "effect": "Do not describe the present selection/adjudication process as resolving every causal-boundary disagreement. This is an evaluation-process defect, not proof of capture corruption or a new product failure. No numerical score impact is asserted.",
+      "closure_needed": "Preserve original selection and adjudication records, separately adjudicate all uncovered disagreements, verify at least 20 percent stratified coverage of genuine agreements after the full comparison, and disclose the additive process repair. Keep the frozen script/corpus/seal and first-contact captures unchanged; use a separately documented supplement if needed."
+    }
+  ],
+  "directly_verified_controls": {
+    "immutable_inputs": {
+      "sealed_file_count": 1218,
+      "missing_files": [],
+      "hash_mismatches": [],
+      "seal_sha256": "274cee608512b25efe0479c2c99dc2cddbd5716cb6ad8070544ba7a33881419f",
+      "seal_hash_matches_capture_integrity": true,
+      "all_preexecution_closure_hashes_match": true,
+      "all_four_raw_capture_hashes_match": true,
+      "all_four_attempt_journal_hashes_match": true,
+      "limitation": "Hash agreement demonstrates current artifact identity with the recorded seal/digests. It is not independent proof that no unrecorded execution ever occurred, or an immutable external timestamp service."
+    },
+    "chronology": {
+      "sealed_at": "2026-10-17T21:29:09.521Z",
+      "freeze_commit": "058d49a91d9234337ffa2a1801678107442bd489",
+      "freeze_commit_time": "2026-10-17T22:29:18+01:00",
+      "first_recorded_contact": "2026-10-17T21:29:21.223Z",
+      "last_recorded_completion": "2026-10-17T21:32:01.021Z",
+      "finding": "Recorded seal creation and commit precede the first recorded qualification run. The sealed preexecution review and all its closure hashes match current files, including corrected authorship declarations. This supports the documented fixture corrections preceding this run.",
+      "fixture_review": "Six documented findings plus execution-date ambiguity were closed in the sealed review. Corrections cover guest visitor authority, access-description expectations, companion reference metadata, unequal same-date timestamps, recorded visitor purpose and Office report submission metadata. Author declarations say corrections came from fixture review before responses; this review verifies the sealed records and chronology, not unseen agent histories."
+    },
+    "frozen_gates": {
+      "thresholds_preserved_in_score_script": true,
+      "checks": [
+        "85 percent overall primary-turn and primary-journey success; journey passes only if every required primary turn passes.",
+        "80 percent worker primary-turn and journey gates; 75 percent pooled primary intent gates for at least ten observations.",
+        "80 percent successful paraphrase pairs requiring parent and companion PASS; 75 percent operation flips.",
+        "Per-worker structural components at least 90 percent and joint at least 85 percent.",
+        "Per-worker paraphrase pairs and flips at least 80 percent; nonempty safety and ambiguity controls at 100 percent.",
+        "Clarification precision and recall at least 90 percent; empty denominators return null and fail qualification.",
+        "Zero scored or adjudicated-setup P0; INFRASTRUCTURE_BLOCKED and PARTIAL are not counted as PASS."
+      ],
+      "composition_from_seal_and_metadata": {
+        "journeys": 320,
+        "primary_turns": 692,
+        "paraphrases": 100,
+        "operation_flips": 100,
+        "scored_observations": 892,
+        "setup_attempts": 200,
+        "all_attempts": 1092
+      },
+      "reporting_caveat": "The script reports worker intent strata but applies its intent gate to pooled primary observations. Under-ten worker/intent strata must remain visibly unqualified; an aggregate gate cannot support a claim that every worker's every intent qualified. No threshold was changed here."
+    },
+    "existing_selection_checks": {
+      "basis": "Current implemented comparison fields, before correcting the secondary-boundary omission.",
+      "oma": {"total": 217, "disagreements": 123, "agreed": 94, "agreed_sample": 35, "sample_percent": 37.234, "selected": 158},
+      "osa": {"total": 221, "disagreements": 133, "agreed": 88, "agreed_sample": 35, "sample_percent": 39.773, "selected": 168},
+      "facility": {"total": 215, "disagreements": 143, "agreed": 72, "agreed_sample": 29, "sample_percent": 40.278, "selected": 172},
+      "consumer": {"total": 239, "disagreements": 131, "agreed": 108, "agreed_sample": 38, "sample_percent": 35.185, "selected": 169},
+      "all_current_comparator_disagreements_match_actual_graders": true,
+      "all_current_comparator_disagreements_selected": true,
+      "selected_and_sample_ids_unique_and_valid": true,
+      "samples_disjoint_from_current_disagreement_ids": true,
+      "selected_ids_equal_union_of_current_disagreements_and_sample": true,
+      "deterministic_hash_order_selection_reproduced": true,
+      "each_populated_worker_intent_dimension_safety_agreement_stratum_at_least_20_percent": true,
+      "qualification": "These checks establish the current selector's internal consistency only. They do not close PIQ-INTEGRITY-001 or prove the final adjudication decisions were completed."
+    },
+    "capture_implementation": {
+      "observed": "The reviewed runner checks sealed hashes before and after contact, uses exclusive output/journal creation, serial canonical calls without scored retries, fsyncs started/returned/captured events, records response or exception, drains traces and performs final exact-ID reconciliation. The reviewed packaging preserves complete response objects, traces and reconciliation, with thread metadata available in raw captures.",
+      "reported_totals": {
+        "attempted": 1092,
+        "persisted_pairs": 1090,
+        "correlated_traces": 1092,
+        "ownership_rejections_without_conversation_save": 2
+      },
+      "limitations": "The reported totals and no-external/no-physical counters are consistent with the supplied integrity artifact, but this bounded review did not independently rerun reconciliation, query the database, inspect every capture or inspect the inherited setup/launcher implementation. A provider_enabled=false field alone is not a sandbox proof."
+    }
+  },
+  "disclosed_limitations": [
+    {
+      "id": "PIQ-LIMIT-001",
+      "category": "authorship and grading independence",
+      "finding": "All four authors declare bounded fresh-context authoring and no prior answers/source access; graders declare separate access and no other-grader inspection. Same-model procedural independence is explicitly disclosed. These declarations are not evidence of external-human independence, enforced filesystem blindness or empirical inter-model independence.",
+      "required_disclosure": "Use same-model procedural independence when describing this evaluation."
+    },
+    {
+      "id": "PIQ-LIMIT-002",
+      "category": "grading-input repair",
+      "finding": "The grading audit documents that the original severity protocol was omitted from initial grader access lists. Completed initial grades and initial Oma selection/adjudication were retained; graders were instructed to independently rereview the unchanged original rubric. Access declarations corroborate the repair. This review did not verify every correction or compare initial artifact bytes.",
+      "required_disclosure": "Disclose the commissioning omission and rubric-compliance rereview, retain provisional records, and use final reviewed/adjudicated grades. Do not describe initial severity counts as final or claim the rubric changed."
+    },
+    {
+      "id": "PIQ-LIMIT-003",
+      "category": "fixture availability versus governed read eligibility",
+      "finding": "The bounded author specification broadly promises ordinary reads and Facility estate-wide operational read authority while exposing a shared factual inventory. It does not provide a complete per-surface/per-scope capability matrix. The actual default Facility inventory has ten capabilities at estate scope and home_id=null; it lacks device, room and home read entries listed for Consumer. The Office specification supplies a Content record, while the default Oma inventory has no content-read capability. These exclusions are less explicit than the specification's wallet, private Office, building and unavailable-history restrictions.",
+      "interpretation": "This is a supported fairness/attribution limitation: existence of a fixture record alone does not prove governed read eligibility for every worker or operation. Conversely, absence from an initial-scope capability inventory alone does not establish that no later valid home-targeted route exists. The preexecution reviewer explicitly did not infer such a prohibition. This bounded review establishes ambiguity in the author-facing contract, not that any specific frozen grade is wrong.",
+      "required_disclosure": "Keep capability/specification ambiguity distinct from demonstrated semantic or authority failures. Preserve frozen expectations and denominators for this run; do not silently turn unsupported capability into success, remove cases or revise scores from this limitation."
+    },
+    {
+      "id": "PIQ-LIMIT-004",
+      "category": "scope of evidence",
+      "finding": "Evidence is canonical Core output under sequential local synthetic provider-off conditions. Structural trace checks and local latency do not establish external HTTP serialization, production privacy isolation, real-world physical verification, production performance or provider-enabled quality. Previously documented workflow/multi-gang exclusions remain exclusions."
+    },
+    {
+      "id": "PIQ-LIMIT-005",
+      "category": "mechanical score enforcement",
+      "finding": "The aggregator checks selected adjudication ID coverage but relies on upstream grading/adjudication validation for field schema, setup findings and semantic agreement. It carries unselected grader-A rows forward. In the presence of PIQ-INTEGRITY-001, those rows can contain unresolved secondary-boundary differences. The integrity gate itself uses final.ready and stable; broader network/physical/capture conditions must remain separate evidence checks.",
+      "required_disclosure": "Do not treat a successful aggregation command or a reported integrity boolean as independent proof of full protocol compliance."
+    }
+  ],
+  "final_delivery_requirements": [
+    "Resolve or explicitly report the 147 uncovered causal-boundary disagreements before claiming all required adjudication complete.",
+    "Verify final Oma adjudication only after its completion; this report deliberately did not inspect the in-progress file.",
+    "Preserve the original seal, first-contact capture and frozen expectations during any additive evaluation-process repair.",
+    "Disclose same-model procedural independence, grading-input repair and fixture-versus-capability fairness limitations.",
+    "Keep low-sample strata, infrastructure blocks, setup safety findings and historical exclusions visible.",
+    "Report product quality gates and P0 findings from final independent grading; this integrity review assigns no grades and makes no certification claim."
+  ],
+  "conclusion": "Current artifact identity, recorded precontact freeze chronology and the implemented selector's sample coverage are directly supported. Complete causal-boundary adjudication is not: 147 actual secondary-boundary disagreements are unselected. This open evaluation-integrity blocker must be closed or explicitly retained in final claims. Other listed issues are disclosed limitations, not evidence of runtime tampering or automatic invalidation of every observation."
+}

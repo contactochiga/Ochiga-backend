@@ -27,3 +27,35 @@ quality gates and original protocol remain immutable. Final reports must use the
 rubric-compliant reviewed and adjudicated grades, not the provisional initial
 severity counts. Authorship and grading remain same-model procedural independence,
 not external-human or technically sandboxed independence.
+
+## Final coverage audit — secondary causal boundaries
+
+An independent integrity review found a second evaluation-infrastructure defect
+before final aggregation: the initial selection comparator included primary
+causal boundaries but omitted secondary boundaries, contrary to the unchanged
+grading guide's requirement to resolve every causal-boundary disagreement.
+Order-insensitive comparison found 147 previously unselected disagreements:
+41 Oma, 46 Osa, 29 Facility, 31 Consumer.
+
+The initial selectors and each completed adjudication are preserved separately.
+An additive mechanical selector includes all secondary disagreements and
+recomputes the >=20% stratified sample against genuinely full-field agreements,
+retaining every previously reviewed ID. This requires 165 supplemental reviews:
+44 Oma, 48 Osa, 36 Facility, 37 Consumer, including 18 additional agreement samples.
+The same separate worker adjudicators review the full evidence for those IDs;
+this is not automatic reclassification or a change to expectations.
+
+`piq-secondary-adjudication.mjs` materializes the independently authored union
+only after exact supplemental-ID checks. The frozen scorer is unchanged. The
+independent integrity review remains a historical open-at-review snapshot;
+repair closure requires final expanded coverage and stratification validation.
+No corpus or runtime replay is involved. Final reporting must disclose both
+commissioning/selection defects and must not claim a flawless grading process.
+
+The separate integrity reviewer subsequently verified all four final unions,
+all 147 previously missed disagreements, 18 additional agreement samples,
+200 setup IDs and all 1,218 frozen hashes. Its additive closure report is
+`artifacts/piq-20261016-integrity-repair-closure.json`. The original audit remains
+unchanged. `PIQ-INTEGRITY-001` is closed for the verified final artifacts; the
+same-model independence, author-specification and diagnostic-metric limitations
+remain disclosed. This is not a product-certification or semantic-regrading claim.

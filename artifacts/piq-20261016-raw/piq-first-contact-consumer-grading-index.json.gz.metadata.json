@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-consumer-grading-index.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-consumer-grading-index.json.gz",
+  "raw_bytes": 2309,
+  "compressed_bytes": 796,
+  "raw_sha256": "5625e01e3ec13f456b6822d69ba604b2e32b1ad9c2275b9830fd664633f0ba7c",
+  "compressed_sha256": "e0399dfcff0c628e74f2588d4fd385a940e07262306057eb9e6237559b8bfa64",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

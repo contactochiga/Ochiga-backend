@@ -1,0 +1,10 @@
+{
+  "source": "/tmp/piq-first-contact-facility-grading-index.json",
+  "artifact": "artifacts/piq-20261016-raw/piq-first-contact-facility-grading-index.json.gz",
+  "raw_bytes": 2309,
+  "compressed_bytes": 797,
+  "raw_sha256": "65814246b91b4073f29706549f5e9016c09ebbbbbaf41720df0c5be9699883d3",
+  "compressed_sha256": "951cf94ed1eec2ef22c778e0a59cba1a7463a1ce3790ab390adf591f1b77b995",
+  "credential_pattern_scan": "no findings",
+  "lossless": true
+}

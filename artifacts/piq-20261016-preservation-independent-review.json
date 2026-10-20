@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "review_date": "2026-10-20",
+  "reviewer": "independent same-model preservation reviewer",
+  "scope": {
+    "kind": "evidence-only historical preservation review",
+    "runtime_changes": false,
+    "network_or_provider_calls": false,
+    "corpus_rerun": false,
+    "commits": false,
+    "sealed_iq9b_or_iq10f_corpora_accessed": false,
+    "new_piq_grades_accessed": false,
+    "baseline_use": "Original record IDs and statuses only; no baseline answers or grading reasons used.",
+    "independence_limit": "Separate reviewer task with bounded instructions; same-model procedural independence, not external human review or enforced filesystem blindness."
+  },
+  "method": [
+    "Read the provider-independent protocol and execution addendum.",
+    "Independently parsed the prior archive entry and current lossless gzip; checked exact ordered IDs, uniqueness, prompts and response.answer equality across all 280 records.",
+    "Recursively compared all fields of the three changed records; inspected before/after answer text, semantic frames, authority, scope, facts, derived evidence, retained context, result sets, action truth and trace/persistence fields.",
+    "Read original baseline statuses without adopting candidate placeholder grades or promoting old failures.",
+    "Verified source-content hashes and exact byte equality of the current decompressed capture with the existing /tmp capture."
+  ],
+  "provenance": {
+    "hash_algorithm": "SHA-256",
+    "files": [
+      {
+        "path": "docs/OYI_PROVIDER_INDEPENDENT_QUALIFICATION_PROTOCOL.md",
+        "sha256": "36eca61957ba5543bd41f6d3299da25fa16cc77e165b121df2288f56755b50e5"
+      },
+      {
+        "path": "docs/OYI_PIQ_EXECUTION_ADDENDUM.md",
+        "sha256": "a9aaa1a931f4eda15493b973eee6588e60446349a4042453dd220c59e00b8ec1"
+      },
+      {
+        "path": "artifacts/piq-20261016-preservation-comparison.json",
+        "sha256": "1adf44df046144c11d543af299617dc0672f5f9c5f5f3a07b8bbea23dc123e9d"
+      },
+      {
+        "path": "artifacts/intelligence-quality-v1-iq11c-candidate-evidence.json.gz",
+        "sha256": "5db6ca139f36c8481e1da3d349f50bee4928c8be796e69fbe61b5348a471ae89",
+        "entry": "iq10e-iq11c-complete-candidate280.json",
+        "entry_content_sha256": "e860302d1e7564e9ba284114f7a456f9915f7e673b1262f2d6ccf2bbf8668e30",
+        "entry_hash_matches_both_archive_hash_fields": true,
+        "synthetic_sentinel_redactions": 0
+      },
+      {
+        "path": "artifacts/piq-20261016-raw/piq-preservation-candidate280.json.gz",
+        "sha256": "0ee79c9bf3a3d64911cfd0440cbb82452a727478d01516ecca3bb4dda6d8b507",
+        "decompressed_sha256": "04977da361915fa86b77aae1ebb699a6243288813e6c78dcb43ec2c661402575",
+        "identical_to_existing_tmp_path": "/tmp/piq-preservation-candidate280.json"
+      },
+      {
+        "path": "artifacts/intelligence-quality-v1-baseline.json",
+        "sha256": "edd8914212a3661691ebb0046153f8d65b6081c7f5c1e63a4f36e45c0dba667d",
+        "use": "original statuses only"
+      }
+    ],
+    "capture_metadata": {
+      "before_generated_at": "2026-10-13T07:58:42.758Z",
+      "before_completed_at": "2026-10-13T07:59:13.795Z",
+      "before_execution_head": "e1b14bfe9598d0dd48d9960e7b1e91e310e1db9c",
+      "after_generated_at": "2026-10-17T21:34:16.135Z",
+      "after_completed_at": "2026-10-17T21:34:51.023Z",
+      "after_execution_head": "6f7f632016fb2e485049ee0765f1bed7d4606c23",
+      "limitation": "Execution heads are capture metadata, not independently verified runtime/source-tree equivalence in this evidence-only review."
+    }
+  },
+  "reconciliation": {
+    "before_records": 280,
+    "after_records": 280,
+    "before_unique_ids": 280,
+    "after_unique_ids": 280,
+    "ordered_ids_identical": true,
+    "all_prompts_identical_by_id": true,
+    "prompt_mismatches": [],
+    "missing_or_extra_ids": [],
+    "unchanged_answer_text": 277,
+    "changed_answer_text": 3,
+    "baseline_ids_aligned": true,
+    "original_status_counts": {
+      "PASS": 40,
+      "FAIL": 235,
+      "BLOCKED": 5
+    },
+    "original_pass_answers_unchanged": 39,
+    "original_pass_answers_changed": 1,
+    "changed_original_pass_ids": [
+      "IQ-EVAL-CON-004:1"
+    ],
+    "current_response_and_trace_saved_flags_true": 280,
+    "saved_flag_limit": "Captured flags only; no fresh durable-store lookup was performed.",
+    "comparison_artifact_counts_confirmed": true,
+    "unchanged_meaning": "Exact response.answer equality; not byte equality of entire records, which include run-specific identifiers, times and other evidence."
+  },
+  "changed_records": [
+    {
+      "id": "IQ-EVAL-CON-004:1",
+      "original_status": "PASS",
+      "prompt": "Is everything okay?",
+      "before_answer": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). A maintenance request has remained open for about 12 days. It may need follow-up. A maintenance request has remained open for about 12 days. It may need follow-up.",
+      "after_answer": "Your home has some issues that need attention. Wave11 unresolved water issue: open (high priority). A maintenance request has remained open for about 16 days. It may need follow-up. A maintenance request has remained open for about 16 days. It may need follow-up.",
+      "classification": "TIME_VARIATION_SUPPORTED_NO_NEW_ANSWER_REGRESSION",
+      "preservation_outcome": "Preserved relative to the archived candidate; retain original PASS membership for preservation accounting only.",
+      "observed_evidence": {
+        "maintenance_source_id": "50000000-0000-4000-8000-000000000001",
+        "maintenance_created_at_both": "2026-09-29T06:21:37.911189+00:00",
+        "maintenance_updated_at_both": "2026-10-01T06:21:37.911189+00:00",
+        "maintenance_observed_at_before": "2026-10-13T07:59:07.519Z",
+        "maintenance_observed_at_after": "2026-10-17T21:34:44.662Z",
+        "maintenance_value_unchanged": {
+          "title": "Wave11 unresolved water issue",
+          "description": "Synthetic fixture water leak",
+          "category": "plumbing",
+          "priority": "high",
+          "status": "open",
+          "assigned_to": null
+        },
+        "legacy_prediction": {
+          "model_name_both": "legacy.predictionEngine",
+          "type_both": "maintenance_risk",
+          "generated_at_before": "2026-10-13T07:59:07.551Z",
+          "generated_at_after": "2026-10-17T21:34:44.708Z",
+          "reported_days_before": 12,
+          "reported_days_after": 16,
+          "evidence_ids_both": [
+            "50000000-0000-4000-8000-000000000001"
+          ],
+          "truth_state_both": "predicted",
+          "confidence_both": 0.7,
+          "captured_limitation_both": "Adapted from the legacy heuristic prediction engine, not a Programme 3 native provider."
+        },
+        "native_anomaly": {
+          "source_model_both": "maintenance.aging",
+          "window_from_both": "2026-09-29T06:21:37.911189+00:00",
+          "window_to_before": "2026-10-13T07:59:07.529Z",
+          "window_to_after": "2026-10-17T21:34:44.684Z",
+          "reported_days_before": 14,
+          "reported_days_after": 18
+        },
+        "structure_both": {
+          "capability": "home.summary.read",
+          "operation": "inspect",
+          "cognitive_objective": "assess",
+          "answer_target": "YES_NO_WITH_REASON",
+          "scope_decision": "compatible",
+          "authority": "allowed",
+          "evidence_count": 17,
+          "execution_status": "read_only",
+          "current_turn_execution": false,
+          "workflow_id": null,
+          "action_id": null,
+          "confirmations": [],
+          "suggested_actions": [],
+          "durable_trace_delivery_state": "saved_verified",
+          "assessment_status": "assessment_pending",
+          "assessment_judgment": null
+        }
+      },
+      "reason": "The changed text is supplied by the captured legacy maintenance prediction and its recommendation. Its evidence ID resolves to the same open high-priority request. The later observation is about 4.57 days later; truncating elapsed days from the unchanged updated_at gives 12 then 16, while the native anomaly's explicit created_at window gives 14 then 18. Thus elapsed-time variation is supported by independently observable source timestamps and derived records, not merely the appearance of a date in the answer. Semantic target, authorized own-home scope, source identities, warning posture, read-only action truth and saved receipts remain stable. Both answers identify an issue and neither asserts all-clear, physical verification or completion.",
+      "limitations": [
+        "The capture does not explicitly declare the legacy age formula. Association with updated_at is an arithmetic inference, not source-code verification.",
+        "The legacy answer understates elapsed time since creation by two days relative to the native anomaly in both captures, and repeats its follow-up sentence in both. These are preexisting discrepancies, not evidence of a newly introduced regression.",
+        "Neither answer explicitly describes unobservable security/camera limitations; the preserved response avoids an all-clear but this review does not freshly certify overall answer completeness.",
+        "Assessment context remains pending with null judgment and missing-domain metadata in both; preservation does not establish a completed governed assessment.",
+        "Device age_ms and derived IDs/timestamps also change; the wallet fact timestamp changes consistently with the separate wallet reviews."
+      ]
+    },
+    {
+      "id": "IQ-EVAL-CON-005:3",
+      "original_status": "FAIL",
+      "prompt": "Show my wallet balance.",
+      "before_answer": "Wallet balance: NGN 12,500 (as of 2026-10-13T07:58:41.024803+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after_answer": "Wallet balance: NGN 12,500 (as of 2026-10-17T21:32:52.59964+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "classification": "SOURCE_TIMESTAMP_VARIATION_SUPPORTED_NO_NEW_ANSWER_REGRESSION",
+      "preservation_outcome": "No new regression identified; original FAIL retained, with no promotion.",
+      "observed_evidence": {
+        "fact_id_both": "wallet-balance:70000000-0000-4000-8000-000000000001",
+        "source_type_both": "database",
+        "source_id_both": "70000000-0000-4000-8000-000000000001",
+        "value_both": {
+          "balance": 12500,
+          "currency": "NGN",
+          "is_frozen": false
+        },
+        "occurred_at_and_freshness_before": "2026-10-13T07:58:41.024803+00:00",
+        "occurred_at_and_freshness_after": "2026-10-17T21:32:52.59964+00:00",
+        "observed_at_before": "2026-10-13T07:59:08.723Z",
+        "observed_at_after": "2026-10-17T21:34:45.801Z",
+        "truth_state_both": "confirmed",
+        "confidence_both": 0.95,
+        "permission_both": "wallet.read",
+        "capability_both": "wallet.balance.read",
+        "evidence_count_both": 1,
+        "scope_both": "Authorized own home 20000000-0000-4000-8000-000000000001 in estate 10000000-0000-4000-8000-000000000001; retrieved scope compatible.",
+        "execution_both": "read_only, current_turn_execution=false, no workflow/action, no confirmation or suggested action; saved_verified durable trace"
+      },
+      "reason": "Each displayed as-of timestamp exactly equals the corresponding database wallet fact's occurred_at and freshness. Amount, currency, frozen state, subject, capability, permission and action truth are unchanged. The answer delta is supported by source-fact metadata.",
+      "limitations": [
+        "The underlying database write/reset that changed the source timestamp is not observable in these captures; fixture refresh is plausible but not independently proven.",
+        "No original FAIL is regraded or credited as PASS."
+      ]
+    },
+    {
+      "id": "IQ-EVAL-CON-008:4",
+      "original_status": "FAIL",
+      "prompt": "Show my wallet balance.",
+      "before_answer": "Wallet balance: NGN 12,500 (as of 2026-10-13T07:58:41.024803+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "after_answer": "Wallet balance: NGN 12,500 (as of 2026-10-17T21:32:52.59964+00:00).\n\nSupporting detail: Wallet balance: NGN 12,500.",
+      "classification": "SOURCE_TIMESTAMP_VARIATION_WITH_UNRESOLVED_RETAINED_CONTEXT_VARIATION",
+      "preservation_outcome": "No new wallet-answer regression identified; original FAIL retained, with no promotion. Full structured equivalence is not claimed.",
+      "observed_evidence": {
+        "fact_id_both": "wallet-balance:70000000-0000-4000-8000-000000000001",
+        "value_both": {
+          "balance": 12500,
+          "currency": "NGN",
+          "is_frozen": false
+        },
+        "occurred_at_and_freshness_before": "2026-10-13T07:58:41.024803+00:00",
+        "occurred_at_and_freshness_after": "2026-10-17T21:32:52.59964+00:00",
+        "observed_at_before": "2026-10-13T07:59:11.476Z",
+        "observed_at_after": "2026-10-17T21:34:48.976Z",
+        "capability_both": "wallet.balance.read",
+        "permission_both": "wallet.read",
+        "evidence_count_both": 1,
+        "wallet_subject_authority_and_action_truth": "Same authorized own-home wallet, compatible scope, read_only, no workflow/action, current_turn_execution=false, saved_verified.",
+        "retained_assessment": {
+          "question_both": "Actually it is the study, not the bedroom.",
+          "subject_both": "study",
+          "suspended_both": true,
+          "mandatory_device_availability_both": "Study, available_zero, record_count=0, zero_proven",
+          "optional_device_history_source_both": "devices.activity.read",
+          "optional_device_history_scope_both": "consumer_home",
+          "optional_history_record_count_before": 5,
+          "optional_history_record_count_after": 1,
+          "optional_history_lifecycle_historical_before": 5,
+          "optional_history_lifecycle_historical_after": 1,
+          "remaining_and_removed_material_shape": {
+            "label": "Wave11 Bedroom Light switch_1",
+            "status": "requested",
+            "room_name": "Master Bedroom",
+            "device_family": "light"
+          },
+          "remaining_and_removed_reference_id": "40000000-0000-4000-8000-000000000002:switch_1"
+        }
+      },
+      "reason": "The displayed timestamp is exactly sourced from the wallet fact, with unchanged amount and scope. Recursive comparison also reveals a non-time difference: the suspended prior assessment carries one optional historical device record instead of five identical-shaped records. It remains suspended and does not replace the current wallet answer or add an action. This supports answer preservation but not a claim that the entire record differs only by time.",
+      "limitations": [
+        "No event-row audit or fixture reset log was inspected; fewer history records could reflect fixture/history variation, but that cause is unproven.",
+        "The lost duplicate-shaped historical records are disclosed rather than normalized away or certified harmless for later continuation.",
+        "No original FAIL is regraded or credited as PASS."
+      ]
+    }
+  ],
+  "outcome": {
+    "answer_preservation": "SUPPORTED_WITH_RECORDED_LIMITATIONS",
+    "defensible_new_answer_regressions_identified": 0,
+    "original_passes_preserved_for_preservation_only": 40,
+    "basis": "39 exact original-PASS answer matches plus the one separately reviewed, timestamp-supported original-PASS variation.",
+    "old_fail_promotions": 0,
+    "new_280_score_claimed": false,
+    "independent_intelligence_certification_claimed": false,
+    "full_structured_record_equivalence_claimed": false,
+    "qualification_or_release_gate_override": false
+  },
+  "overall_limitations": [
+    "This is a comparison with archived candidate evidence, not a fresh grading of the 280 familiar turns or any independent corpus.",
+    "The 277 unchanged claim concerns answer text; only the three changed answers received this detailed structured preservation adjudication.",
+    "Timestamps support the specific answer variations, but captures alone do not prove the database operations that produced those timestamps.",
+    "The sole changed original PASS retains preexisting age/duplication and assessment-completeness limitations; preservation does not repair or independently validate them.",
+    "The CON-008:4 retained history count change prevents a blanket assertion that all structured differences are time or generated identifiers.",
+    "No runtime source, corpus expectations, historical status, threshold or grading artifact was modified."
+  ]
+}

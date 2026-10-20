@@ -1,0 +1,201 @@
+{
+  "reviewer": "piq_integrity_final_review",
+  "review_type": "independent bounded closure of additive adjudication-selection repair; no regrading",
+  "review_date": "2026-10-20",
+  "status": "PIQ-INTEGRITY-001_closed_for_verified_final_artifacts",
+  "closes": {
+    "finding": "PIQ-INTEGRITY-001",
+    "original_review": "artifacts/piq-20261016-integrity-independent-review.json",
+    "original_review_sha256": "37be94812c23a7583f2d0d027c74027758e3bd08a34871b9a73369215c8d1f4b",
+    "original_review_preserved_unchanged": true,
+    "original_finding": "The original selector omitted secondary-boundary differences from its comparison, leaving 147 actual causal-boundary disagreements unselected.",
+    "closure": "All 147 previously uncovered IDs now have separate authored supplemental adjudication decisions. An additional 18 genuine-agreement cases complete stratified coverage after full boundary comparison. All original selected decisions are preserved, and each final worker adjudication is exactly the original-plus-supplement union. Every full-comparison disagreement is covered; every populated worker/intent/dimension/safety agreement stratum has at least the required ceiling of 20 percent sampled."
+  },
+  "access_declaration": {
+    "independence": "Same separate integrity-review context; same-model procedural independence only, not external-human review or technically enforced blindness.",
+    "additional_inputs": [
+      "scripts/piq-secondary-adjudication.mjs",
+      "All four piq-20261016 worker adjudication-secondary-selection.json artifacts",
+      "All four preserved adjudication-selection-before-secondary-review.json artifacts",
+      "All four preserved adjudication-before-secondary-review.json artifacts",
+      "All four independently authored adjudication-secondary-review.json artifacts",
+      "All four finalized standard adjudication-selection.json and adjudication.json artifacts"
+    ],
+    "mechanical_checks_only": [
+      "Read existing current grader fields to independently derive disagreements, comparing secondary_boundaries as order-insensitive sets.",
+      "Read current corpus ID, intent, dimension, safety and expected.reference metadata for coverage and diagnostic-field interpretation only.",
+      "Compare entire adjudication row objects for exact equality to original and supplemental inputs; no evaluation of verdict correctness.",
+      "Normalize string and structured setup attempt IDs and compare with raw capture setup IDs.",
+      "Hash sealed input files, raw captures and journals; inspect no runtime source content.",
+      "Read supplemental access declarations as provenance declarations, not as proof of enforced blindness."
+    ],
+    "not_done": [
+      "No product grades, severities, expectations or thresholds assigned, changed or reinterpreted.",
+      "No runtime/source inspection, provider/network calls, Core execution, corpus replay, commits or pushes.",
+      "No final results or analysis artifact regrading or numerical qualification validation.",
+      "No original integrity-review edits."
+    ],
+    "writes": ["artifacts/piq-20261016-integrity-repair-closure.json"]
+  },
+  "repair_implementation": {
+    "path": "scripts/piq-secondary-adjudication.mjs",
+    "sha256": "b14276a7802622892acd1e3b1228b7af7aad4157ecc9349165b94cfe8d19d71a",
+    "assessment": "The additive prepare path compares the original fields plus order-insensitive secondary boundaries, retains existing selected IDs, and supplements genuine-agreement sampling across intent, dimension and safety. The finalize path asserts exact original and supplemental ID coverage, preserves original selection/adjudication snapshots, and materializes a row-preserving union. It does not derive or assign verdicts, severity, structural scores or expectations.",
+    "preservation": "The previously sealed selection/score/runner scripts remain unchanged. The new repair script and separately authored supplements implement the unchanged requirement to adjudicate every causal-boundary disagreement.",
+    "authorship_limit": "All four supplemental declarations identify continuation by the same separate worker adjudicator. This is additional review by those adjudicators, not four newly independent external reviewers. Exact union checks prove the materializer preserved their supplied decisions, not that a machine can independently establish their semantic correctness."
+  },
+  "verified_totals": {
+    "scored_observations": 892,
+    "original_selected_retained": 667,
+    "new_supplemental_decisions": 165,
+    "previously_uncovered_disagreements_now_reviewed": 147,
+    "additional_genuine_agreement_samples": 18,
+    "full_comparison_disagreements": 763,
+    "genuine_agreements": 129,
+    "genuine_agreements_sampled": 69,
+    "final_adjudicated_observations": 832,
+    "unselected_genuine_agreements": 60,
+    "setup_attempts_covered": 200
+  },
+  "workers": {
+    "oma": {
+      "original_selected": 158,
+      "supplemental": 44,
+      "previously_missed_disagreements": 41,
+      "added_agreement_samples": 3,
+      "full_disagreements": 186,
+      "genuine_agreements": 31,
+      "genuine_agreements_sampled": 16,
+      "agreement_sample_percent": 51.613,
+      "final_adjudicated": 202,
+      "populated_agreement_strata_checked": 22,
+      "empty_agreement_strata": 9,
+      "minimum_populated_stratum_sample_percent": 25,
+      "setup_attempts_reviewed": 47,
+      "exact_original_plus_supplement_union": true,
+      "standard_selection_equals_expanded_selection": true,
+      "hashes": {
+        "original_selection_snapshot": "5899ff71488b06b624c04d5d4c31b09a0f3d3a5e34f46c7c73468709bb76a3b9",
+        "original_adjudication_snapshot": "81ba4d549208c19a5eff92d119fda04a7551df88141be87ee1a4fc59076c114b",
+        "supplemental_review": "037aeece55d3041986480aecc4f14eac5485ad351814e6606289b5a7b820f2fe",
+        "expanded_selection": "52f9ea81372e4b478cdc80015899f75f52422707b96b9973d2b17160e0d03d1c",
+        "final_adjudication": "d690541788dc3061e24cc390c4d6e04ecebd932a3da2195896aa7957065dd651"
+      }
+    },
+    "osa": {
+      "original_selected": 168,
+      "supplemental": 48,
+      "previously_missed_disagreements": 46,
+      "added_agreement_samples": 2,
+      "full_disagreements": 206,
+      "genuine_agreements": 15,
+      "genuine_agreements_sampled": 10,
+      "agreement_sample_percent": 66.667,
+      "final_adjudicated": 216,
+      "populated_agreement_strata_checked": 14,
+      "empty_agreement_strata": 17,
+      "minimum_populated_stratum_sample_percent": 40,
+      "setup_attempts_reviewed": 68,
+      "exact_original_plus_supplement_union": true,
+      "standard_selection_equals_expanded_selection": true,
+      "hashes": {
+        "original_selection_snapshot": "87a64fc3ff66e4296605777bda8d763e00a7824e5c389938ee997399dfbd022c",
+        "original_adjudication_snapshot": "e89aac0ef64ea3b8ae2f162fb8847cf720cf1726fda356cc35444cf5abcec30d",
+        "supplemental_review": "8d101499b24e2941c15b79c592f8fec3efd53e635b35bab28fc0ff3b1d46ca3e",
+        "expanded_selection": "b11faae762ae66237438866ff4b9bdd354e8460e380d8d68dac31fe9c2f4acd1",
+        "final_adjudication": "adcb89d60b8660fc11f3d0b8f09c718fa1b09f7e93e4920345fce9bacf1f998a"
+      }
+    },
+    "facility": {
+      "original_selected": 172,
+      "supplemental": 36,
+      "previously_missed_disagreements": 29,
+      "added_agreement_samples": 7,
+      "full_disagreements": 193,
+      "genuine_agreements": 22,
+      "genuine_agreements_sampled": 15,
+      "agreement_sample_percent": 68.182,
+      "final_adjudicated": 208,
+      "populated_agreement_strata_checked": 22,
+      "empty_agreement_strata": 9,
+      "minimum_populated_stratum_sample_percent": 33.333,
+      "setup_attempts_reviewed": 40,
+      "exact_original_plus_supplement_union": true,
+      "standard_selection_equals_expanded_selection": true,
+      "hashes": {
+        "original_selection_snapshot": "e0d2a9eba4d3594ae6415d464ff4daf5a09bb38e5f439b4915b209ff61ec1084",
+        "original_adjudication_snapshot": "64d5bb32a6ed04fec90864f3f7f1df8e5da16280f15f4e5d892edb3eab0dcd40",
+        "supplemental_review": "d28fa423df1c755476470941d498002a8766ba60a03d14adf4aacd00701356f4",
+        "expanded_selection": "1e8c8285f3810361aee785387615b53f88be72e4404a2504f7fac305c27d5277",
+        "final_adjudication": "d205bd630289f586ccf4517d685ec8a87b772726b23ce1bcc2879be795bc31a2"
+      }
+    },
+    "consumer": {
+      "original_selected": 169,
+      "supplemental": 37,
+      "previously_missed_disagreements": 31,
+      "added_agreement_samples": 6,
+      "full_disagreements": 178,
+      "genuine_agreements": 61,
+      "genuine_agreements_sampled": 28,
+      "agreement_sample_percent": 45.902,
+      "final_adjudicated": 206,
+      "populated_agreement_strata_checked": 30,
+      "empty_agreement_strata": 1,
+      "minimum_populated_stratum_sample_percent": 20,
+      "setup_attempts_reviewed": 45,
+      "exact_original_plus_supplement_union": true,
+      "standard_selection_equals_expanded_selection": true,
+      "hashes": {
+        "original_selection_snapshot": "03d913f495790928a415e5d78d6dc22ab520f6d5e29d34a5471c7e536d4b5712",
+        "original_adjudication_snapshot": "90f2c9b542f62a1cad6220b0c1b1d6a555be22940858bc4c9aa3884833a5fd8e",
+        "supplemental_review": "59236e88ec34a047c4fffbdb647cf605fdf1dfa57f45c641d3608c4bbad508f0",
+        "expanded_selection": "3bcfa97144a920c6c5d7c2be970679396d7154f621886f9ed5509e8a6bca4e76",
+        "final_adjudication": "aee931d1193c242823cfcc008656c5b17a04a1569ade6245f4c8ee5952ad695b"
+      }
+    }
+  },
+  "verification_assertions": {
+    "all_147_ids_from_initial_review_present_in_supplemental_sets": true,
+    "all_original_selected_ids_retained": true,
+    "all_original_selection_snapshot_hashes_match_recorded_pre_repair_hashes": true,
+    "all_original_adjudication_ids_exactly_cover_original_selection": true,
+    "all_supplemental_adjudication_ids_exactly_cover_supplemental_selection": true,
+    "all_final_adjudication_ids_unique_and_exactly_cover_expanded_selection": true,
+    "all_final_grade_objects_equal_original_plus_authored_supplement": true,
+    "all_setup_findings_equal_original_plus_declared_new_supplemental_findings": true,
+    "all_supplemental_access_declarations_preserved": true,
+    "all_actual_full_comparison_disagreements_match_expanded_selection": true,
+    "all_full_comparison_disagreements_selected": true,
+    "all_agreement_sample_ids_are_genuine_full_comparison_agreements": true,
+    "all_populated_agreement_strata_meet_ceiling_20_percent": true,
+    "all_setup_attempt_ids_exactly_match_raw_set_without_duplicates": true,
+    "all_four_raw_capture_hashes_match_original_capture_integrity": true,
+    "all_four_attempt_journal_hashes_match_original_capture_integrity": true,
+    "all_1218_sealed_file_hashes_match": true,
+    "seal_sha256": "274cee608512b25efe0479c2c99dc2cddbd5716cb6ad8070544ba7a33881419f",
+    "original_integrity_review_hash_unchanged": true,
+    "setup_metadata_note": "Oma stores reviewed setup entries as objects containing attempt_id; the coverage check normalized these alongside the other workers' string IDs. This is representational normalization only, with no evidence or grade changes.",
+    "empty_stratum_note": "A stratum with zero genuine agreements has no agreed sample to draw; all its disagreements are still selected. Empty agreement strata are not interpreted as successful quality qualification."
+  },
+  "limitations_remaining_after_closure": [
+    {
+      "category": "scope of this closure",
+      "finding": "This closes the demonstrated selection-coverage defect for the hashed final artifacts. It does not certify product intelligence, erase P0 findings, validate final numerical score output or replace independent semantic grading."
+    },
+    {
+      "category": "disclosed process history",
+      "finding": "Final delivery must preserve and disclose both the earlier omitted-rubric commissioning repair and this secondary-boundary selection repair. The initial open-at-review integrity report remains valid as a historical snapshot and must be linked with this closure rather than rewritten."
+    },
+    {
+      "category": "independence and fairness",
+      "finding": "Same-model procedural independence, author-facing capability/scope ambiguity, canonical-Core versus external HTTP evidence limits, local synthetic performance limits, low-sample intent strata and historical exclusions remain as documented in the initial integrity review. Additive coverage repair does not remove those limitations."
+    },
+    {
+      "category": "reference_subset diagnostic interpretation",
+      "finding": "The frozen scorer defines structural.reference_subset using expected.reference !== null. Metadata inspection finds nonnull references on all 167 Oma, 171 Osa and 189 Consumer primary turns, including all 80 first turns per worker; Facility has 156 of 165 nonnull, including 78 first turns. This field therefore does not isolate conversational follow-ups and cannot support follow-up-only reference accuracy claims.",
+      "required_disclosure": "Treat reference_subset as a nonnull-expectation diagnostic only, not a valid follow-up-only metric. The main structural.reference gate remains the unchanged all-primary structural score. No frozen scorer, expected.reference metadata, grade or result was changed by this review."
+    }
+  ],
+  "conclusion": "The additive repair satisfies the unchanged all-disagreement and stratified-agreement adjudication requirements for all four finalized workers. The final artifacts contain 763 fully compared disagreements plus 69 genuine-agreement samples, preserve every original decision, and include all 165 separately authored supplemental decisions. Frozen inputs and first-contact evidence remain byte-identical. No open instance of PIQ-INTEGRITY-001 remains in the verified final selection/union artifacts."
+}
