@@ -419,7 +419,9 @@
     "smoke:home-invite-consumer-url": "npm run build && node scripts/home-invite-consumer-url-smoke.mjs",
     "smoke:consumer-context-resolution": "npm run build && node scripts/consumer-context-resolution-smoke.mjs",
     "smoke:resident-invite-existing-identity": "node scripts/resident-invite-existing-identity-smoke.mjs",
-    "smoke:typed-utility-pricing": "npm run build && node scripts/typed-utility-pricing-smoke.mjs"
+    "smoke:typed-utility-pricing": "npm run build && node scripts/typed-utility-pricing-smoke.mjs",
+    "test:hardware-payments": "npm run build && node scripts/hardware-payment-validation.cjs && node scripts/hardware-wallet-boundary-smoke.cjs && node scripts/hardware-webhook-http.cjs",
+    "hardware-payments:reconcile": "node dist/commerce/reconcileHardwarePayments.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.1",

@@ -5,7 +5,10 @@ import { auditOnSuccess } from "../middleware/audit";
 import * as WalletCtrl from "../controllers/walletController";
 import { resolveRequestContext } from "../middleware/contextResolver";
 
+import { rejectHardwareWalletReference } from "../commerce/hardwarePaymentBoundary";
+
 const router = Router();
+router.use(rejectHardwareWalletReference);
 
 /**
  * ============================
