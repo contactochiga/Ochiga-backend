@@ -15,6 +15,7 @@ def main(q):
   if q['action']=='prepare':
    plan=q['plan'];scenarios={s['id'] for s in manifest['scenarios']}
    if not 1<=len(plan)<=12 or len({p['reference'] for p in plan})!=len(plan):raise Denied('invalid_plan')
+   if manifest.get('execution_profile')=='single-initialization-only' and (len(plan)!=1 or plan[0].get('scenario')!='single_initialization' or type(plan[0].get('amount')) is not int or plan[0]['amount']!=10000):raise Denied('single_initialization_plan_required')
    import re
    for p in plan:
     if set(p)!={'reference','scenario','amount'} or not re.fullmatch('hwo_[a-f0-9]{32}',p['reference']) or p['scenario'] not in scenarios or type(p['amount']) is not int or not 0<p['amount']<=10000:raise Denied('invalid_plan')
@@ -61,10 +62,15 @@ def main(q):
    return {'dispatch':True}
   if q['action']=='claim':
    kind=q['kind'];amount=q.get('amount',0)
+   if manifest.get('execution_profile')=='single-initialization-only' and (kind!='payment' or q.get('scenario')!='single_initialization' or q.get('id')!=item['reference'] or q.get('parent') is not None or amount!=item['amount']):e.stop('single_initialization_only');raise Denied('single_initialization_only')
    if kind in ('payment','refund') and amount!=item['amount']:e.stop('amount_mismatch');raise Denied('amount_mismatch')
-   if kind in ('payment','refund') and e.db.execute("select count(*) from intents where state in ('started','uncertain') and kind in ('payment','refund')").fetchone()[0]:raise Denied('read_only_recovery_required')
+   if kind in ('payment','refund') and e.db.execute("select count(*) from intents where state in ('started','uncertain') and kind in ('payment','refund')").fetchone()[0]:
+    if manifest.get('execution_profile')=='single-initialization-only':e.stop('single_initialization_outcome_unknown')
+    raise Denied('read_only_recovery_required')
    fresh=e.reserve(q['id'],item['scenario'],kind,amount,q.get('parent'),q['mode'])
-   if not fresh:raise Denied('financial_operation_already_reserved')
+   if not fresh:
+    if manifest.get('execution_profile')=='single-initialization-only':e.stop('single_initialization_already_reserved')
+    raise Denied('financial_operation_already_reserved')
    if q.get('request_hash'):
     import re
     if not re.fullmatch('[a-f0-9]{64}',q['request_hash']):raise Denied('invalid_request_hash')
@@ -79,6 +85,8 @@ def main(q):
     if not intent or intent['scenario']!=item['scenario']:raise Denied('unknown_observation')
     if intent['state']=='verified_success' and q['state']!='verified_success':raise Denied('conflicting_observation')
     e.db.execute('UPDATE intents SET state=? WHERE id=?',(q['state'],q['id']));e.event('wire_'+q['state'],q['id'])
+    if manifest.get('execution_profile')=='single-initialization-only' and q['state'] in ('uncertain','returned'):
+     e.db.execute('UPDATE run SET enabled=0,stopped=1');e.event('stopped_single_initialization_terminal',q['id'])
    return {'recorded':True}
   raise Denied('unknown_command')
  finally:e.close()

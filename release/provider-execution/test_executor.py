@@ -2,6 +2,7 @@ import unittest,tempfile,pathlib,json,sys,concurrent.futures
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 from executor import Executor,Denied
 M=json.loads((pathlib.Path(__file__).parent.parent/'provider-preparation/run-manifest.json').read_text())
+S=json.loads((pathlib.Path(__file__).parent/'single-init-manifest.json').read_text())
 def uid(n):return 'hwo_'+format(n,'032x')
 class Tests(unittest.TestCase):
  def setUp(self):
@@ -77,4 +78,19 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.e.db.execute('select state from intents').fetchone()[0],'started')
   self.assertEqual(self.e.db.execute('select stopped from run').fetchone()[0],1)
   self.assertFalse(self.e.disposable())
+ def test_single_init_profile_exactly_one(self):
+  self.e.close();self.p=str(pathlib.Path(self.d.name)/'single.sqlite');self.e=Executor(self.p,S);self.enable()
+  self.assertTrue(self.e.reserve(uid(1),'single_initialization','payment',10000,evidence='mock'))
+  with self.assertRaises(Denied):self.e.reserve(uid(2),'single_initialization','payment',10000,evidence='mock')
+  self.assertEqual(self.e.db.execute("select count(*) from intents where kind='payment'").fetchone()[0],1)
+ def test_single_init_denies_refund_reconcile_read_and_replay(self):
+  for i,kind in enumerate(('refund','read','replay')):
+   with tempfile.TemporaryDirectory() as td:
+    e=Executor(str(pathlib.Path(td)/'run.sqlite'),S);e.enable({'manifest_sha256':e.digest,'authorized':True,'environment':'test','evidence':'mock'},mock=True)
+    with self.assertRaises(Denied):e.reserve(uid(10+i),'single_initialization',kind,10000 if kind=='refund' else 0,evidence='mock')
+    self.assertEqual(e.db.execute('select stopped from run').fetchone()[0],1);e.close()
+ def test_single_init_manifest_rejects_refund_budget_or_other_scenario(self):
+  self.e.close()
+  with self.assertRaises(Denied):Executor(self.p,{**S,'max_refund_initializations':1})
+  with self.assertRaises(Denied):Executor(self.p,{**S,'scenarios':[{'id':'refund_processed','evidence':'real-provider','expected':'refund'}]})
 if __name__=='__main__':unittest.main()

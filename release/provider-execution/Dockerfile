@@ -5,5 +5,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 iptable
 COPY release/provider-execution/ /app/backend/release/provider-execution/
 COPY dist/commerce/ /app/backend/dist/commerce/
 WORKDIR /app/backend
-ENV HARDWARE_BOUNDED_EXECUTION_ENABLED=false PROVIDER_FINANCIAL_EXECUTION_ENABLED=false
+ENV HARDWARE_BOUNDED_EXECUTION_ENABLED=false PROVIDER_FINANCIAL_RELAY_ENABLED=false PROVIDER_FINANCIAL_EXECUTION_ENABLED=false
 CMD ["node","release/provider-execution/execution-server.cjs"]

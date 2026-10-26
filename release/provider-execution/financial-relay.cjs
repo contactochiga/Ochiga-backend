@@ -20,7 +20,10 @@ function handler({config,key,send,consume=bridge}){return async(q,r)=>{
   let n=0,chunks=[];for await(const b of q){n+=b.length;if(n>32768)throw Error();chunks.push(b);}
   const p=JSON.parse(Buffer.concat(chunks));
   if(Object.keys(p).sort().join(',')!=='body,method,reference,ticket,url'||!['GET','POST'].includes(p.method)||typeof p.ticket!=='string')throw Error();
-  const exact=(p.method==='POST'&&['/transaction/initialize','/refund'].includes(p.url))||(p.method==='GET'&&(/^\/transaction\/verify\/hwo_[a-f0-9]{32}$/.test(p.url)||/^\/refund\/[1-9][0-9]{0,39}$/.test(p.url)||/^\/refund\?transaction=[1-9][0-9]{0,39}&perPage=100&page=([1-9]|10)$/.test(p.url)||/^\/dispute\/transaction\/[1-9][0-9]{0,39}$/.test(p.url)));
+  const singleOnly=config.manifest?.execution_profile==='single-initialization-only';
+  const exact=singleOnly
+   ? p.method==='POST'&&p.url==='/transaction/initialize'
+   : (p.method==='POST'&&['/transaction/initialize','/refund'].includes(p.url))||(p.method==='GET'&&(/^\/transaction\/verify\/hwo_[a-f0-9]{32}$/.test(p.url)||/^\/refund\/[1-9][0-9]{0,39}$/.test(p.url)||/^\/refund\?transaction=[1-9][0-9]{0,39}&perPage=100&page=([1-9]|10)$/.test(p.url)||/^\/dispute\/transaction\/[1-9][0-9]{0,39}$/.test(p.url)));
   if(!exact)throw Error('route_denied');
   // Consume once, durably, before the only possible external side effect.
   consume(config,'consume',{reference:p.reference,ticket:p.ticket,request_hash:wireHash(p.method,p.url,p.body)});
@@ -30,9 +33,10 @@ function handler({config,key,send,consume=bridge}){return async(q,r)=>{
 async function main(){
  for(const name of ['PAYSTACK_SECRET_KEY','PAYSTACK_SECRECT_KEY','DATABASE_URL','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','RESEND_API_KEY','SMTP_HOST'])if(process.env[name])throw Error('unrelated_credentials_denied');
  let config=null,key=null,addresses=[];
- if(process.env.PROVIDER_FINANCIAL_EXECUTION_ENABLED==='true'){
+ if(process.env.PROVIDER_FINANCIAL_RELAY_ENABLED==='true'){
   config=JSON.parse(fs.readFileSync('/run/execution/config.json','utf8'));
-  if(config.mode!=='real-provider'||config.database!=='/run/execution/run.sqlite')throw Error();bridge(config,'plan');
+  if(config.mode!=='real-provider'||config.database!=='/run/execution/run.sqlite'||config.manifest?.execution_profile!=='single-initialization-only')throw Error();
+  bridge(config,process.env.PROVIDER_FINANCIAL_EXECUTION_ENABLED==='true'?'plan':'preflight-plan');
   key=require('../../dist/commerce/hardwareSetupServer').setupWebhookSigningKey({HARDWARE_TEST_WEBHOOK_KEY_FILE:'/run/secrets/hardware-test-key'});
   addresses=(await dns.resolve4('api.paystack.co')).filter(ip=>! /^(0\.|10\.|127\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|198\.(18|19)\.|22[4-9]\.|2[3-5]\d\.)/.test(ip));
   if(!addresses.length)throw Error();

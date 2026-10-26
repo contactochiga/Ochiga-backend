@@ -7,6 +7,7 @@ async function main(){
  if(config.mode!=='real-provider'||config.database!=='/run/execution/run.sqlite')throw Error('test_config_required');
  const plan=bridge(config,'plan');
  const action=process.argv[2],scenario=process.argv[3];
+ if(config.manifest.execution_profile==='single-initialization-only'&&(action!=='initialize'||scenario!=='single_initialization'||plan.length!==1||plan[0].scenario!=='single_initialization'))throw Error('single_initialization_only');
  if(!['initialize','reconcile','replay'].includes(action))throw Error('unknown_run_action');
  const entry=plan.find(x=>x.scenario===scenario);if(!entry)throw Error('scenario_not_approved');
  const fixed='http://hardware-setup-backend:3000/hardware-payments/';

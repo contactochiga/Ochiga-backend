@@ -12,6 +12,9 @@ function bridge(config,action,fields={}){
 }
 const wireHash=(method,url,body)=>crypto.createHash('sha256').update(JSON.stringify({method,url,body:body===undefined?null:body})).digest('hex');
 const opid=(s)=>'hwo_'+crypto.createHash('sha256').update(s).digest('hex').slice(0,32);
+function validInitializationResponse(response,reference){
+ try{const d=response?.data,p=d?.data,u=new URL(p?.authorization_url);return d?.status===true&&p?.reference===reference&&u.protocol==='https:'&&u.hostname==='checkout.paystack.com'&&!u.port&&!u.username&&!u.password;}catch{return false;}
+}
 function createBoundedServices(d,config){
  if(!['mock','real-provider'].includes(config.mode)||!d.secret.startsWith('sk_test_'))throw Error('test_only');
  // Real transport must be the fixed-destination relay adapter; never caller-selected Axios defaults.
@@ -55,7 +58,7 @@ function createBoundedServices(d,config){
    }
    observe(ref,ref,p.status==='success'?'verified_success':['failed','abandoned'].includes(p.status)?'verified_failure':'returned');
   }
-  if(kind==='payment'&&(response?.data?.status!==true||p?.reference!==ref)){
+  if(kind==='payment'&&(!validInitializationResponse(response,ref))){
    observe(ref,id,'uncertain');throw Error('initialization_response_uncertain');
   }
   if(kind==='refund'&&(response?.data?.status!==true||!p)){
@@ -89,4 +92,4 @@ function createBoundedServices(d,config){
  payments.replayWebhook=async(raw,signature)=>{const b=JSON.parse(raw.toString()),ref=b?.data?.reference;bridge(config,'claim',{reference:ref,id:opid(crypto.randomUUID()),kind:'replay',amount:0});return payments.webhook(raw,signature);};
  return {payments,recovery,bridge:(action,fields)=>bridge(config,action,fields),provider};
 }
-module.exports={createBoundedServices,bridge,opid,wireHash};
+module.exports={createBoundedServices,bridge,opid,wireHash,validInitializationResponse};

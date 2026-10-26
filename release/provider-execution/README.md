@@ -2,6 +2,12 @@
 
 Default disabled. Preparation and tests do not authorize provider transactions.
 
+## Single initialization only
+
+The `single-init-manifest.json` profile is narrower than the multi-scenario runner: one plan item, one `single_initialization` payment intent, a 10,000-kobo cap, and zero refunds, provider reads, or webhook replays. The relay accepts only `POST /transaction/initialize` in this profile. A valid initialization response or any uncertain/malformed outcome makes the run terminal; a restart cannot mint another dispatch ticket for the same intent. The controller accepts only `initialize single_initialization`; the execution server profile exposes no reconciliation, recovery, replay, refund, or webhook-processing route. Payment processing, recovery, and refund flags must remain false.
+
+The provider relay can be started for isolated preparation with `PROVIDER_FINANCIAL_RELAY_ENABLED=true` while `PROVIDER_FINANCIAL_EXECUTION_ENABLED=false`. It loads the single-init plan and applies provider-only egress, but the disabled durable ledger rejects every dispatch before `send()`. The separate bounded Backend remains on setup-only mode until a later, exact execution authorization. Both flags default false in the image.
+
 ## Existing financial authority
 `integration.cjs` wraps the existing `HardwarePayments`, `HardwareRecovery`, initialization router, raw webhook handler and Office confirmation/financial-operation dependencies. PostgreSQL payment/refund ledgers and Office reservations remain authoritative. SQLite stores execution budgets, dispatch tickets and redacted outcomes only; it never credits a wallet or marks an Office order paid.
 

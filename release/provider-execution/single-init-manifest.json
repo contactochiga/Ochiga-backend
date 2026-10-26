@@ -1,0 +1,20 @@
+{
+  "execution_profile": "single-initialization-only",
+  "environment": "test",
+  "currency": "NGN",
+  "max_payment_initializations": 1,
+  "max_payment_kobo": 10000,
+  "max_total_payment_kobo": 10000,
+  "max_refund_initializations": 0,
+  "max_refund_kobo": 0,
+  "max_provider_reads": 0,
+  "max_webhook_replays": 0,
+  "max_duration_minutes": 15,
+  "scenarios": [
+    {
+      "id": "single_initialization",
+      "evidence": "real-provider",
+      "expected": "initialization_only"
+    }
+  ]
+}
