@@ -420,7 +420,7 @@
     "smoke:consumer-context-resolution": "npm run build && node scripts/consumer-context-resolution-smoke.mjs",
     "smoke:resident-invite-existing-identity": "node scripts/resident-invite-existing-identity-smoke.mjs",
     "smoke:typed-utility-pricing": "npm run build && node scripts/typed-utility-pricing-smoke.mjs",
-    "test:hardware-payments": "npm run build && node scripts/hardware-payment-validation.cjs && node scripts/hardware-wallet-boundary-smoke.cjs && node scripts/hardware-webhook-http.cjs && node release/provider-execution/test-relay.cjs && node release/provider-execution/test-single-init-runtime.cjs",
+    "test:hardware-payments": "npm run build && node scripts/hardware-payment-validation.cjs && node scripts/hardware-wallet-boundary-smoke.cjs && node scripts/hardware-webhook-http.cjs && node release/provider-execution/test-relay.cjs && node release/provider-execution/test-single-init-runtime.cjs && node release/provider-execution/test-payment-start-diagnostics.cjs",
     "hardware-payments:reconcile": "node dist/commerce/reconcileHardwarePayments.js",
     "hardware-payments:setup": "node dist/commerce/hardwareSetupServer.js",
     "test:hardware-setup": "npm run build && node scripts/hardware-setup-validation.cjs"

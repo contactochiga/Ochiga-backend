@@ -10,6 +10,17 @@ def main(q):
  tables={r[0] for r in probe.execute("select name from sqlite_master where type='table'")};triggers={r[0] for r in probe.execute("select name from sqlite_master where type='trigger'")};integrity=probe.execute('PRAGMA integrity_check').fetchone()[0];probe.close()
  if integrity!='ok' or not {'events_no_update','events_no_delete','intents_no_delete','intents_financial_immutable','run_manifest_immutable'}.issubset(triggers):raise Denied('execution_state_inconsistent')
  if not {'run','intents','events'}.issubset(tables):raise Denied('execution_state_inconsistent')
+ if q.get('action')=='status':
+  statusdb=sqlite3.connect('file:'+path+'?mode=ro',uri=True)
+  r=statusdb.execute('SELECT enabled,stopped,mode FROM run WHERE id=1').fetchone()
+  if not r:statusdb.close();raise Denied('execution_state_inconsistent')
+  states={row[0]:row[1] for row in statusdb.execute('SELECT state,count(*) FROM intents GROUP BY state')}
+  intents=statusdb.execute('SELECT count(*) FROM intents').fetchone()[0]
+  tickets=statusdb.execute('SELECT count(*) FROM wire_tickets').fetchone()[0] if 'wire_tickets' in tables else 0
+  consumed=statusdb.execute('SELECT count(*) FROM wire_tickets WHERE consumed=1').fetchone()[0] if 'wire_tickets' in tables else 0
+  dispatches=statusdb.execute("SELECT count(*) FROM events WHERE event='wire_dispatch'").fetchone()[0]
+  statusdb.close()
+  return {'run_enabled':bool(r[0]),'run_stopped':bool(r[1]),'mode':r[2],'intent_count':intents,'intent_states':states,'dispatch_ticket_count':tickets,'consumed_dispatch_ticket_count':consumed,'provider_dispatch_count':dispatches}
  e=Executor(path,manifest)
  try:
   if q['action']=='prepare':

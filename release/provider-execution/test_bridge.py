@@ -18,6 +18,15 @@ class BridgeTests(unittest.TestCase):
   self.assertEqual(len(main({**self.q,'action':'preflight-plan'})),1)
   self.assertEqual(self.e.db.total_changes,before)
   with self.assertRaises(Denied):main({**self.q,'action':'plan'})
+ def test_status_is_read_only_and_redacted(self):
+  before=self.e.db.total_changes
+  status=main({**self.q,'action':'status'})
+  self.assertEqual(self.e.db.total_changes,before)
+  self.assertEqual(status['intent_count'],0)
+  self.assertEqual(status['dispatch_ticket_count'],0)
+  self.assertEqual(status['provider_dispatch_count'],0)
+  self.assertTrue(status['run_enabled'])
+  self.assertFalse({'reference','order_id','amount','secret','url'} & set(status))
  def test_ticket_concurrency(self):
   ticket=self.ticket()
   def go(_):
