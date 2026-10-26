@@ -462,5 +462,10 @@
     "socket.io-client": "^4.8.4",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
+  },
+  "overrides": {
+    "aws-sdk": {
+      "uuid": "11.1.1"
+    }
   }
 }
