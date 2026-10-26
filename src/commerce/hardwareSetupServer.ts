@@ -1,5 +1,6 @@
 // Isolated setup executable. Never imports app.ts, wallet routes or background workers.
 import express from "express";
+import fs from "fs";
 import { validSignature, paymentCallback } from "./hardwarePayments";
 export function assertSetupEnvironment(e: NodeJS.ProcessEnv) {
   if (
@@ -35,8 +36,20 @@ export function assertSetupEnvironment(e: NodeJS.ProcessEnv) {
     e.HARDWARE_TEST_CALLBACK_ORIGIN,
   );
 }
+// Optional real TEST signing key is read from an exact read-only secret mount only.
+// It never enters the payment factory/environment and cannot enable processing.
+export function setupWebhookSigningKey(e: NodeJS.ProcessEnv, io = fs): string {
+  if (!e.HARDWARE_TEST_WEBHOOK_KEY_FILE) return e.HARDWARE_PAYSTACK_SECRET_KEY!;
+  if (e.HARDWARE_TEST_WEBHOOK_KEY_FILE !== "/run/secrets/hardware-test-key") throw Error("test_signing_key_mount_required");
+  const stat = io.lstatSync(e.HARDWARE_TEST_WEBHOOK_KEY_FILE);
+  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o777) !== 0o600) throw Error("insecure_test_signing_key");
+  const key = io.readFileSync(e.HARDWARE_TEST_WEBHOOK_KEY_FILE, "utf8").trim();
+  if (!/^sk_test_[A-Za-z0-9_]{12,240}$/.test(key) || key.startsWith("sk_test_SETUP_")) throw Error("dedicated_test_signing_key_required");
+  return key;
+}
 export function setupApp() {
   assertSetupEnvironment(process.env);
+  const signingKey = setupWebhookSigningKey(process.env);
   const app = express();
   app.disable("x-powered-by");
   app.get("/healthz", (_q, r) =>
@@ -50,7 +63,7 @@ export function setupApp() {
         !validSignature(
           q.body,
           q.headers["x-paystack-signature"],
-          process.env.HARDWARE_PAYSTACK_SECRET_KEY!,
+          signingKey,
         )
       ) {
         r.sendStatus(401);

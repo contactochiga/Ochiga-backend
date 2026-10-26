@@ -1,0 +1,28 @@
+{
+  "mode": "preparation-only",
+  "authorized": false,
+  "currency": "NGN",
+  "environment": "test",
+  "max_payment_initializations": 12,
+  "max_payment_kobo": 10000,
+  "max_total_payment_kobo": 120000,
+  "max_refund_initializations": 3,
+  "max_refund_kobo": 10000,
+  "max_provider_reads": 60,
+  "max_webhook_replays": 3,
+  "max_duration_minutes": 60,
+  "scenarios": [
+    {"id":"success","evidence":"real-provider","expected":"paid_and_allocated_once"},
+    {"id":"declined","evidence":"real-provider","expected":"not_paid_not_allocated"},
+    {"id":"delayed_success","evidence":"real-provider-plus-injected-network-fault","expected":"original_reference_recovered_once"},
+    {"id":"duplicate_webhook","evidence":"real-event-plus-controlled-replay","expected":"one_confirmation_and_allocation"},
+    {"id":"redirect_only","evidence":"injected-browser-action","expected":"no_paid_transition"},
+    {"id":"amount_mismatch","evidence":"injected-verification-fault","expected":"manual_reconciliation_no_allocation"},
+    {"id":"reference_mismatch","evidence":"injected-verification-fault","expected":"manual_reconciliation_no_allocation"},
+    {"id":"expired_reservation","evidence":"real-provider-plus-controlled-expiry","expected":"refund_required_no_allocation"},
+    {"id":"office_outage","evidence":"real-provider-plus-injected-office-fault","expected":"durable_confirmation_retried_once"},
+    {"id":"refund_processed","evidence":"real-provider-if-supported","expected":"verified_full_refund_not_bank_arrival"},
+    {"id":"refund_failed","evidence":"real-provider-if-supported","expected":"escalation_not_refunded"},
+    {"id":"refund_attention","evidence":"real-provider-if-supported","expected":"escalation_not_refunded"}
+  ]
+}

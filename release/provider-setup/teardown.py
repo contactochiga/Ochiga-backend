@@ -1,14 +1,18 @@
 from pathlib import Path
 import subprocess,json,shutil,os,signal
 p=Path(__file__).resolve().parent/'runtime'
-if (p/'tunnel.pid').exists():
- pid=int((p/'tunnel.pid').read_text());name=subprocess.run(['ps','-p',str(pid),'-o','command='],capture_output=True,text=True).stdout
- if 'cloudflared' in name and '18444' in name:os.kill(pid,signal.SIGTERM)
 if (p/'state.json').exists():
  s=json.loads((p/'state.json').read_text())
  for db,table in [('backend','hardware_payment_attempts'),('office','hardware_payment_confirmations')]:
   r=subprocess.run(['docker','exec','hardware-setup-'+db+'-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c','select count(*) from '+table],capture_output=True,text=True)
-  if r.returncode==0 and r.stdout.strip()!='0':raise SystemExit('Financial evidence exists: archive and reconcile before teardown')
+  if r.returncode!=0:raise SystemExit('Financial state unavailable: preserve services and inspect before teardown')
+  if r.stdout.strip()!='0':raise SystemExit('Financial evidence exists: archive and reconcile before teardown')
+ if (p/'tunnel.pid').exists():
+  pid=int((p/'tunnel.pid').read_text());name=subprocess.run(['ps','-p',str(pid),'-o','command='],capture_output=True,text=True).stdout
+  if 'cloudflared' in name and '18444' in name:os.kill(pid,signal.SIGTERM)
+ r=subprocess.run(['docker','inspect','--format','{{index .Config.Labels "getoyi.isolated.provider"}}','hardware-provider-egress'],capture_output=True,text=True)
+ if r.stdout.strip()=='true':subprocess.run(['docker','rm','-f','hardware-provider-egress'],capture_output=True)
+ subprocess.run(['docker','network','rm','hardware-provider-egress-nat'],capture_output=True)
  for name in reversed(s['containers']):
   assert name.startswith('hardware-setup-')
   check=subprocess.run(['docker','inspect','--format','{{index .Config.Labels "getoyi.isolated.setup"}}',name],capture_output=True,text=True)
