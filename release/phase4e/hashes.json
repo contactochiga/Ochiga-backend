@@ -1,0 +1,6 @@
+{
+  "supabase/migrations/20261026102658_hardware_refund_recovery.sql": "128bca73a4514148a84473f2828f94759841c68217ae866eea13eb3ddf201c06",
+  "release/phase4e/shape.sql": "83241dc919c6fc24953adffde29dd6c0a58c6fee89a5dc6fae193cc9d8e353e9",
+  "release/phase4e/reviewed.json": "2f4b8f646c8631c1caa0b6a1b61733a0a705d745a970b7b8c20389df53ee2337",
+  "release/phase4e/rollback.sql": "7613b813285b84c89b3f5c17f7108540919041cc19e1b6771aa2e4d5a40575eb"
+}

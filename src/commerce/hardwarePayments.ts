@@ -280,14 +280,15 @@ export class HardwarePayments {
     if (!validSignature(raw, signature, this.d.secret))
       throw Error("invalid_signature");
     const body = JSON.parse(raw.toString("utf8"));
+    const reference = body?.data?.reference || body?.data?.transaction_reference || body?.data?.transaction?.reference;
     if (
-      typeof body?.data?.reference !== "string" ||
+      typeof reference !== "string" ||
       typeof body.event !== "string"
     )
       throw Error("invalid_event");
     await this.d.rpc("hardware_payment_accept_event", {
       p_digest: crypto.createHash("sha256").update(raw).digest("hex"),
-      p_reference: body.data.reference,
+      p_reference: reference,
       p_type: body.event,
     });
   }
