@@ -6,12 +6,16 @@
 
 - Isolated run: `fb70bddcdadf`.
 - Original synthetic payment reference: retained in the isolated Backend payment attempt and execution ledger. The release report uses only the redacted form `hwo_c583…e435`; do not replace or reissue it.
-- Paystack Test Mode result: **unavailable / not established**. The read-only verification attempt produced no usable provider response. This does not establish that Paystack has no matching transaction or rejected it.
+- Owner-reported Paystack Test Mode dashboard evidence for business `2075190`: no transactions are displayed. This is dashboard evidence only.
+- Read-only Paystack Test Mode verification of the original protected reference returned HTTP `400`, safely classified as `no_matching_provider_reference_response`. No matching transaction payload, transaction ID, payment status, amount, or currency was returned. This is a provider response for the verification query; it is **not** proof that the original initialization was never received or was rejected.
+- The original initialization remains **uncertain**. The original relay returned only a generic 503, and the stopped relay/Backend containers have no logs. Their immutable event record says only `initialization_outcome_unknown` and `provider_verify_unavailable`; the original provider HTTP status, if any, was not retained.
+- The read-only verification route reached Paystack and received an HTTP response, so the current diagnostic had working DNS/TLS/API reachability. No 401/403 authentication failure was observed for the verification query. The request does not independently prove the test key's business association or reveal what happened to the earlier initialization POST.
 - Backend attempt: `uncertain`, NGN 10,000 kobo, no provider transaction ID, no hosted checkout URL; three recorded attempts/claims.
 - Office order: payment `not_started`; no payment confirmation and no stock allocation.
 - Reservation: state remains `held`; its expiry timestamp has passed, while `ended_at` is unset. This is a stale expiry state to review separately. No expiry transition or inventory adjustment was performed.
 - Execution ledger: integrity check `ok`; run disabled and not stopped; one payment intent remains `uncertain`; two read intents returned; all three dispatch tickets are consumed.
 - Refund records/initiations: none.
+- The verification queries did not change the Backend attempt, Office records, reservation, execution ledger, budgets, or dispatch tickets.
 
 ## Proposed quarantine controls
 
