@@ -28,8 +28,47 @@ def post(action,payload,key,ctx):
   except Exception:body={}
   raise RuntimeError('isolated_checkout_'+str(e.code)+'_'+str(body.get('error','rejected')))
 
+def seal_current(manifest, state, ctx, checkout_key, image):
+ # Seal the one already-created eligible synthetic checkout. This path is
+ # read-only against Office/Backend except for creating a new disabled runner
+ # ledger/volume; it never submits another order or contacts Paystack.
+ rows=sql("""select o.id::text||'|'||r.guest_hash||'|'||r.idempotency_key||'|'||o.goods_total_kobo::text||'|'||o.payable_total_kobo::text||'|'||o.payment_state||'|'||o.order_state||'|'||v.state||'|'||(v.expires_at>clock_timestamp())::text||'|'||(select count(*) from hardware_order_lines l where l.order_id=o.id)::text||'|'||(select string_agg(l.sku||':'||l.quantity::text,',') from hardware_order_lines l where l.order_id=o.id) from hardware_orders o join hardware_checkout_receipts r on r.order_id=o.id and r.client='synthetic-checkout' join hardware_order_private p on p.order_id=o.id join hardware_reservations v on v.order_id=o.id where p.customer->>'email' like 'single-init-%@example.invalid' and v.state='held' and v.expires_at>clock_timestamp() order by o.created_at desc limit 2""").splitlines()
+ if len(rows)!=1: raise RuntimeError('exactly_one_fresh_held_synthetic_order_required')
+ parts=rows[0].split('|')
+ if len(parts)!=11: raise RuntimeError('synthetic_order_shape_invalid')
+ order_id,guest,key,goods,payable,payment_state,order_state,res_state,res_valid,line_count,sku_qty=parts
+ if (goods,payable,payment_state,order_state,res_state,res_valid,line_count,sku_qty)!=('10000','10000','not_started','awaiting_confirmation','held','true','1','SETUP-COMMERCE-A:1'):
+  raise RuntimeError('fresh_synthetic_order_ineligible')
+ code,payment=post('payment-quote',{'id':order_id,'guest_hash':guest},checkout_key,ctx);p=payment.get('payment',{})
+ if code!=200 or p.get('eligible') is not True or p.get('payment_state')!='not_started' or p.get('amount_kobo')!=10000 or p.get('currency') not in (None,'NGN'):
+  raise RuntimeError('fresh_order_payment_quote_ineligible')
+ old=subprocess.check_output(['docker','exec','hardware-setup-backend-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c',"select reference||'|'||order_id::text||'|'||reservation_id::text||'|'||state from hardware_payment_attempts where state='uncertain' order by created_at desc limit 2"],text=True).strip().splitlines()
+ if len(old)!=1 or old[0].count('|')!=3: raise RuntimeError('original_uncertain_attempt_missing_or_ambiguous')
+ old_ref,old_order,old_reservation,old_state=old[0].split('|')
+ if not re.fullmatch(r'hwo_[0-9a-f]{32}',old_ref) or old_state!='uncertain': raise RuntimeError('original_reference_guard_failed')
+ old_office=sql("select o.payment_state||'|'||v.state||'|'||count(c.order_id)::text from hardware_orders o join hardware_reservations v on v.order_id=o.id left join hardware_payment_confirmations c on c.order_id=o.id where o.id='"+old_order+"'::uuid group by o.payment_state,v.state")
+ if old_office!='not_started|expired|0': raise RuntimeError('original_uncertain_order_history_changed')
+ if subprocess.check_output(['docker','exec','hardware-setup-backend-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c',"select count(*) from hardware_payment_attempts where order_id='"+order_id+"'::uuid"],text=True).strip()!='0': raise RuntimeError('fresh_order_has_existing_payment_attempt')
+ run_id=secrets.token_hex(6);runroot=R/'execution'/'runs'/run_id;runroot.mkdir(parents=True,mode=0o700)
+ fixture={'order_id':order_id,'guest_hash':guest,'idempotency_key':key,'amount_kobo':10000,'quantity':1,'evidence':'synthetic-single-init'}
+ (runroot/'scenario-orders.json').write_text(json.dumps({'single_initialization':fixture},indent=2));os.chmod(runroot/'scenario-orders.json',0o600)
+ ledger=runroot/'run.sqlite';e=Executor(str(ledger),manifest);digest=e.digest;e.close()
+ plan=[{'reference':'hwo_'+order_id.replace('-',''),'scenario':'single_initialization','amount':10000}]
+ plan_hash=bridge_main({'database':str(ledger),'manifest':manifest,'mode':'real-provider','action':'prepare','plan':plan})['plan_sha256']
+ config={'database':'/run/execution/run.sqlite','manifest':manifest,'mode':'real-provider','planSha256':plan_hash,'python':'python3'}
+ (runroot/'config.json').write_text(json.dumps(config,indent=2));os.chmod(runroot/'config.json',0o600)
+ auth={'manifest_sha256':digest,'plan_sha256':plan_hash,'authorized':False,'environment':'test','evidence':'real-provider'}
+ (runroot/'authorization-required.json').write_text(json.dumps(auth,indent=2));os.chmod(runroot/'authorization-required.json',0o600)
+ volume='hardware-execution-ledger-single-'+run_id
+ subprocess.run(['docker','volume','create','--label','getoyi.isolated.execution=true',volume],check=True,stdout=subprocess.DEVNULL)
+ copy="import shutil,os;shutil.copytree('/seed','/run/execution',dirs_exist_ok=True);[(os.chown(p,1000,1000),os.chmod(p,0o700 if os.path.isdir(p) else 0o600)) for p in ['/run/execution']+[os.path.join(d,n) for d,ds,fs in os.walk('/run/execution') for n in ds+fs]]"
+ subprocess.run(['docker','run','--rm','--network','none','-v',str(runroot)+':/seed:ro','-v',volume+':/run/execution',image,'python3','-c',copy],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ state.setdefault('execution_volumes',[]).append(volume);state.setdefault('single_init_runs',[]).append({'run_id':run_id,'ledger_volume':volume,'authorization_required':True,'provider_calls':0})
+ (R/'state.json').write_text(json.dumps(state,indent=2));os.chmod(R/'state.json',0o600)
+ print(json.dumps({'run_id':run_id,'ledger_volume':volume,'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':0,'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
+
 def main():
- if sys.argv[1:]!=['--prepare']: raise SystemExit('Only --prepare is supported; this script cannot execute or authorize payments.')
+ if sys.argv[1:] not in (['--prepare'],['--seal-current']): raise SystemExit('Only local preparation modes are supported; this script cannot execute or authorize payments.')
  if not IMAGE or not re.fullmatch(r'getoyi-bounded-execution:[a-f0-9]{7,40}-single-init',IMAGE): raise RuntimeError('reviewed_executor_image_required')
  for name in ['hardware-setup-office-db','hardware-setup-backend-db']:
   if subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "getoyi.isolated.setup"}}',name],text=True).strip()!='true': raise RuntimeError('labelled_disposable_databases_required')
@@ -37,6 +76,8 @@ def main():
  if manifest.get('execution_profile')!='single-initialization-only' or manifest.get('max_payment_initializations')!=1 or manifest.get('max_total_payment_kobo')!=10000 or manifest.get('max_refund_initializations')!=0 or manifest.get('max_provider_reads')!=0 or manifest.get('max_webhook_replays')!=0: raise RuntimeError('single_init_manifest_invalid')
  state=json.loads((R/'state.json').read_text());checkout_key=state['keys']['checkout']
  ctx=ssl.create_default_context(cafile=str(R/'tls/cert.pem'))
+ if sys.argv[1:]==['--seal-current']:
+  seal_current(manifest,state,ctx,checkout_key,IMAGE);return
  old=subprocess.check_output(['docker','exec','hardware-setup-backend-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c',"select reference||'|'||order_id::text||'|'||reservation_id::text from hardware_payment_attempts where state='uncertain' order by created_at desc limit 1"],text=True).strip()
  if old.count('|')!=2: raise RuntimeError('original_uncertain_attempt_missing_or_ambiguous')
  old_ref,old_order,old_reservation=old.split('|')
