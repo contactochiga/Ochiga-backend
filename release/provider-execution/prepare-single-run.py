@@ -78,10 +78,10 @@ def main():
  ctx=ssl.create_default_context(cafile=str(R/'tls/cert.pem'))
  if sys.argv[1:]==['--seal-current']:
   seal_current(manifest,state,ctx,checkout_key,IMAGE);return
- old=subprocess.check_output(['docker','exec','hardware-setup-backend-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c',"select reference||'|'||order_id::text||'|'||reservation_id::text from hardware_payment_attempts where state='uncertain' order by created_at desc limit 1"],text=True).strip()
- if old.count('|')!=2: raise RuntimeError('original_uncertain_attempt_missing_or_ambiguous')
- old_ref,old_order,old_reservation=old.split('|')
- if not re.fullmatch(r'hwo_[0-9a-f]{32}',old_ref): raise RuntimeError('original_reference_guard_failed')
+ old=subprocess.check_output(['docker','exec','hardware-setup-backend-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c',"select reference||'|'||order_id::text||'|'||reservation_id::text||'|'||state from hardware_payment_attempts where state='uncertain' order by created_at desc limit 2"],text=True).strip().splitlines()
+ if len(old)!=1 or old[0].count('|')!=3: raise RuntimeError('original_uncertain_attempt_missing_or_ambiguous')
+ old_ref,old_order,old_reservation,old_attempt_state=old[0].split('|')
+ if not re.fullmatch(r'hwo_[0-9a-f]{32}',old_ref) or old_attempt_state!='uncertain': raise RuntimeError('original_reference_guard_failed')
  run_id=secrets.token_hex(6);guest=hashlib.sha256(('single-init-'+run_id+'-'+secrets.token_hex(24)).encode()).hexdigest();key='single-init-'+run_id+'-'+secrets.token_hex(12)
  client='synthetic-single-init-'+run_id
  lines=[{'product':'zz-synthetic-commerce-preparation','sku':'SETUP-COMMERCE-A','quantity':1}]
@@ -100,8 +100,8 @@ def main():
  if fresh!='held|true|not_started|awaiting_confirmation': raise RuntimeError('fresh_reservation_not_held_and_valid')
  # Expiry ran inside the existing checkout-reservation transaction. It may
  # release only expired local fixture holds; payment history must remain unchanged.
- old_state=sql("select a.state||'|'||o.payment_state||'|'||r.state||'|'||count(c.reference)::text from hardware_payment_attempts a join hardware_orders o on o.id=a.order_id join hardware_reservations r on r.id=a.reservation_id left join hardware_payment_confirmations c on c.order_id=o.id where a.reference='"+old_ref+"' group by a.state,o.payment_state,r.state")
- if old_state!='uncertain|not_started|expired|0': raise RuntimeError('original_uncertain_attempt_changed_or_expiry_not_applied')
+ old_state=sql("select o.payment_state||'|'||r.state||'|'||count(c.order_id)::text from hardware_orders o join hardware_reservations r on r.order_id=o.id left join hardware_payment_confirmations c on c.order_id=o.id where o.id='"+old_order+"'::uuid group by o.payment_state,r.state")
+ if old_state!='not_started|expired|0': raise RuntimeError('original_uncertain_order_history_changed_or_expiry_not_applied')
  # No provider operation is made here. Build an immutable, one-reference plan.
  runroot=R/'execution'/'runs'/run_id;runroot.mkdir(parents=True,mode=0o700)
  fixture={'order_id':order_id,'guest_hash':guest,'idempotency_key':key,'amount_kobo':10000,'quantity':1,'evidence':'synthetic-single-init'}
