@@ -27,7 +27,12 @@ export function validSignature(
     crypto.createHmac("sha512", secret).update(raw).digest(),
   );
 }
-export function paymentCallback(value: string) {
+export function paymentCallback(value: string, testOrigin?: string) {
+  if (testOrigin !== undefined) {
+    // Fixed loopback rehearsal origin. Never accept a caller-supplied arbitrary hostname.
+    if (testOrigin !== "https://localhost:18443" || value !== testOrigin + "/hardware/checkout") throw Error("invalid_callback_configuration");
+    return value;
+  }
   const u = new URL(value);
   if (
     u.protocol !== "https:" ||
@@ -93,7 +98,7 @@ export class HardwarePayments {
       throw Error("invalid_payment_authorization");
     if (!this.d.secret.startsWith("sk_test_"))
       throw Error("test_provider_required");
-    paymentCallback(this.d.callback);
+    paymentCallback(this.d.callback, process.env.HARDWARE_SETUP_ONLY === "true" ? process.env.HARDWARE_TEST_CALLBACK_ORIGIN : undefined);
     const { email, ...authorization } = input;
     const created = await this.d.rpc("hardware_payment_create", {
       p: authorization,
