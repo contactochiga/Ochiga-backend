@@ -10,6 +10,13 @@ class BridgeTests(unittest.TestCase):
   main({**self.q,'action':'arm','approval':dict(manifest_sha256=self.e.digest,plan_sha256=self.q['plan_sha256'],authorized=True,environment='test',evidence='mock')})
  def tearDown(self):self.e.close();self.d.cleanup()
  def ticket(self):return main({**self.q,'action':'claim','reference':self.ref,'id':self.ref,'kind':'payment','amount':10000,'request_hash':'b'*64})['ticket']
+ def test_preflight_disabled_only(self):
+  with self.assertRaises(Denied):main({**self.q,'action':'preflight-plan'})
+  main({**self.q,'action':'disable'})
+  before=self.e.db.total_changes
+  self.assertEqual(len(main({**self.q,'action':'preflight-plan'})),1)
+  self.assertEqual(self.e.db.total_changes,before)
+  with self.assertRaises(Denied):main({**self.q,'action':'plan'})
  def test_ticket_concurrency(self):
   ticket=self.ticket()
   def go(_):

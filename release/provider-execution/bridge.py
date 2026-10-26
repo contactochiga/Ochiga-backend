@@ -32,6 +32,11 @@ def main(q):
   if not row:raise Denied('execution_plan_missing')
   plan=json.loads(row[0]);digest=hashlib.sha256(row[0].encode()).hexdigest()
   if digest!=q.get('plan_sha256'):raise Denied('plan_mismatch')
+  if q['action']=='preflight-plan':
+   r=e.db.execute('SELECT * FROM run').fetchone()
+   if r['enabled'] or r['stopped'] or e.db.execute('SELECT count(*) FROM intents').fetchone()[0]:raise Denied('fresh_disabled_run_required')
+   if not {'plan_immutable','plan_no_delete'}.issubset(triggers):raise Denied('execution_state_inconsistent')
+   return plan
   if q['action']=='arm':
    if q.get('approval',{}).get('plan_sha256')!=digest:raise Denied('explicit_plan_approval_required')
    approval={k:v for k,v in q['approval'].items() if k!='plan_sha256'}
