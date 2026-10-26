@@ -3,6 +3,7 @@ const assert = require("node:assert/strict"),
 const {
   HardwarePayments,
   paymentCallback,
+  classifyHardwareProviderFailure,
 } = require("../dist/commerce/hardwarePayments");
 (async () => {
   let writes = 0;
@@ -80,8 +81,46 @@ const {
   assert.equal(observed.headers.Authorization, "Bearer " + d.secret);
   assert.equal(observed.maxRedirects, 0);
   assert.equal(observed.timeout, 15000);
+  for (const code of [
+    "provider_http_4xx",
+    "provider_rate_limited",
+    "provider_http_5xx",
+    "pre_dispatch_connection_failure",
+    "post_dispatch_timeout_or_lost_response",
+    "malformed_provider_response",
+  ]) {
+    assert.equal(
+      classifyHardwareProviderFailure(Object.assign(Error("private"), { code })),
+      code,
+    );
+  }
+  assert.equal(classifyHardwareProviderFailure(Error("private")), "provider_transport_unknown");
+  for (const code of [
+    "provider_http_4xx",
+    "provider_rate_limited",
+    "provider_http_5xx",
+    "pre_dispatch_connection_failure",
+    "post_dispatch_timeout_or_lost_response",
+    "malformed_provider_response",
+  ]) {
+    let uncertainDetail;
+    const throwing = new HardwarePayments({
+      rpc: async (name, args) => {
+        if (name === "hardware_payment_create") return { ...base, state: "created" };
+        if (name === "hardware_payment_claim") return { ...base, state: "created", lease_token: "synthetic" };
+        if (name === "hardware_payment_record" && args.p_state === "uncertain") uncertainDetail = args.p_detail;
+        return {};
+      },
+      secret: "sk_test_SYNTHETIC",
+      callback: "https://getoyi.com/hardware/checkout",
+      provider: { post: async () => { throw Object.assign(Error("secret and response body"), { code }); } },
+    });
+    const result = await throwing.initialize(base);
+    assert.equal(result.state, "processing");
+    assert.deepEqual(uncertainDetail, { reason: code });
+  }
   console.log(
-    "18 input/callback/dedicated-provider-credential assertions PASS",
+    "37 input/callback/provider-classification/uncertainty-persistence/dedicated-credential assertions PASS",
   );
 })().catch((e) => {
   console.error(e);

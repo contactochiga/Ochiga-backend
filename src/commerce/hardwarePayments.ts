@@ -10,6 +10,21 @@ export type PaymentDeps = {
   callback: string;
 };
 const refPattern = /^hwo_[0-9a-f]{32}$/;
+const safeProviderFailureCodes = new Set([
+  "provider_http_4xx",
+  "provider_rate_limited",
+  "provider_http_5xx",
+  "pre_dispatch_connection_failure",
+  "post_dispatch_timeout_or_lost_response",
+  "malformed_provider_response",
+  "provider_transport_unknown",
+]);
+export function classifyHardwareProviderFailure(error: unknown) {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && safeProviderFailureCodes.has(code)
+    ? code
+    : "provider_transport_unknown";
+}
 export function validSignature(
   raw: Buffer,
   signature: unknown,
@@ -149,9 +164,9 @@ export class HardwarePayments {
             headers: { Authorization: `Bearer ${this.d.secret}` },
           },
         );
-      } catch {
+      } catch (error) {
         await this.record(a, "uncertain", {
-          reason: "initialization_outcome_unknown",
+          reason: classifyHardwareProviderFailure(error),
         });
         return { state: "processing" };
       }
