@@ -63,7 +63,10 @@ if sql("select count(*) from catalogue_public_listings where product_id='"+pid+"
 s['variants']=[x['id'] for x in d['variants']];state.write_text(json.dumps(s));print('Synthetic product, five generated panels, independent approvals, two NGN100 variants and local-only listing ready')
 # Existing scoped checkout and reservation workflows, with synthetic customers only.
 import hashlib
-config=json.loads((R/'state.json').read_text());ledger=R/'scenario-orders.json';orders=json.loads(ledger.read_text()) if ledger.exists() else {}
+import re
+run_id=os.environ.get('HARDWARE_FIXTURE_RUN_ID','')
+if run_id and not re.fullmatch('[a-f0-9]{12}',run_id):raise RuntimeError('invalid_fixture_run')
+config=json.loads((R/'state.json').read_text());ledger=R/('scenario-orders-'+run_id+'.json' if run_id else 'scenario-orders.json');orders=json.loads(ledger.read_text()) if ledger.exists() else {}
 scenarios=['success','declined','delayed_success','duplicate_webhook','redirect_only','amount_mismatch','reference_mismatch','expired_reservation','office_outage','refund_processed','refund_failed','refund_attention']
 def checkout(action,body):
  q=urllib.request.Request(BASE+'/api/commerce/checkout/'+action,data=json.dumps(body).encode(),headers={'Content-Type':'application/json','x-api-key':config['keys']['checkout']})
@@ -72,10 +75,10 @@ def checkout(action,body):
  except urllib.error.HTTPError as z:raise RuntimeError('checkout_'+str(z.code)+'_'+json.load(z).get('error','unknown'))
 for i,scenario in enumerate(scenarios):
  if scenario in orders:continue
- guest=hashlib.sha256(('isolated-preparation-'+scenario).encode()).hexdigest()
+ guest=hashlib.sha256(('isolated-preparation-'+run_id+'-'+scenario).encode()).hexdigest()
  lines=[{'product':'zz-synthetic-commerce-preparation','sku':'SETUP-COMMERCE-'+('A' if i%2==0 else 'B'),'quantity':1}]
  quote=checkout('quote',{'lines':lines})['quote']
- result=checkout('submit',{'guest_hash':guest,'idempotency_key':'setup-execution-'+scenario.replace('_','-'),'quote_hash':quote['quote_hash'],'order':{'lines':lines,'customer':{'name':'ZZ SYNTHETIC '+scenario,'email':'setup-'+scenario.replace('_','-')+'@example.invalid','phone':'+2348000000000'},'delivery':{'country':'NG','state':'Plateau','city':'Jos','address':'SYNTHETIC DISPOSABLE TEST ADDRESS'},'installation_requested':False}})
+ result=checkout('submit',{'guest_hash':guest,'idempotency_key':'setup-execution-'+run_id+'-'+scenario.replace('_','-'),'quote_hash':quote['quote_hash'],'order':{'lines':lines,'customer':{'name':'ZZ SYNTHETIC '+scenario,'email':'setup-'+scenario.replace('_','-')+'@example.invalid','phone':'+2348000000000'},'delivery':{'country':'NG','state':'Plateau','city':'Jos','address':'SYNTHETIC DISPOSABLE TEST ADDRESS'},'installation_requested':False}})
  order=result['order'];oid=order['id']
  # Existing audited DB workflow enforces actor permission; no direct financial column updates.
  sql("select hardware_payment_confirm_delivery('setup-publisher-commerce@example.invalid','"+oid+"',0,0,'SYNTHETIC LOCAL TEST ONLY: zero delivery charge; no real serviceability claim')")

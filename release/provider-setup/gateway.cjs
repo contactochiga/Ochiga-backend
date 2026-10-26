@@ -9,5 +9,5 @@ http.createServer((q,r)=>{
 // This is the ONLY listener allowed behind the external tunnel.
 http.createServer((q,r)=>{if(q.method!=='POST'||q.url!=='/hardware-payments/webhook'){r.writeHead(404);return r.end();}proxy(q,r,'hardware-setup-backend');}).listen(4000,'0.0.0.0');
 const tls={key:fs.readFileSync('/tls/key.pem'),cert:fs.readFileSync('/tls/cert.pem')};
-https.createServer(tls,(q,r)=>{if(q.headers.host==='office.hardware.test')return proxy(q,r,'hardware-setup-office');if(!['localhost:18443','localhost'].includes(q.headers.host)){r.writeHead(403);return r.end();}proxy(q,r,'hardware-setup-getoyi');}).listen(443,'0.0.0.0');
+https.createServer(tls,(q,r)=>{if(q.headers.host==='office.hardware.test'){if(q.url==='/backend/hardware-payments/initialize')return proxy(q,r,'hardware-setup-backend','/hardware-payments/initialize');if(q.url.startsWith('/backend/')){r.writeHead(404);return r.end();}return proxy(q,r,'hardware-setup-office');}if(!['localhost:18443','localhost'].includes(q.headers.host)){r.writeHead(403);return r.end();}proxy(q,r,'hardware-setup-getoyi');}).listen(443,'0.0.0.0');
 https.createServer(tls,(q,r)=>proxy(q,r,'hardware-setup-office')).listen(444,'0.0.0.0');

@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "../supabase/supabaseClient";
 import { paystack } from "../utils/paystack";
-import { HardwareRecovery } from "./hardwareRecovery";
+import { HardwareRecovery, RecoveryDeps } from "./hardwareRecovery";
 async function operations(body: any) {
   const u = new URL(process.env.OFFICE_HARDWARE_FINANCIAL_URL || "");
   const key = process.env.OFFICE_HARDWARE_FINANCIAL_KEY || "";
@@ -16,7 +16,7 @@ async function operations(body: any) {
   if (!r.ok) throw Error("financial_operations_unavailable");
   return r.json();
 }
-export function hardwareRecoveryService() {
+export function hardwareRecoveryDependencies(): RecoveryDeps {
   const rpc = async (name: string, args: any) => {
     const r = await supabaseAdmin.rpc(name, args);
     if (r.error) throw Error("financial_storage_unavailable");
@@ -27,7 +27,7 @@ export function hardwareRecoveryService() {
     if (r.error) throw Error("financial_storage_unavailable");
     return r.data || [];
   };
-  return new HardwareRecovery({
+  return {
     rpc,
     secret: process.env.HARDWARE_PAYSTACK_SECRET_KEY || "",
     callback: process.env.HARDWARE_PAYSTACK_CALLBACK_URL || "",
@@ -103,5 +103,8 @@ export function hardwareRecoveryService() {
     deliverObservation: async (event: any) => {
       await operations({ action: "observe", event });
     },
-  });
+  };
+}
+export function hardwareRecoveryService() {
+  return new HardwareRecovery(hardwareRecoveryDependencies());
 }

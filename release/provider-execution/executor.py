@@ -27,6 +27,9 @@ class Executor:
 CREATE TABLE IF NOT EXISTS run(id INTEGER PRIMARY KEY CHECK(id=1),manifest TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 0,stopped INTEGER NOT NULL DEFAULT 0,started REAL,mode TEXT);
 CREATE TABLE IF NOT EXISTS intents(id TEXT PRIMARY KEY,scenario TEXT NOT NULL,kind TEXT NOT NULL,amount INTEGER NOT NULL,parent TEXT,state TEXT NOT NULL,evidence TEXT NOT NULL,created REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY,event TEXT NOT NULL,intent TEXT,created REAL NOT NULL);
+CREATE TRIGGER IF NOT EXISTS intents_no_delete BEFORE DELETE ON intents BEGIN SELECT RAISE(ABORT,'immutable'); END;
+CREATE TRIGGER IF NOT EXISTS intents_financial_immutable BEFORE UPDATE OF id,scenario,kind,amount,parent,evidence,created ON intents BEGIN SELECT RAISE(ABORT,'immutable'); END;
+CREATE TRIGGER IF NOT EXISTS run_manifest_immutable BEFORE UPDATE OF manifest ON run BEGIN SELECT RAISE(ABORT,'immutable'); END;
 CREATE TRIGGER IF NOT EXISTS events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT,'immutable'); END;
 CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT,'immutable'); END;''')
   with self.tx():
