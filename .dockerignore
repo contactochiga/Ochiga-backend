@@ -1,5 +1,8 @@
 node_modules
 dist
+!dist/
+!dist/commerce/
+!dist/commerce/**
 .env
 .env.*
 !.env.example

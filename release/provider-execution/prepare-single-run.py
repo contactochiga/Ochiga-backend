@@ -50,7 +50,7 @@ def main():
  request={'lines':lines,'customer':{'name':'ZZ SINGLE INIT SYNTHETIC','email':'single-init-'+run_id+'@example.invalid','phone':'+2348000000000'},'delivery':{'country':'NG','state':'Plateau','city':'Jos','address':'SYNTHETIC DISPOSABLE TEST ADDRESS'},'installation_requested':False}
  code,submitted=post('submit',{'guest_hash':guest,'idempotency_key':key,'quote_hash':q['quote_hash'],'order':request},checkout_key,ctx)
  order=submitted.get('order') or {};order_id=order.get('id')
- if code!=200 or not isinstance(order_id,str) or not re.fullmatch(r'[0-9a-f-]{36}',order_id): raise RuntimeError('fresh_synthetic_checkout_not_created')
+ if code not in (200,201) or not isinstance(order_id,str) or not re.fullmatch(r'[0-9a-f-]{36}',order_id): raise RuntimeError('fresh_synthetic_checkout_not_created')
  # The established fixture-only delivery confirmation records an audit event.
  sql("select hardware_payment_confirm_delivery('setup-publisher-commerce@example.invalid','"+order_id+"',0,0,'SYNTHETIC LOCAL ONLY: zero delivery charge; no real delivery claim')")
  code,payment=post('payment-quote',{'id':order_id,'guest_hash':guest},checkout_key,ctx);p=payment.get('payment',{})
