@@ -3,6 +3,13 @@ import subprocess,json,shutil,os,signal
 p=Path(__file__).resolve().parent/'runtime'
 if (p/'state.json').exists():
  s=json.loads((p/'state.json').read_text())
+ ledger=p/'execution/run.sqlite'
+ if ledger.exists():
+  import sqlite3
+  try:
+   with sqlite3.connect('file:'+str(ledger)+'?mode=ro',uri=True) as db:
+    if db.execute('select count(*) from intents').fetchone()[0]:raise SystemExit('Execution evidence exists: preserve and reconcile before teardown')
+  except sqlite3.Error:raise SystemExit('Execution state unavailable: preserve before teardown')
  for db,table in [('backend','hardware_payment_attempts'),('office','hardware_payment_confirmations')]:
   r=subprocess.run(['docker','exec','hardware-setup-'+db+'-db','psql','-X','-Atq','-U','postgres','-d','postgres','-c','select count(*) from '+table],capture_output=True,text=True)
   if r.returncode!=0:raise SystemExit('Financial state unavailable: preserve services and inspect before teardown')
