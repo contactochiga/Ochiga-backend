@@ -1,0 +1,23 @@
+ochiga-backend@1.0.0 /Users/ochigaidoko/getoyi-work/backend-phase4e
+├─┬ aws-sdk@2.1693.0
+│ └── uuid@8.0.0
+├─┬ axios@1.20.0
+│ └── follow-redirects@1.16.2
+├─┬ bullmq@5.65.0
+│ └── uuid@11.1.1
+├─┬ express@4.22.3
+│ ├── body-parser@1.20.9
+│ └── proxy-addr@2.0.8
+├─┬ ip-cidr@3.1.0
+│ └── ip-address@7.1.0
+├─┬ mqtt@5.15.2
+│ └─┬ socks@2.8.9
+│   └── ip-address@10.7.5
+├─┬ node-ssdp@4.0.1
+│ └── ip@1.1.9
+├─┬ openai@4.104.0
+│ └── zod@3.25.76 deduped
+├─┬ socket.io@4.8.3
+│ └── engine.io@6.6.11
+└── zod@3.25.76
+
