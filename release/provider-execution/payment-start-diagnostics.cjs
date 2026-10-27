@@ -12,9 +12,10 @@ const OFFICE_CODES=new Set([
  'payment_backend_malformed_response','forbidden','missing_service_scope'
 ]);
 const ELIGIBILITY_CODES=new Set([
- 'eligible','order_not_found','order_state_invalid','payment_already_started',
- 'reservation_expired','reservation_missing','reservation_invalid','product_unpublished',
- 'price_unapproved','amount_mismatch','quote_unavailable','access_denied'
+ 'eligible','order_not_found','order_cancelled','order_state_invalid','payment_already_started',
+ 'reservation_expired','reservation_missing','reservation_invalid','delivery_unconfirmed',
+ 'product_unpublished','product_or_variant_unavailable','approved_price_missing_or_changed',
+ 'catalogue_or_price_ineligible','price_unapproved','amount_mismatch','quote_unavailable','access_denied'
 ]);
 const BOUNDARIES=new Set(['not_started','execution_ledger_unavailable','runner_precondition_rejected','connection_timeout','connection_failure','office_application_rejection','office_quote_response','office_application_response']);
 const ELIGIBILITY_RESULTS=new Set(['unknown','not_checked','rejected','eligible','ineligible']);

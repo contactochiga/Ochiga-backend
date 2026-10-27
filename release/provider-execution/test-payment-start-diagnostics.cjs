@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path');
-const {paymentStartDiagnostics}=require('./payment-start-diagnostics.cjs');
+const {paymentStartDiagnostics,eligibilityFrom}=require('./payment-start-diagnostics.cjs');
 const {safeRunnerCode,saveRunnerDiagnostic}=require('./run.cjs');
 const successQuote={eligible:true,payment:{eligible:true,amount_kobo:10000,payment_state:'not_started'}};
 function setup(){
@@ -29,6 +29,12 @@ async function runCase(name,quote,start,expected){
  return {x,out};
 }
 (async()=>{
+ for(const code of ['order_cancelled','delivery_unconfirmed','product_or_variant_unavailable','approved_price_missing_or_changed','catalogue_or_price_ineligible']){
+  const result=eligibilityFrom({payment:{eligible:false,eligibility_code:code,amount_kobo:10000,payment_state:'not_started'}},200);
+  assert.equal(result.eligible,false);assert.equal(result.code,code);
+ }
+ assert.equal(eligibilityFrom({payment:{eligible:false,eligibility_code:'private_customer_details'}},200).code,'quote_unavailable');
+
  await runCase('authorization failure',response(403,{error:'checkout_key_required'}),null,{ok:false,boundary:'office_application_rejection',http:403,code:'checkout_key_required',eligibility:'rejected'});
  await runCase('expired reservation',response(200,{eligible:false,code:'reservation_expired',payment:{eligible:false,eligibility_code:'reservation_expired'}}),null,{ok:false,boundary:'office_quote_response',http:200,eligibility:'ineligible',eligibilityCode:'reservation_expired'});
  await runCase('incorrect order state',response(200,{eligible:true,payment:{eligible:true,amount_kobo:10000,payment_state:'cancelled'}}),null,{ok:false,boundary:'office_quote_response',http:200,eligibility:'ineligible',eligibilityCode:'order_state_invalid'});
@@ -78,5 +84,5 @@ async function runCase(name,quote,start,expected){
   const first=fs.readFileSync(file,'utf8');saveRunnerDiagnostic(file,'runner_preflight_failed');
   assert.equal(fs.readFileSync(file,'utf8'),first);assert.equal(first.includes('private details'),false);assert.equal(fs.statSync(file).mode&0o777,0o600);fs.unlinkSync(file);
  }
- console.log('payment-start redacted diagnostics: 13 boundary and runner cases PASS; mocks only, no Office or Paystack requests');
+ console.log('payment-start redacted diagnostics: 13 boundary and runner cases plus 6 eligibility allowlist cases PASS; mocks only, no Office or Paystack requests');
 })().catch(e=>{console.error(e.message);process.exitCode=1;});
