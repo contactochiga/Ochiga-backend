@@ -5,11 +5,16 @@ module.exports=async({run,one,check,bsql,rpc,backend,make,auth,deps,quote})=>{
  const {createBoundedServices,bridge}=require(path.join(backend,'release/provider-execution/integration.cjs'));
  const manifest=require(path.join(backend,'release/provider-preparation/run-manifest.json'));
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'bounded-financial-')),database=path.join(dir,'run.sqlite');
- const vid=one('select variant_id from hardware_order_lines order by order_id limit 1');
+ // Reprice the variant that make() orders actually use. Earlier suites leave lines for other variants, and ordering by
+ // random order_id picked one of them about half the time, giving non-NGN100 fixtures that the amount policy then stopped.
+ const used=JSON.parse(one(`select coalesce(json_agg(distinct l.variant_id),'[]') from hardware_order_lines l join hardware_checkout_receipts r on r.order_id=l.order_id where r.client='payment-test'`));
+ if(used.length!==1)throw Error('bounded_fixture_variant_ambiguous');
+ const vid=used[0];
  const change=JSON.parse(run(`select catalogue_request_price_change('${vid}',10000,'standard',750,'creator@fixture.test','LOCAL bounded fixture')`));
  run(`select catalogue_decide_price_change('${change.id}','approved','reader@fixture.test','LOCAL independent');select catalogue_publish_price_change('${change.id}','creator@fixture.test');`);
  const input=[];
  for(let i=0;i<5;i++){const id=make(false);run(`select hardware_payment_confirm_delivery('creator@fixture.test','${id}',0,0,'LOCAL zero-charge delivery fixture')`);const a=auth(id);a.email='setup-bounded@example.invalid';input.push(a);}
+ check('X-FIXTURE','bounded fixtures are exactly NGN100 on the repriced variant',input.length===5&&input.every(a=>a.amount_kobo===10000)&&JSON.parse(one(`select coalesce(json_agg(distinct variant_id),'[]') from hardware_order_lines where order_id in (${input.map(a=>"'"+a.order_id+"'").join(',')})`)).join()===vid,{amounts:input.map(a=>a.amount_kobo)});
  const scenarios=['delayed_success','office_outage','refund_processed','success','amount_mismatch'];
  const config={database,manifest,mode:'mock'};
  execFileSync('python3',['-c',"import sys,json;sys.path.insert(0,sys.argv[1]);from executor import Executor;m=json.load(sys.stdin);e=Executor(sys.argv[2],m);e.close()",path.join(backend,'release/provider-execution'),database],{input:JSON.stringify(manifest)});

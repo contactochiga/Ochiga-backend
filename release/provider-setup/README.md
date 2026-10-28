@@ -41,6 +41,24 @@ The temporary tunnel was started with clean environment, --config /dev/null, --n
 
 Run python3 teardown.py from this directory to stop only the recorded tunnel and labelled containers, remove their disposable volumes/private networks and delete local synthetic keys/certificates. It refuses database removal if payment attempts/confirmations exist. It does not delete unrelated Docker resources, S7, production services or images. Retain verification.json/runtime-manifest.json and reports first. A later provider run must reconcile/archive financial evidence before teardown.
 
+## Service-token lifecycle
+`setup.py` mints HS256 `service_role` JWTs (iss `isolated-setup`) for Office and Backend, each signed with its own database's PostgREST secret from runtime/state.json. The original tokens expired 2026-10-27 10:59:05Z (24 hours after setup). Later container recreations reused them, and the expiry surfaced as Office `503 checkout_unavailable` (PostgREST `PGRST303`). No other credential in the setup expires.
+
+`refresh-service-tokens.py` (dry run by default; `--apply [--ttl-hours 1..24]`, default 6) re-mints the tokens and recreates only `hardware-setup-backend` and `hardware-setup-office`:
+- The configuration is identical apart from the token. Parity is verified field by field: image, command, entrypoint, user, working directory, labels, environment, binds, capabilities, security options, restart policy, ports and networks.
+- Any difference or startup failure rolls back automatically.
+- Old containers are kept as stopped `-before-token-refresh-<UTC>` backups and added to the teardown inventory.
+
+It refuses unless:
+- the signing secret equals the PostgREST secret and signed the current token;
+- all payment and refund switches are false and bindings are isolated;
+- no wallet or live credential is present;
+- the private network is internal and no financial relay is running.
+
+The token is passed only through a 0600 env file that is deleted afterwards; it is never printed or put on a command line. Re-run it inside each authorized test window.
+
+`verify-test-key-fingerprint.py` prints only format checks and SHA-256 fingerprint prefixes for the injected test key and Backend's mounted copy, with an optional `--compare` against the owner's dashboard fingerprint.
+
 ## Verdicts
 - Setup-only local engineering: GO, subject to temporary certificate/token expiry.
 - Actual Paystack test transactions/refunds: NO-GO until remaining setup and explicit transaction authorization.
