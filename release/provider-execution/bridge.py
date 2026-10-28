@@ -27,6 +27,7 @@ def main(q):
    plan=q['plan'];scenarios={s['id'] for s in manifest['scenarios']}
    if not 1<=len(plan)<=12 or len({p['reference'] for p in plan})!=len(plan):raise Denied('invalid_plan')
    if manifest.get('execution_profile')=='single-initialization-only' and (len(plan)!=1 or plan[0].get('scenario')!='single_initialization' or type(plan[0].get('amount')) is not int or plan[0]['amount']!=10000):raise Denied('single_initialization_plan_required')
+   if manifest.get('execution_profile')=='single-payment-acceptance' and (len(plan)!=1 or plan[0].get('scenario')!='single_payment' or type(plan[0].get('amount')) is not int or plan[0]['amount']!=10000):raise Denied('single_payment_plan_required')
    import re
    for p in plan:
     if set(p)!={'reference','scenario','amount'} or not re.fullmatch('hwo_[a-f0-9]{32}',p['reference']) or p['scenario'] not in scenarios or type(p['amount']) is not int or not 0<p['amount']<=10000:raise Denied('invalid_plan')
@@ -59,6 +60,12 @@ def main(q):
   if not r['enabled'] or r['stopped'] or r['mode']!=q['mode']:raise Denied('execution_disabled')
   if time.time()-r['started']>manifest['max_duration_minutes']*60:e.stop('deadline');raise Denied('deadline')
   if q['action']=='plan':return plan
+  if q['action']=='note':
+   # Non-financial ingress observations. Recorded durably; they never stop the run or spend budget, so an
+   # unauthenticated request cannot block the verification reads that settle the authorized payment.
+   if manifest.get('execution_profile')!='single-payment-acceptance' or q.get('event') not in ('webhook_signature_rejected','webhook_rate_limited'):raise Denied('invalid_note')
+   with e.tx():e.event(q['event'])
+   return {'noted':True}
   item=next((p for p in plan if p['reference']==q.get('reference')),None)
   if not item:raise Denied('reference_outside_plan')
   # Budget state must match its immutable reservation trail.
@@ -74,13 +81,16 @@ def main(q):
   if q['action']=='claim':
    kind=q['kind'];amount=q.get('amount',0)
    if manifest.get('execution_profile')=='single-initialization-only' and (kind!='payment' or q.get('scenario')!='single_initialization' or q.get('id')!=item['reference'] or q.get('parent') is not None or amount!=item['amount']):e.stop('single_initialization_only');raise Denied('single_initialization_only')
+   if manifest.get('execution_profile')=='single-payment-acceptance':
+    ok=q.get('parent') is None and (kind=='payment' and q.get('id')==item['reference'] and amount==item['amount'] or kind=='read' and amount==0)
+    if not ok:e.stop('single_payment_only');raise Denied('single_payment_only')
    if kind in ('payment','refund') and amount!=item['amount']:e.stop('amount_mismatch');raise Denied('amount_mismatch')
    if kind in ('payment','refund') and e.db.execute("select count(*) from intents where state in ('started','uncertain') and kind in ('payment','refund')").fetchone()[0]:
-    if manifest.get('execution_profile')=='single-initialization-only':e.stop('single_initialization_outcome_unknown')
+    if manifest.get('execution_profile') in ('single-initialization-only','single-payment-acceptance'):e.stop('single_initialization_outcome_unknown')
     raise Denied('read_only_recovery_required')
    fresh=e.reserve(q['id'],item['scenario'],kind,amount,q.get('parent'),q['mode'])
    if not fresh:
-    if manifest.get('execution_profile')=='single-initialization-only':e.stop('single_initialization_already_reserved')
+    if manifest.get('execution_profile') in ('single-initialization-only','single-payment-acceptance'):e.stop('single_initialization_already_reserved')
     raise Denied('financial_operation_already_reserved')
    if q.get('request_hash'):
     import re

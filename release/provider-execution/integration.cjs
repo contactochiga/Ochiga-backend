@@ -84,12 +84,23 @@ function createBoundedServices(d,config){
  const guarded={...d,provider,rpc:async(name,args)=>{const result=await d.rpc(name,args);if(['manual_reconciliation','escalated','amount_mismatch'].includes(args?.p_state)){stop('financial_exception');}return result;},due:()=>scoped(d.due),approvals:()=>scoped(d.approvals),refundsDue:()=>scoped(d.refundsDue),outbox:()=>scoped(d.outbox),office:async proof=>{check(proof.reference);const result=await d.office(proof);if(!['paid','refund_required'].includes(result?.payment_state)){stop('office_confirmation_mismatch');throw Error('office_confirmation_mismatch');}return result;}};
  const p=new HardwarePayments(guarded),r=new HardwareRecovery(guarded);
  const payments={initialize:input=>{check(input?.reference);return p.initialize(input);},reconcile:ref=>{check(ref);return p.reconcile(ref);},sweep:()=>p.sweep(),webhook:async(raw,signature)=>{
-  if(!validSignature(raw,signature,d.secret)){stop('signature_failure');throw Error('invalid_signature');}
+  if(!validSignature(raw,signature,d.secret)){
+   // A reachable test ingress must not let an unsigned request halt the run before the authorized payment is
+   // verified; it is refused and durably noted instead. Other profiles keep the stricter stop.
+   if(config.manifest?.execution_profile==='single-payment-acceptance'){try{bridge(config,'note',{event:'webhook_signature_rejected'});}catch{}}
+   else stop('signature_failure');
+   throw Error('invalid_signature');
+  }
   const b=JSON.parse(raw.toString());const ref=b?.data?.reference||b?.data?.transaction_reference||b?.data?.transaction?.reference;check(ref);
   return p.webhook(raw,signature);
  }};
  const recovery={reconcile:ref=>{check(ref);return r.reconcile(ref);},refund:approval=>{check(approval?.reference);return r.refund(approval);},sweep:reference=>{if(reference===undefined)return r.sweep();check(reference);const select=fn=>async()=> (await fn()).filter(x=>x.reference===reference);return new HardwareRecovery({...guarded,due:select(guarded.due),approvals:select(guarded.approvals),refundsDue:select(guarded.refundsDue),outbox:select(guarded.outbox)}).sweep();}};
  payments.replayWebhook=async(raw,signature)=>{const b=JSON.parse(raw.toString()),ref=b?.data?.reference;bridge(config,'claim',{reference:ref,id:opid(crypto.randomUUID()),kind:'replay',amount:0});return payments.webhook(raw,signature);};
+ if(config.manifest?.execution_profile==='single-payment-acceptance'){
+  // One reference, verified through HardwarePayments only: no sweep, no recovery (extra verify and dispute reads), no refunds.
+  const denied=()=>{throw Error('single_payment_only');};
+  payments.sweep=denied;payments.replayWebhook=denied;for(const k of Object.keys(recovery))recovery[k]=denied;
+ }
  return {payments,recovery,bridge:(action,fields)=>bridge(config,action,fields),provider};
 }
 module.exports={createBoundedServices,bridge,opid,wireHash,validInitializationResponse};

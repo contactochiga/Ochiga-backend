@@ -13,9 +13,17 @@ class Executor:
  def __init__(self,path,manifest):
   if manifest.get('environment')!='test' or manifest.get('currency')!='NGN': raise Denied('test_only')
   profile=manifest.get('execution_profile','full-suite')
-  if profile not in ('full-suite','single-initialization-only'):raise Denied('execution_profile')
+  if profile not in ('full-suite','single-initialization-only','single-payment-acceptance'):raise Denied('execution_profile')
   limits={'max_payment_initializations':12,'max_payment_kobo':10000,'max_total_payment_kobo':120000,'max_refund_initializations':3,'max_refund_kobo':10000,'max_provider_reads':60,'max_webhook_replays':3,'max_duration_minutes':60}
-  if profile=='single-initialization-only':
+  if profile=='single-payment-acceptance':
+   # One payment lifecycle: one initialization, at most three verification reads, nothing else.
+   exact={'max_payment_initializations':1,'max_payment_kobo':10000,'max_total_payment_kobo':10000,'max_refund_initializations':0,'max_refund_kobo':0,'max_webhook_replays':0}
+   for k,n in exact.items():
+    if type(manifest.get(k)) is not int or manifest[k]!=n: raise Denied('invalid_budget')
+   for k,n in (('max_provider_reads',3),('max_duration_minutes',30)):
+    if type(manifest.get(k)) is not int or not 0<manifest[k]<=n: raise Denied('invalid_budget')
+   if manifest.get('scenarios')!=[{'id':'single_payment','evidence':'real-provider','expected':'paid_and_allocated_once'}]:raise Denied('single_payment_manifest')
+  elif profile=='single-initialization-only':
    limits.update(max_payment_initializations=1,max_total_payment_kobo=10000,max_refund_initializations=0,max_refund_kobo=0,max_provider_reads=0,max_webhook_replays=0,max_duration_minutes=30)
    for k,n in limits.items():
     value=manifest.get(k)
@@ -72,6 +80,10 @@ CREATE TRIGGER IF NOT EXISTS events_no_delete BEFORE DELETE ON events BEGIN SELE
     scenarios={s['id'] for s in self.manifest['scenarios']}
     if scenario not in scenarios or kind not in ('payment','refund','read','replay') or evidence not in ('mock','real-provider','injected-fault'):raise Denied('invalid_scenario')
     if self.manifest.get('execution_profile')=='single-initialization-only' and (kind!='payment' or scenario!='single_initialization' or parent is not None or evidence not in ('mock','real-provider')):raise Denied('single_initialization_only')
+    if self.manifest.get('execution_profile')=='single-payment-acceptance':
+     if kind not in ('payment','read') or scenario!='single_payment' or parent is not None or evidence not in ('mock','real-provider'):raise Denied('single_payment_only')
+     # Verification reads exist only to resolve the one already-reserved initialization.
+     if kind=='read' and not self.db.execute("SELECT count(*) FROM intents WHERE kind='payment'").fetchone()[0]:raise Denied('payment_intent_required')
     old=self.db.execute('SELECT * FROM intents WHERE id=?',(id,)).fetchone()
     if old:
      if (old['scenario'],old['kind'],old['amount'],old['parent'],old['evidence'])!=(scenario,kind,amount,parent,evidence):raise Denied('intent_conflict')

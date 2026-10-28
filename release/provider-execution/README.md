@@ -8,6 +8,39 @@ The `single-init-manifest.json` profile is narrower than the multi-scenario runn
 
 The provider relay can be started for isolated preparation with `PROVIDER_FINANCIAL_RELAY_ENABLED=true` while `PROVIDER_FINANCIAL_EXECUTION_ENABLED=false`. It loads the single-init plan and applies provider-only egress, but the disabled durable ledger rejects every dispatch before `send()`. The separate bounded Backend remains on setup-only mode until a later, exact execution authorization. Both flags default false in the image.
 
+## Single payment acceptance (one complete Test Mode lifecycle)
+
+`single-payment-manifest.json` (`single-payment-acceptance`) covers one hardware-order payment end to end:
+- 1 initialization of exactly 10,000 kobo;
+- at most 3 provider reads, each `GET /transaction/verify/<the run's own reference>`;
+- 0 refunds, 0 replays, 0 second initializations;
+- a 30-minute run window.
+
+It reuses the same ledger, tickets, relay and durable counter (budget `initialize=1, read=3, refund=0`).
+
+- **Ledger and bridge.**
+  - Only the `single_payment` scenario: one `payment` intent bound to the plan reference and amount, plus `read` intents.
+  - A read before the initialization exists, any refund or replay claim, a second initialization, or an amount change stops the run.
+  - An uncertain initialization does **not** stop the run. Verification reads of the original reference resolve it, and the initialization is never repeated.
+- **Relay.** It accepts only `POST /transaction/initialize` and `GET /transaction/verify/{payload reference}`. Refund, refund-list and dispute routes are refused before the ticket is consumed or the counter is touched.
+- **Bounded Backend** (`HARDWARE_EXECUTION_PROFILE=single-payment-acceptance`).
+  - Flags: initialization and processing `true`; recovery and refunds `false`.
+  - Routes: `POST /hardware-payments/initialize`; `POST /hardware-payments/webhook` (raw, 64 KB, HMAC-SHA512, 30/min); `POST /hardware-payments/reconcile`, whose body must be exactly `{reference}` so a sweep is impossible. Nothing else, and errors carry no stack traces.
+  - Verification goes through `HardwarePayments.reconcile` only. `HardwareRecovery`, with its second verify read and dispute read, and sweeps are disabled.
+  - The config's profile must equal the environment profile.
+- **Webhook.** A signed event is recorded idempotently (inbox keyed by body digest) and marks the attempt due; it is a hint only. Office is confirmed solely from a verification read whose test domain, reference, NGN amount and order, reservation and authorization metadata all match.
+  - An unsigned or wrongly signed request returns 401 and is durably noted (`webhook_signature_rejected`) **without stopping the run**, so a reachable ingress cannot block the verification that settles the authorized payment.
+  - Rate limiting is noted once per window.
+- **Controller.** `run.cjs initialize single_payment`, then `run.cjs verify single_payment` (at most three times per run; each prints the ledger state).
+- **Preparation.** `prepare-single-run.py --prepare --profile single-payment` creates the fresh order and hold, the disabled ledger and the counter (budget `initialize=1, read=3, refund=0`).
+  - Synthetic customers are `setup-<scenario>-<run>@example.invalid`, as the relay initialization policy requires.
+  - The earlier `single-init-…` customer pattern would have been refused before any send.
+
+Tests:
+- `test_single_payment.py`: ledger and bridge, 13 tests.
+- `test-single-payment-runtime.cjs`: relay routes, counter budget and restart, flags, HTTP surface; 65 assertions.
+- `scripts/test-single-payment-cases.js`: the end-to-end Postgres chain (`TEST_SINGLE_PAYMENT=true`), with a fake Paystack behind the real relay handler, counter, ledger, Backend SQL and Office confirmation SQL.
+
 ## Existing financial authority
 `integration.cjs` wraps the existing `HardwarePayments`, `HardwareRecovery`, initialization router, raw webhook handler and Office confirmation/financial-operation dependencies. PostgreSQL payment/refund ledgers and Office reservations remain authoritative. SQLite stores execution budgets, dispatch tickets and redacted outcomes only; it never credits a wallet or marks an Office order paid.
 

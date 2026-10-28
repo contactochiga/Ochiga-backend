@@ -19,6 +19,8 @@ function budgetFor(manifest){
  if(!Object.values(b).every(n=>Number.isSafeInteger(n)&&n>=0))throw Error('counter_budget_invalid');
  // Single-initialization runs get exactly one provider initialization and nothing else, per authorized run.
  if(manifest.execution_profile==='single-initialization-only'&&(b.initialize!==1||b.refund!==0||b.read!==0))throw Error('counter_budget_invalid');
+ // Single-payment runs: one initialization, at most three verification reads, no refunds.
+ if(manifest.execution_profile==='single-payment-acceptance'&&(b.initialize!==1||b.refund!==0||b.read<1||b.read>3))throw Error('counter_budget_invalid');
  return b;
 }
 function header(planSha256,manifest){

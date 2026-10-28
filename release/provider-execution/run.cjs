@@ -3,7 +3,7 @@
 // It cannot arm a run, switch flags, alter credentials or approve refunds.
 const fs=require('fs');const {bridge}=require('./integration.cjs');
 const {paymentStartDiagnostics}=require('./payment-start-diagnostics.cjs');
-const RUNNER_ERRORS=new Set(['test_config_required','unknown_run_action','single_initialization_only','scenario_not_approved','fixture_binding_changed','execution_disabled','execution_state_missing','execution_state_inconsistent','execution_state_unavailable','execution_plan_missing','plan_mismatch','reference_outside_plan','fresh_disabled_run_required']);
+const RUNNER_ERRORS=new Set(['test_config_required','unknown_run_action','single_initialization_only','single_payment_only','scenario_not_approved','fixture_binding_changed','execution_disabled','execution_state_missing','execution_state_inconsistent','execution_state_unavailable','execution_plan_missing','plan_mismatch','reference_outside_plan','fresh_disabled_run_required']);
 function safeRunnerCode(error){return RUNNER_ERRORS.has(error?.message)?error.message:'runner_preflight_failed';}
 function saveRunnerDiagnostic(file,code){try{fs.writeFileSync(file,JSON.stringify({boundary:'runner_preflight_rejection',error_code:code,office_http_status:null,office_error_code:null,payment_start_eligibility:'not_checked',financial_dispatch_authorization:'not_authorized',dispatch_ticket_issued:false})+'\n',{flag:'wx',mode:0o600});}catch{}}
 async function main(){
@@ -11,13 +11,15 @@ async function main(){
  try{
  config=JSON.parse(fs.readFileSync('/run/execution/config.json','utf8'));
  if(config.mode!=='real-provider'||config.database!=='/run/execution/run.sqlite')throw Error('test_config_required');
- if(!['initialize','reconcile','replay'].includes(action))throw Error('unknown_run_action');
+ const singlePayment=config.manifest.execution_profile==='single-payment-acceptance';
+ if(!(singlePayment?['initialize','verify']:['initialize','reconcile','replay']).includes(action))throw Error('unknown_run_action');
  const file='/run/execution/hosted-'+scenario+'.json';
  diagnosticFile='/run/execution/payment-start-diagnostic-'+scenario+'.json';
  const runnerDiagnosticFile='/run/execution/runner-diagnostic-'+scenario+'.json';
  if(action==='initialize'&&(fs.existsSync(file)||fs.existsSync(diagnosticFile)||fs.existsSync(runnerDiagnosticFile))){console.log(JSON.stringify({scenario,state:'previous_attempt_recorded',replayed:false}));return;}
  const plan=bridge(config,'plan');
  if(config.manifest.execution_profile==='single-initialization-only'&&(action!=='initialize'||scenario!=='single_initialization'||plan.length!==1||plan[0].scenario!=='single_initialization'))throw Error('single_initialization_only');
+ if(singlePayment&&(scenario!=='single_payment'||plan.length!==1||plan[0].scenario!=='single_payment'))throw Error('single_payment_only');
  const entry=plan.find(x=>x.scenario===scenario);if(!entry)throw Error('scenario_not_approved');
  const fixed='http://hardware-setup-backend:3000/hardware-payments/';
  const serviceKey=fs.readFileSync('/run/secrets/isolated-backend-key','utf8').trim();
@@ -42,8 +44,12 @@ async function main(){
   return;
  }
  if(action==='replay'){endpoint='replay';body={reference:entry.reference};}
+ // Single payment: one reference-scoped verification read through HardwarePayments (budget: three per run).
+ if(action==='verify')endpoint='reconcile';
  const r=await fetch(fixed+endpoint,{method:'POST',headers:{'content-type':'application/json','x-api-key':serviceKey},body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(60000)});
- if(!r.ok)throw Error('bounded_operation_incomplete');console.log(JSON.stringify({scenario,action,accepted:true,evidence:action==='replay'?'injected-signed-replay':'provider-verification-required'}));
+ if(!r.ok)throw Error('bounded_operation_incomplete');
+ const status=action==='verify'?bridge(config,'status'):undefined;
+ console.log(JSON.stringify({scenario,action,accepted:true,evidence:action==='replay'?'injected-signed-replay':'provider-verification-required',...(status?{ledger:{intent_states:status.intent_states,provider_dispatch_count:status.provider_dispatch_count}}:{})}));
  }catch(error){
   const code=safeRunnerCode(error);
   if(action==='initialize'&&diagnosticFile){const name='/run/execution/runner-diagnostic-'+scenario+'.json';saveRunnerDiagnostic(name,code);}

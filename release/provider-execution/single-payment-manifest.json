@@ -1,0 +1,20 @@
+{
+  "execution_profile": "single-payment-acceptance",
+  "environment": "test",
+  "currency": "NGN",
+  "max_payment_initializations": 1,
+  "max_payment_kobo": 10000,
+  "max_total_payment_kobo": 10000,
+  "max_refund_initializations": 0,
+  "max_refund_kobo": 0,
+  "max_provider_reads": 3,
+  "max_webhook_replays": 0,
+  "max_duration_minutes": 30,
+  "scenarios": [
+    {
+      "id": "single_payment",
+      "evidence": "real-provider",
+      "expected": "paid_and_allocated_once"
+    }
+  ]
+}

@@ -67,6 +67,15 @@ Parity compares bind mounts as a set: Docker does not preserve their order when 
 
 Re-run it with the token refresh inside each authorized test window.
 
+## Webhook ingress (gateway port 4000, the only listener behind the tunnel)
+`gateway.cjs` `webhookIngress` accepts only exact `POST /hardware-payments/webhook`:
+- `application/json`;
+- a well-formed 128-hex `x-paystack-signature`;
+- a body of at most 64 KB (declared or streamed);
+- at most 30 requests per minute.
+
+It forwards only `content-type`, `content-length` and `x-paystack-signature` to the Backend; client, cookie and tunnel headers are dropped. It holds no key, so the Backend verifies the HMAC. `test-webhook-ingress.cjs` has 15 assertions. The change takes effect when the gateway restarts, including the restart done by `renew-local-tls.py`.
+
 `verify-test-key-fingerprint.py` prints only format checks and SHA-256 fingerprint prefixes for the injected test key and Backend's mounted copy, with an optional `--compare` against the owner's dashboard fingerprint.
 
 ## Verdicts
