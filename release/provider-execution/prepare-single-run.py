@@ -28,6 +28,18 @@ def post(action,payload,key,ctx):
   except Exception:body={}
   raise RuntimeError('isolated_checkout_'+str(e.code)+'_'+str(body.get('error','rejected')))
 
+def seal_counter(runroot, run_id, plan_hash, manifest, image, state):
+ # A fresh durable provider-request counter for this run only (budget: one initialization). Never reused.
+ counter=runroot/'provider-counter'
+ r=subprocess.run(['node',str(Path(__file__).with_name('provider-counter.cjs')),'--prepare',str(counter),plan_hash],input=json.dumps(manifest),text=True,capture_output=True)
+ if r.returncode or json.loads(r.stdout).get('budget')!={'initialize':1,'read':0,'refund':0}: raise RuntimeError('provider_counter_preparation_failed')
+ volume='hardware-provider-counter-single-'+run_id
+ subprocess.run(['docker','volume','create','--label','getoyi.isolated.execution=true','--label','getoyi.provider.counter=true',volume],check=True,stdout=subprocess.DEVNULL)
+ copy="import shutil,os;shutil.copytree('/seed','/run/provider-counter',dirs_exist_ok=True);[(os.chown(p,1000,1000),os.chmod(p,0o700 if os.path.isdir(p) else 0o600)) for p in ['/run/provider-counter']+[os.path.join(d,n) for d,ds,fs in os.walk('/run/provider-counter') for n in ds+fs]]"
+ subprocess.run(['docker','run','--rm','--network','none','-v',str(counter)+':/seed:ro','-v',volume+':/run/provider-counter',image,'python3','-c',copy],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ state.setdefault('provider_counter_volumes',[]).append(volume)
+ return volume
+
 def seal_current(manifest, state, ctx, checkout_key, image):
  # Seal the one already-created eligible synthetic checkout. This path is
  # read-only against Office/Backend except for creating a new disabled runner
@@ -63,9 +75,10 @@ def seal_current(manifest, state, ctx, checkout_key, image):
  subprocess.run(['docker','volume','create','--label','getoyi.isolated.execution=true',volume],check=True,stdout=subprocess.DEVNULL)
  copy="import shutil,os;shutil.copytree('/seed','/run/execution',dirs_exist_ok=True);[(os.chown(p,1000,1000),os.chmod(p,0o700 if os.path.isdir(p) else 0o600)) for p in ['/run/execution']+[os.path.join(d,n) for d,ds,fs in os.walk('/run/execution') for n in ds+fs]]"
  subprocess.run(['docker','run','--rm','--network','none','-v',str(runroot)+':/seed:ro','-v',volume+':/run/execution',image,'python3','-c',copy],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- state.setdefault('execution_volumes',[]).append(volume);state.setdefault('single_init_runs',[]).append({'run_id':run_id,'ledger_volume':volume,'authorization_required':True,'provider_calls':0})
+ counter_volume=seal_counter(runroot,run_id,plan_hash,manifest,IMAGE,state)
+ state.setdefault('execution_volumes',[]).append(volume);state.setdefault('single_init_runs',[]).append({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'authorization_required':True,'provider_calls':0})
  (R/'state.json').write_text(json.dumps(state,indent=2));os.chmod(R/'state.json',0o600)
- print(json.dumps({'run_id':run_id,'ledger_volume':volume,'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':0,'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
+ print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'provider_request_budget':{'initialize':1,'read':0,'refund':0},'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':0,'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
 
 def main():
  if sys.argv[1:] not in (['--prepare'],['--seal-current']): raise SystemExit('Only local preparation modes are supported; this script cannot execute or authorize payments.')
@@ -118,9 +131,10 @@ def main():
  subprocess.run(['docker','volume','create','--label','getoyi.isolated.execution=true',volume],check=True,stdout=subprocess.DEVNULL)
  copy="import shutil,os;shutil.copytree('/seed','/run/execution',dirs_exist_ok=True);[(os.chown(p,1000,1000),os.chmod(p,0o700 if os.path.isdir(p) else 0o600)) for p in ['/run/execution']+[os.path.join(d,n) for d,ds,fs in os.walk('/run/execution') for n in ds+fs]]"
  subprocess.run(['docker','run','--rm','--network','none','-v',str(runroot)+':/seed:ro','-v',volume+':/run/execution',IMAGE,'python3','-c',copy],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
- state.setdefault('execution_volumes',[]).append(volume);state.setdefault('single_init_runs',[]).append({'run_id':run_id,'ledger_volume':volume,'authorization_required':True,'provider_calls':0})
+ counter_volume=seal_counter(runroot,run_id,plan_hash,manifest,IMAGE,state)
+ state.setdefault('execution_volumes',[]).append(volume);state.setdefault('single_init_runs',[]).append({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'authorization_required':True,'provider_calls':0})
  (R/'state.json').write_text(json.dumps(state,indent=2));os.chmod(R/'state.json',0o600)
- print(json.dumps({'run_id':run_id,'ledger_volume':volume,'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':0,'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
+ print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'provider_request_budget':{'initialize':1,'read':0,'refund':0},'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':0,'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
 
 if __name__=='__main__':
  try:main()

@@ -1,15 +1,16 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {Readable}=require('node:stream');
-const {handler,classifyProviderStatus,safeFailure}=require('./financial-relay.cjs');
+const {handler,classifyProviderStatus,safeFailure,firewallRules}=require('./financial-relay.cjs');
 const {validInitializationResponse}=require('./integration.cjs');
 
 function response(){return {headers:{},status:null,body:'',setHeader(k,v){this.headers[k]=v;},writeHead(s){this.status=s;},end(b=''){this.body+=b;}};}
-async function invoke(send,{profile='full-suite',method='GET',url='/transaction/verify/hwo_'+'a'.repeat(32)}={}){
+const stubCounter={reserve:()=>1,complete(){},summary:()=>({stub:true})};
+async function invoke(send,{profile='full-suite',method='GET',url='/transaction/verify/hwo_'+'a'.repeat(32),counter=stubCounter}={}){
  const payload={method,url,reference:'hwo_'+'a'.repeat(32),ticket:'synthetic-ticket',body:method==='POST'&&url==='/transaction/initialize'?{reference:'hwo_'+'a'.repeat(32),amount:10000}:null};
  const req=Readable.from([Buffer.from(JSON.stringify(payload))]);req.method='POST';req.url='/financial';req.headers={};
  const res=response();let consumed=0;
- await handler({config:{manifest:{execution_profile:profile}},key:'synthetic-only',send,consume:()=>{consumed++;}})(req,res);
+ await handler({config:{manifest:{execution_profile:profile}},key:'synthetic-only',send,counter,consume:()=>{consumed++;}})(req,res);
  return {res,consumed};
 }
 (async()=>{
@@ -46,5 +47,17 @@ async function invoke(send,{profile='full-suite',method='GET',url='/transaction/
  assert.equal(dispatched,0);
  const initOnly=await invoke(async()=>{dispatched++;return {ok:true};},{profile:'single-initialization-only',method:'POST',url:'/transaction/initialize'});
  assert.equal(initOnly.res.status,200);assert.equal(initOnly.consumed,1);assert.equal(dispatched,1);
- console.log('provider relay classification, hosted-response validation and single-init route restrictions: 34 assertions PASS; no provider/network requests');
+ // A configured relay without its durable counter never consumes a ticket or sends.
+ const noCounter=await invoke(async()=>{dispatched++;return {};},{profile:'single-initialization-only',method:'POST',url:'/transaction/initialize',counter:null});
+ assert.equal(noCounter.res.status,503);assert.equal(noCounter.consumed,0);assert.equal(dispatched,1);
+ // Budget exhaustion is reported explicitly and nothing is sent.
+ const exhausted=await invoke(async()=>{dispatched++;return {};},{profile:'single-initialization-only',method:'POST',url:'/transaction/initialize',counter:{reserve(){throw Object.assign(Error('provider_request_budget_exhausted'),{code:'provider_request_budget_exhausted'});},complete(){},summary(){}}});
+ assert.equal(exhausted.res.status,429);assert.equal(JSON.parse(exhausted.res.body).error,'provider_request_budget_exhausted');assert.equal(dispatched,1);
+ // Firewall: default deny, NEW connections only to pinned provider addresses on 443, counted denials last.
+ const rules=firewallRules(['203.0.113.7']);
+ assert.deepEqual(rules[0],['-P','OUTPUT','DROP']);assert.equal(rules.length,4);
+ assert.deepEqual(rules[2].slice(0,6),['-A','OUTPUT','-d','203.0.113.7','-p','tcp']);assert.ok(rules[2].includes('NEW')&&rules[2].includes('443'));
+ assert.deepEqual(rules.at(-1),['-A','OUTPUT','-m','comment','--comment','getoyi-denied','-j','DROP']);
+ assert.equal(firewallRules([]).filter(r=>r.includes('ACCEPT')).length,1);
+ console.log('provider relay classification, hosted-response validation, single-init route restrictions, counter requirement and firewall rules: 46 assertions PASS; no provider/network requests');
 })().catch(e=>{console.error(e);process.exitCode=1;});
