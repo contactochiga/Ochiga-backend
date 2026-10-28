@@ -57,6 +57,16 @@ It refuses unless:
 
 The token is passed only through a 0600 env file that is deleted afterwards; it is never printed or put on a command line. Re-run it inside each authorized test window.
 
+Parity compares bind mounts as a set: Docker does not preserve their order when a container is recreated. The 2026-10-28 18:53Z refresh was refused for Office on the reordering alone and rolled back correctly. Added, removed or mode-changed mounts are still refused.
+
+`renew-local-tls.py` (dry run by default; `--apply [--days 1..7]`, default 2) renews the 2-day local certificate, which first expired 2026-10-28 10:59:05Z:
+- It re-issues the certificate with the same key, subject and SANs, rewriting `cert.pem` in place so single-file bind mounts keep the inode.
+- It then restarts only the gateway, Backend, Office and GetOyi setup containers. `docker restart` keeps their configuration and tokens.
+- It verifies each container sees the renewed certificate.
+- It refuses while a financial relay runs or if the private network is not internal.
+
+Re-run it with the token refresh inside each authorized test window.
+
 `verify-test-key-fingerprint.py` prints only format checks and SHA-256 fingerprint prefixes for the injected test key and Backend's mounted copy, with an optional `--compare` against the owner's dashboard fingerprint.
 
 ## Verdicts

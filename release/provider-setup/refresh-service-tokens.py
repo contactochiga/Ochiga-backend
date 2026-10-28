@@ -61,7 +61,8 @@ def parity(c):
             'Privileged', 'Memory', 'NanoCpus', 'PidsLimit', 'Init', 'ExtraHosts', 'Dns', 'GroupAdd', 'Devices', 'AutoRemove']
     return {'image': cfg['Image'], 'cmd': cfg['Cmd'], 'entrypoint': cfg['Entrypoint'], 'user': cfg['User'], 'workdir': cfg['WorkingDir'],
             'labels': cfg['Labels'], 'env': sorted(e for e in cfg['Env'] if not e.startswith(TOKEN + '=')), 'networks': nets,
-            'host': {k: h.get(k) for k in keys}}
+            # Docker does not preserve bind order across recreation; the set of mounts (and their modes) must match exactly.
+            'host': {k: sorted(h.get(k) or []) if k == 'Binds' else h.get(k) for k in keys}}
 
 def preflight(state):
     require(oct(os.stat(RUNTIME + '/state.json').st_mode & 0o777) == '0o600', 'state_file_mode')
