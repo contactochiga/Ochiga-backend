@@ -8,6 +8,11 @@ from contextlib import contextmanager
 class Denied(RuntimeError): pass
 
 def canonical(v): return json.dumps(v,sort_keys=True,separators=(',',':'))
+RESERVED=re.compile(r'(^|\.)(example\.(com|net|org)|invalid|test|localhost|example|local)$')
+def approved_test_inbox(v):
+ if type(v) is not str or len(v)>254 or v!=v.strip().lower():return False
+ m=re.fullmatch(r'[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?@([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)',v)
+ return bool(m) and '..' not in v and not RESERVED.search(m.group(1))
 
 class Executor:
  def __init__(self,path,manifest):
@@ -23,6 +28,9 @@ class Executor:
    for k,n in (('max_provider_reads',3),('max_duration_minutes',30)):
     if type(manifest.get(k)) is not int or not 0<manifest[k]<=n: raise Denied('invalid_budget')
    if manifest.get('scenarios')!=[{'id':'single_payment','evidence':'real-provider','expected':'paid_and_allocated_once'}]:raise Denied('single_payment_manifest')
+   # The checkout email is an owner-approved, deliverable test inbox bound into the run manifest (and so into the
+   # authorization hash). Reserved, never-resolving domains (example.*, .invalid, .test, .localhost) are refused.
+   if not approved_test_inbox(manifest.get('customer_email')):raise Denied('approved_test_inbox_required')
   elif profile=='single-initialization-only':
    limits.update(max_payment_initializations=1,max_total_payment_kobo=10000,max_refund_initializations=0,max_refund_kobo=0,max_provider_reads=0,max_webhook_replays=0,max_duration_minutes=30)
    for k,n in limits.items():

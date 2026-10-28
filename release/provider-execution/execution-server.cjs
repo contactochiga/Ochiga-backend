@@ -4,6 +4,12 @@ function singleInitializationPathAllowed(method,path){return method==='POST'&&pa
 // Single payment: initialize, the signed provider webhook, and reference-scoped verification. No sweep, recovery,
 // replay or refund route exists in this profile.
 function singlePaymentPathAllowed(method,path){return method==='POST'&&['/initialize','/webhook','/reconcile'].includes(path);}
+// Canonical route gate, checked on the raw request target before any router, parser or handler runs. Express
+// collapses some noncanonical forms ('//reconcile' reached the reconcile handler, with an empty body meaning sweep);
+// anything other than '/hardware-payments/<lowercase name>' exactly (no query, extra or trailing slash, dot segment,
+// percent-encoding, backslash or upper case) is refused here for every bounded profile.
+const CANONICAL_ROUTE=/^\/hardware-payments\/[a-z]+$/;
+function canonicalRoute(url){return typeof url==='string'&&CANONICAL_ROUTE.test(url);}
 // Fixed-window limiter for the only ingress-facing route. Excess requests are refused before signature work.
 // Returns 'ok', 'first_reject' (noted once per window) or 'reject'.
 function webhookLimiter(max=30,windowMs=60000,now=Date.now){let start=now(),n=0;return ()=>{const t=now();if(t-start>=windowMs){start=t;n=0;}n++;return n<=max?'ok':n===max+1?'first_reject':'reject';};}
@@ -44,6 +50,7 @@ function app(){
 }
 function mount({services,hardwareRoutes,hardwareWebhookHandler,profile,d,limiter=webhookLimiter()}){
  const a=express();a.disable('x-powered-by');
+ a.use((q,r,next)=>canonicalRoute(q.originalUrl)?next():r.sendStatus(404));
  if(profile==='single-payment-acceptance'){
   a.use('/hardware-payments',(q,r,next)=>{if(!singlePaymentPathAllowed(q.method,q.path))return r.sendStatus(404);next();});
   a.post('/hardware-payments/webhook',(q,r,next)=>{const v=limiter();if(v==='ok')return next();if(v==='first_reject'){try{services.bridge('note',{event:'webhook_rate_limited'});}catch{}}r.sendStatus(429);},express.raw({type:'application/json',limit:'64kb'}),hardwareWebhookHandler(()=>services.payments));
@@ -67,4 +74,4 @@ function mount({services,hardwareRoutes,hardwareWebhookHandler,profile,d,limiter
  a.use((_q,r)=>r.sendStatus(404));return a;
 }
 if(require.main===module){try{app().listen(3000,'0.0.0.0');}catch{console.error('isolated_execution_startup_denied');process.exitCode=1;}}
-module.exports={app,mount,assertEnvironment,singleInitializationPathAllowed,singlePaymentPathAllowed,webhookLimiter};
+module.exports={app,mount,canonicalRoute,assertEnvironment,singleInitializationPathAllowed,singlePaymentPathAllowed,webhookLimiter};

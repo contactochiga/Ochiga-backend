@@ -11,7 +11,8 @@ module.exports=async({run,one,check,bsql,backend,make,auth,deps})=>{
  const {handler}=require(path.join(X,'financial-relay.cjs'));
  const {ProviderCounter,prepare,inspect}=require(path.join(X,'provider-counter.cjs'));
  const {mount,webhookLimiter}=require(path.join(X,'execution-server.cjs'));
- const manifest=JSON.parse(fs.readFileSync(path.join(X,'single-payment-manifest.json'),'utf8'));
+ // Preparation binds the owner-approved inbox into each run's manifest; a synthetic deliverable-form address here.
+ const manifest={...JSON.parse(fs.readFileSync(path.join(X,'single-payment-manifest.json'),'utf8')),customer_email:'acceptance-inbox@payments-test.getoyi.com'};
  const express=require(path.join(backend,'node_modules/express'));
  const {hardwareRoutes,hardwareWebhookHandler}=require(path.join(backend,'dist/commerce/hardwarePaymentRoutes'));
  const SECRET='sk_test_SYNTHETIC_NOT_A_CREDENTIAL',root=fs.mkdtempSync(path.join(os.tmpdir(),'single-payment-e2e-'));
@@ -43,7 +44,7 @@ module.exports=async({run,one,check,bsql,backend,make,auth,deps})=>{
   const dir=path.join(root,name);fs.mkdirSync(dir);const database=path.join(dir,'run.sqlite');
   const digest=execFileSync('python3',['-c',"import sys,json;sys.path.insert(0,sys.argv[1]);from executor import Executor;e=Executor(sys.argv[2],json.load(sys.stdin));print(e.digest);e.close()",X,database],{input:JSON.stringify(manifest),encoding:'utf8'}).trim();
   const id=make(false);run(`select hardware_payment_confirm_delivery('creator@fixture.test','${id}',0,0,'LOCAL zero-charge delivery fixture')`);
-  const a=auth(id);a.email='setup-single-payment@example.invalid';
+  const a=auth(id);a.email=manifest.customer_email;
   const config={database,manifest,mode:'real-provider',python:'python3'};
   config.planSha256=bridge(config,'prepare',{plan:[{reference:a.reference,scenario:'single_payment',amount:10000}]}).plan_sha256;
   const counterDir=path.join(dir,'provider-counter');prepare(counterDir,config.planSha256,manifest);
@@ -87,7 +88,7 @@ module.exports=async({run,one,check,bsql,backend,make,auth,deps})=>{
    check('S-INIT-ONCE','five concurrent initializations send exactly one provider initialization',sends().initialize===1&&inits.every(r=>r.status===200)&&A.attempt()==='pending',{sends:sends(),states:inits.map(r=>r.body.state)});
    check('S-HOSTED','hosted checkout URL is the validated Paystack checkout host',urls.size===1&&[...urls][0].startsWith('https://checkout.paystack.com/'));
    const sent=provider.tx.get(A.a.reference).init;
-   check('S-EXACT','provider received exactly NGN 10,000 kobo for the run reference with bound metadata',sent.amount===10000&&Number.isSafeInteger(sent.amount)&&sent.currency==='NGN'&&sent.reference===A.a.reference&&sent.metadata.order_id===A.a.order_id&&sent.metadata.reservation_id===A.a.reservation_id&&sent.metadata.authorization_hash===A.a.authorization_hash&&sent.metadata.purpose==='hardware_order'&&sent.callback_url==='https://localhost:18443/hardware/checkout');
+   check('S-EXACT','provider received exactly NGN 10,000 kobo for the run reference with bound metadata and the manifest-bound test inbox',sent.amount===10000&&Number.isSafeInteger(sent.amount)&&sent.currency==='NGN'&&sent.reference===A.a.reference&&sent.metadata.order_id===A.a.order_id&&sent.metadata.reservation_id===A.a.reservation_id&&sent.metadata.authorization_hash===A.a.authorization_hash&&sent.metadata.purpose==='hardware_order'&&sent.callback_url==='https://localhost:18443/hardware/checkout'&&sent.email===manifest.customer_email);
    check('S-HELD','reservation is held and the order unpaid before checkout',A.order()==='not_started|held|0');
    check('S-EARLY-VERIFY','verification before checkout leaves the order unpaid',(await post('/reconcile',{reference:A.a.reference},key)).status===200&&A.order()==='not_started|held|0'&&A.attempt()==='pending'&&sends().read===1);
    checkout(A.a.reference);
@@ -115,6 +116,13 @@ module.exports=async({run,one,check,bsql,backend,make,auth,deps})=>{
    check('S-INGRESS-NOTED','the rejected webhook is durably noted in the run ledger',notes==='webhook_signature_rejected');
    check('S-NO-REFUND-ROUTE','refund, replay and recovery routes do not exist on the bounded server',(await Promise.all(['/refund','/replay','/recover'].map(p=>post(p,{reference:A.a.reference},key).then(r=>r.status)))).every(x=>x===404));
    check('S-NO-SWEEP','an empty verification request cannot sweep other attempts',(await post('/reconcile',{},key)).status===400);
+   {// N1: noncanonical targets are sent verbatim (fetch would normalize them) with the service key and an empty body.
+    const http=require('http'),port=server.address().port,raw=target=>new Promise(res=>{const q=http.request({agent:false,host:'127.0.0.1',port,method:'POST',path:target,headers:{'content-type':'application/json','content-length':2,...key}},r=>{r.resume();r.on('end',()=>res(r.statusCode));});q.on('error',()=>res('reset'));q.end('{}');});
+    const snap=()=>bsql(`select coalesce(string_agg(reference||':'||state||':'||attempts,',' order by reference),'') from hardware_payment_attempts`)+'|'+bsql('select count(*) from hardware_refunds')+'|'+JSON.stringify(sends());
+    const before=snap(),codes=[];
+    for(const target of ['/hardware-payments//reconcile','//hardware-payments/reconcile','/hardware-payments/reconcile/','/hardware-payments/./reconcile','/hardware-payments/%72econcile','/hardware-payments//recover','/hardware-payments//refund','/hardware-payments//initialize'])codes.push(await raw(target));
+    check('S-NONCANONICAL','noncanonical financial routes (incl. //reconcile with empty body and service key) are refused before any handler: no sweep, refund, reconciliation or provider request',codes.every(c=>c===404)&&snap()===before,{codes});
+   }
    let refundRefused=false;try{await A.fresh().provider.post('/refund',{transaction:A.a.reference,amount:10000,currency:'NGN',merchant_note:'hardware-refund:x'});}catch{refundRefused=true;}
    check('S-REFUND-DENIED','a refund dispatch is refused and stops the run without any provider request',refundRefused&&provider.requests.length===4&&A.status().run_stopped);
   }finally{await new Promise(x=>server.close(x));}
@@ -142,7 +150,12 @@ module.exports=async({run,one,check,bsql,backend,make,auth,deps})=>{
   check('S-COUNTER-BACKSTOP','with the counter exhausted, verification is refused before sending and Office stays unpaid',provider.requests.length===gBase&&G.order()==='not_started|held|0'&&G.counter.summary().denied===1);
 
   {const w=JSON.parse(walletsBefore),names=[...w.office.map(x=>'office:'+x[0]),...w.backend.map(x=>'backend:'+x[0])];
-   check('S-WALLETS','no wallet table changed ('+(names.join(', ')||'no wallet tables present')+')',walletSnap()===walletsBefore&&w.backend.length===0);}
+   // ---- Run H: an order email other than the manifest-bound inbox is refused before any provider request.
+  const H=newRun('H');runs.push(H);H.arm();const hBase=provider.requests.length;H.a.email='someone-else@payments-test.getoyi.com';
+  await H.fresh().payments.initialize(H.a).catch(()=>{});
+  check('S-INBOX-BOUND','an email other than the approved inbox sends nothing, stops the run and leaves Office unpaid',provider.requests.length===hBase&&H.status().run_stopped&&H.order()==='not_started|held|0'&&H.counter.summary().records===0,{attempt:H.attempt()});
+
+  check('S-WALLETS','no wallet table changed ('+(names.join(', ')||'no wallet tables present')+')',walletSnap()===walletsBefore&&w.backend.length===0);}
   check('S-EVIDENCE','all provider responses were synthetic; no request left the process',provider.requests.every(r=>r.key_is_test));
  }finally{
   for(const r of runs){try{r.counter.release();}catch{}if(one(`select state from hardware_reservations where order_id='${r.a.order_id}'`)==='held')run(`select hardware_reservation_finish('${r.a.order_id}','released','fixture','Single-payment mock test cleanup')`);}

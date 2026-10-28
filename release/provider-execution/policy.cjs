@@ -6,7 +6,7 @@ function validate(method,path,body,ledger){
  const ownedRef=r=>REF.test(r)&&ledger.references.includes(r);
  const ownedId=id=>/^[1-9][0-9]{0,39}$/.test(id)&&ledger.transactions.includes(id);
  if(method==='POST'&&path==='/transaction/initialize'){
-  if(!body||Object.keys(body).some(k=>!['reference','amount','currency','email','callback_url','metadata'].includes(k))||!ownedRef(body.reference)||!Number.isSafeInteger(body.amount)||body.amount<1||body.amount>10000||body.amount!==ledger.amounts[body.reference]||body.currency!=='NGN'||body.callback_url!=='https://localhost:18443/hardware/checkout'||!/^setup-[a-z0-9-]+@example\.invalid$/.test(body.email))throw Error('initialization_denied');
+  if(!body||Object.keys(body).some(k=>!['reference','amount','currency','email','callback_url','metadata'].includes(k))||!ownedRef(body.reference)||!Number.isSafeInteger(body.amount)||body.amount<1||body.amount>10000||body.amount!==ledger.amounts[body.reference]||body.currency!=='NGN'||body.callback_url!=='https://localhost:18443/hardware/checkout'||!(ledger.customerEmail!==undefined?body.email===ledger.customerEmail:/^setup-[a-z0-9-]+@example\.invalid$/.test(body.email)))throw Error('initialization_denied');
   {const m=body.metadata,a=ledger.authorizations?.[body.reference];if(!m||!a||Object.keys(m).sort().join(',')!=='authorization_hash,order_id,purpose,reservation_id'||m.purpose!=='hardware_order'||m.order_id!==a.order_id||m.reservation_id!==a.reservation_id||m.authorization_hash!==a.authorization_hash)throw Error('authorization_binding_denied');}return;
  }
  if(method==='GET'&&path.startsWith('/transaction/verify/')&&ownedRef(path.slice(20))&&!body)return;

@@ -16,6 +16,8 @@ async function relay({method,url,body=null,reference=REF,counter,send}){
  await handler({config:{manifest},key:'synthetic-only',send,counter,consume:()=>{consumed++;}})(req,res);
  return {status:res.status,body:res.body,consumed};
 }
+// Raw request target: fetch()/URL normalizes dot segments client-side, http.request sends the path verbatim.
+const rawPost=(port,target,headers)=>new Promise(res=>{const http=require('http');const q=http.request({agent:false,host:'127.0.0.1',port,method:'POST',path:target,headers:{'content-type':'application/json','content-length':2,...headers}},r=>{r.resume();r.on('end',()=>res(r.statusCode));});q.on('error',()=>res('reset'));q.end('{}');});
 (async()=>{
  // Counter budget for this profile: initialize=1, read=3, refund=0; anything else is invalid.
  eq(budgetFor(manifest),{initialize:1,refund:0,read:3});
@@ -92,8 +94,44 @@ async function relay({method,url,body=null,reference=REF,counter,send}){
   const statuses=[];for(let i=0;i<4;i++)statuses.push((await post('/webhook',raw,{'x-paystack-signature':sig})).status);
   eq(statuses,[200,200,429,429],'rate limit after 5 per window');
   eq(notes,['webhook_rate_limited'],'rate limiting noted once per window');
+  // N1: noncanonical financial routes are refused before any handler, even with a valid service key and an empty body.
+  const noncanonical=['//reconcile','/reconcile/','/reconcile?x=1','/%72econcile','/./reconcile','/../hardware-payments/reconcile','/RECONCILE','//initialize','//webhook','/reconcile%2F'];
+  const before=calls.length;
+  const port=server.address().port;for(const p of noncanonical)eq(await rawPost(port,'/hardware-payments'+p,key),404,'noncanonical '+p+' refused');
+  for(const p of ['//hardware-payments/reconcile','/hardware-payments\\reconcile'])eq(await rawPost(port,p,key),404,'noncanonical '+p+' refused');
+  eq(calls.length,before,'no sweep, reconcile, initialize or webhook ran for any noncanonical route');
   eq(calls.filter(c=>c==='sweep').length,0,'no sweep reachable');
   eq(calls.filter(c=>c.startsWith('reconcile')),['reconcile:'+REF]);
+  // The same gate protects the single-initialization and full-suite route surfaces.
+  for(const prof of ['single-initialization-only',undefined]){
+   const ran=[];const svc={bridge:()=>{},payments:{initialize:async()=>{ran.push('initialize');return {state:'pending'};},reconcile:async()=>{ran.push('reconcile');},sweep:async()=>{ran.push('sweep');},webhook:async()=>{ran.push('webhook');},replayWebhook:async()=>{ran.push('replay');}},recovery:{sweep:async()=>{ran.push('recover');}}};
+   const s2=mount({services:svc,hardwareRoutes,hardwareWebhookHandler,profile:prof,d:{secret:secret}}).listen(0,'127.0.0.1');await new Promise(x=>s2.once('listening',x));const o2='http://127.0.0.1:'+s2.address().port;
+   for(const p of ['//initialize','//reconcile','//recover','/initialize/','/reconcile?x=1','/./reconcile'])eq(await rawPost(s2.address().port,'/hardware-payments'+p,key),404,(prof||'full-suite')+' noncanonical '+p+' refused');
+   eq(ran,[],(prof||'full-suite')+': no handler ran');await new Promise(x=>s2.close(x));
+  }
  }finally{await new Promise(x=>server.close(x));for(const k in saved){if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}}
+ // N3: with a manifest-bound inbox, initialization requires exactly that email; other profiles keep the synthetic pattern.
+ {const {validate}=require('./policy.cjs');const a={order_id:'o',reservation_id:'r',authorization_hash:'h'};
+  const ledger=extra=>({references:[REF],amounts:{[REF]:10000},authorizations:{[REF]:a},transactions:[],refunds:[],paidAmounts:{},refundApprovals:{},...extra});
+  const body=email=>({reference:REF,amount:10000,currency:'NGN',email,callback_url:'https://localhost:18443/hardware/checkout',metadata:{purpose:'hardware_order',order_id:'o',reservation_id:'r',authorization_hash:'h'}});
+  const inbox='acceptance-inbox@payments-test.getoyi.com';
+  assert.doesNotThrow(()=>validate('POST','/transaction/initialize',body(inbox),ledger({customerEmail:inbox})));n++;
+  for(const e of ['setup-single-payment-x@example.invalid','other@payments-test.getoyi.com','ACCEPTANCE-INBOX@payments-test.getoyi.com'])assert.throws(()=>validate('POST','/transaction/initialize',body(e),ledger({customerEmail:inbox})),/initialization_denied/),n++;
+  assert.doesNotThrow(()=>validate('POST','/transaction/initialize',body('setup-bounded@example.invalid'),ledger({})));n++;
+  // Strict amount: a string or off-by-one amount is refused.
+  for(const amount of ['10000',9999,10001,10000.5])assert.throws(()=>validate('POST','/transaction/initialize',{...body(inbox),amount},ledger({customerEmail:inbox}))),n++;
+ }
+ // Hold rule: at least 10 minutes to initialize, at least 5 minutes to check out; read from Office status (stubbed).
+ {const {holdSeconds,HOLD_MIN_INITIALIZE_S,HOLD_MIN_CHECKOUT_S}=require('./run.cjs');const realFetch=global.fetch;const now=Date.parse('2026-10-29T10:00:00Z');
+  const office=(state,minutes,ok=true)=>async(url)=>{assert.equal(url,'https://office.hardware.test/api/commerce/checkout/status');return {ok,json:async()=>({order:{reservation:{state,expires_at:new Date(now+minutes*60000).toISOString()}}})};};
+  try{
+   eq([HOLD_MIN_INITIALIZE_S,HOLD_MIN_CHECKOUT_S],[600,300]);
+   global.fetch=office('held',12);eq(await holdSeconds({order_id:'x',guest_hash:'y'},'k',()=>now),720);
+   global.fetch=office('held',9);ok(await holdSeconds({order_id:'x',guest_hash:'y'},'k',()=>now)<HOLD_MIN_INITIALIZE_S,'9 minutes is too little to initialize');
+   global.fetch=office('expired',9);eq(await holdSeconds({order_id:'x',guest_hash:'y'},'k',()=>now),0,'a non-held reservation has no time left');
+   global.fetch=office('held',12,false);await assert.rejects(holdSeconds({order_id:'x',guest_hash:'y'},'k',()=>now),/reservation_status_unavailable/);n++;
+   global.fetch=async()=>{throw Error('down');};await assert.rejects(holdSeconds({order_id:'x',guest_hash:'y'},'k',()=>now),/reservation_status_unavailable/);n++;
+  }finally{global.fetch=realFetch;}
+ }
  console.log(`single-payment runtime (relay routes, durable counter budget and restart, server flags, HTTP surface): ${n} assertions PASS; stubbed provider, no network requests beyond loopback`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

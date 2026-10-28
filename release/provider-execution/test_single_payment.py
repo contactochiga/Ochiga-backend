@@ -3,7 +3,9 @@ import unittest,tempfile,pathlib,json,sys,copy,concurrent.futures,sqlite3
 sys.path.insert(0,str(pathlib.Path(__file__).parent))
 from executor import Executor,Denied
 from bridge import main as bridge
-P=json.loads((pathlib.Path(__file__).parent/'single-payment-manifest.json').read_text())
+TEMPLATE=json.loads((pathlib.Path(__file__).parent/'single-payment-manifest.json').read_text())
+# Preparation binds the owner-approved inbox into each run's manifest; tests use a synthetic deliverable-form address.
+P={**TEMPLATE,'customer_email':'acceptance-inbox@payments-test.getoyi.com'}
 REF='hwo_'+'a'*32
 def rid(n):return 'hwo_'+format(n,'032x')
 class Tests(unittest.TestCase):
@@ -26,6 +28,12 @@ class Tests(unittest.TestCase):
    with self.assertRaises(Denied,msg=k):Executor(str(pathlib.Path(self.d.name)/('x'+k+str(v))),m)
   m=copy.deepcopy(P);m['scenarios'][0]['id']='success'
   with self.assertRaises(Denied):Executor(str(pathlib.Path(self.d.name)/'scen'),m)
+ def test_approved_inbox_required(self):
+  for v in (None,'setup-single-payment-abc@example.invalid','a@example.com','a@foo.test','A@getoyi.com','a@localhost','not-an-email',''):
+   m=copy.deepcopy(TEMPLATE)
+   if v is not None:m['customer_email']=v
+   with self.assertRaises(Denied,msg=repr(v)):Executor(str(pathlib.Path(self.d.name)/('inbox'+str(abs(hash(v))))),m)
+  self.assertNotIn('customer_email',TEMPLATE,'the committed template carries no inbox')
  def test_plan_is_one_ngn100_item(self):
   p=str(pathlib.Path(self.d.name)/'p2.sqlite');Executor(p,P).close()
   for plan in ([{'reference':REF,'scenario':'single_payment','amount':9999}],[{'reference':REF,'scenario':'single_initialization','amount':10000}],[{'reference':REF,'scenario':'single_payment','amount':10000},{'reference':rid(9),'scenario':'single_payment','amount':10000}]):

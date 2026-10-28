@@ -36,9 +36,22 @@ It reuses the same ledger, tickets, relay and durable counter (budget `initializ
   - Synthetic customers are `setup-<scenario>-<run>@example.invalid`, as the relay initialization policy requires.
   - The earlier `single-init-…` customer pattern would have been refused before any send.
 
+Phase 4K corrections:
+- **Canonical route gate (all bounded profiles).**
+  - The raw request target must be exactly `/hardware-payments/<lowercase name>`, checked before any router, parser or handler.
+  - Refused: `//reconcile`, a trailing slash, a query, dot segments, percent-encoding, backslashes and upper case.
+  - Express had routed `POST /hardware-payments//reconcile {}` to the sweep handler; the sweep itself was already denied in this profile.
+- **Approved test inbox.**
+  - A single-payment manifest must carry `customer_email`: a deliverable, owner-approved inbox; reserved domains (`example.*`, `.invalid`, `.test`, `.localhost`) are refused.
+  - `prepare-single-run.py --customer-email` adds it to the run's manifest, so the authorization hash binds it, and the relay policy requires that exact address.
+  - The committed template carries no address.
+- **Reservation hold.**
+  - `run.cjs initialize` refuses (`reservation_hold_insufficient`) before Office payment-start if fewer than 600 s of live hold remain.
+  - `run.cjs hold single_payment` reports the remaining seconds and `checkout_allowed` (≥300 s) from Office's checkout status, with no provider call.
+
 Tests:
-- `test_single_payment.py`: ledger and bridge, 13 tests.
-- `test-single-payment-runtime.cjs`: relay routes, counter budget and restart, flags, HTTP surface; 65 assertions.
+- `test_single_payment.py`: ledger and bridge, 14 tests.
+- `test-single-payment-runtime.cjs`: relay routes, counter budget and restart, flags, HTTP surface, canonical routes, inbox binding, strict amount and hold rule; 107 assertions.
 - `scripts/test-single-payment-cases.js`: the end-to-end Postgres chain (`TEST_SINGLE_PAYMENT=true`), with a fake Paystack behind the real relay handler, counter, ledger, Backend SQL and Office confirmation SQL.
 
 ## Existing financial authority

@@ -21,6 +21,10 @@ P=PROFILES['single-init']
 IMAGE=os.environ.get('HARDWARE_EXECUTOR_IMAGE','')
 API='https://localhost:18445/api/commerce/checkout/'
 
+def mask(v):
+ # Evidence shows only the first character and the domain of the approved inbox.
+ return None if not v else v[0]+'***@'+v.split('@',1)[1]
+
 def sql(query):
  r=subprocess.run(['docker','exec','-i','hardware-setup-office-db','psql','-X','-Atq','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1'],input=query,text=True,capture_output=True)
  if r.returncode: raise RuntimeError('isolated_office_fixture_check_failed')
@@ -85,17 +89,25 @@ def seal_current(manifest, state, ctx, checkout_key, image):
  counter_volume=seal_counter(runroot,run_id,plan_hash,manifest,IMAGE,state)
  state.setdefault('execution_volumes',[]).append(volume);state.setdefault(P['state'],[]).append({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'authorization_required':True,'provider_calls':0})
  (R/'state.json').write_text(json.dumps(state,indent=2));os.chmod(R/'state.json',0o600)
- print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'profile':P['profile'],'provider_request_budget':P['budget'],'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':P['budget']['read'],'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
+ print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'profile':P['profile'],'customer_inbox':mask(manifest.get('customer_email')),'provider_request_budget':P['budget'],'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':P['budget']['read'],'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
 
 def main():
  global P
- args=sys.argv[1:]
+ args=sys.argv[1:];inbox=None
+ if '--customer-email' in args:
+  i=args.index('--customer-email');inbox=args[i+1] if i+1<len(args) else None;args=args[:i]+args[i+2:]
  if len(args)==3 and args[1]=='--profile' and args[2] in PROFILES: P=PROFILES[args[2]];args=args[:1]
+ # Single payment: the owner-approved test inbox is bound into this run's manifest (and authorization hash).
+ if P['profile']=='single-payment-acceptance':
+  from executor import approved_test_inbox
+  if args!=['--prepare'] or not approved_test_inbox(inbox): raise RuntimeError('approved_test_inbox_required')
+ elif inbox is not None: raise RuntimeError('customer_email_only_for_single_payment')
  if args not in (['--prepare'],['--seal-current']): raise SystemExit('Only local preparation modes are supported; this script cannot execute or authorize payments.')
  if not IMAGE or not re.fullmatch(r'getoyi-bounded-execution:[a-f0-9]{7,40}-single-(init|payment)',IMAGE): raise RuntimeError('reviewed_executor_image_required')
  for name in ['hardware-setup-office-db','hardware-setup-backend-db']:
   if subprocess.check_output(['docker','inspect','--format','{{index .Config.Labels "getoyi.isolated.setup"}}',name],text=True).strip()!='true': raise RuntimeError('labelled_disposable_databases_required')
  manifest=json.loads(Path(__file__).with_name(P['manifest']).read_text())
+ if inbox is not None: manifest={**manifest,'customer_email':inbox}
  if manifest.get('execution_profile')!=P['profile'] or manifest.get('max_payment_initializations')!=1 or manifest.get('max_total_payment_kobo')!=10000 or manifest.get('max_refund_initializations')!=0 or manifest.get('max_provider_reads')!=P['budget']['read'] or manifest.get('max_webhook_replays')!=0: raise RuntimeError('single_use_manifest_invalid')
  state=json.loads((R/'state.json').read_text());checkout_key=state['keys']['checkout']
  ctx=ssl.create_default_context(cafile=str(R/'tls/cert.pem'))
@@ -111,7 +123,7 @@ def main():
  code,quoted=post('quote',{'lines':lines},checkout_key,ctx)
  q=quoted.get('quote',{})
  if code!=200 or q.get('goods_total_kobo')!=10000 or len(q.get('lines',[]))!=1 or q['lines'][0].get('quantity')!=1: raise RuntimeError('fresh_order_quote_not_exactly_ngn100')
- request={'lines':lines,'customer':{'name':'ZZ SINGLE INIT SYNTHETIC','email':'setup-'+P['scenario'].replace('_','-')+'-'+run_id+'@example.invalid','phone':'+2348000000000'},'delivery':{'country':'NG','state':'Plateau','city':'Jos','address':'SYNTHETIC DISPOSABLE TEST ADDRESS'},'installation_requested':False}
+ request={'lines':lines,'customer':{'name':'ZZ SINGLE INIT SYNTHETIC','email':manifest.get('customer_email') or 'setup-'+P['scenario'].replace('_','-')+'-'+run_id+'@example.invalid','phone':'+2348000000000'},'delivery':{'country':'NG','state':'Plateau','city':'Jos','address':'SYNTHETIC DISPOSABLE TEST ADDRESS'},'installation_requested':False}
  code,submitted=post('submit',{'guest_hash':guest,'idempotency_key':key,'quote_hash':q['quote_hash'],'order':request},checkout_key,ctx)
  order=submitted.get('order') or {};order_id=order.get('id')
  if code not in (200,201) or not isinstance(order_id,str) or not re.fullmatch(r'[0-9a-f-]{36}',order_id): raise RuntimeError('fresh_synthetic_checkout_not_created')
@@ -144,7 +156,7 @@ def main():
  counter_volume=seal_counter(runroot,run_id,plan_hash,manifest,IMAGE,state)
  state.setdefault('execution_volumes',[]).append(volume);state.setdefault(P['state'],[]).append({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'authorization_required':True,'provider_calls':0})
  (R/'state.json').write_text(json.dumps(state,indent=2));os.chmod(R/'state.json',0o600)
- print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'profile':P['profile'],'provider_request_budget':P['budget'],'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':P['budget']['read'],'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
+ print(json.dumps({'run_id':run_id,'ledger_volume':volume,'provider_counter_volume':counter_volume,'profile':P['profile'],'customer_inbox':mask(manifest.get('customer_email')),'provider_request_budget':P['budget'],'plan_items':1,'amount_kobo':10000,'refund_budget':0,'provider_reads':P['budget']['read'],'webhook_replays':0,'authorized':False,'provider_calls':0,'fresh_order_eligible':True,'fresh_reservation_valid':True,'original_payment_preserved':True,'original_reservation_expired_by_normal_checkout_flow':True}))
 
 if __name__=='__main__':
  try:main()

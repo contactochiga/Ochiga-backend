@@ -24,7 +24,7 @@ function createBoundedServices(d,config){
  const observe=(reference,id,state)=>bridge(config,'record',{reference,id,state});
  async function policyLedger(ref){
   const p=check(ref),a=await d.get(ref),refunds=await d.refundsDue(),approvals=await d.approvals();
-  return {references:[ref],amounts:{[ref]:p.amount},authorizations:{[ref]:a},transactions:a?.provider_id?[String(a.provider_id)]:[],refunds:refunds.filter(x=>x.reference===ref&&x.provider_refund_id).map(x=>String(x.provider_refund_id)),paidAmounts:{[ref]:a?.proof?.amount_kobo},refundApprovals:Object.fromEntries(approvals.filter(x=>x.reference===ref).map(x=>['hardware-refund:'+x.approval_id,{reference:ref,amount:Number(x.amount_kobo)}]))};
+  return {references:[ref],amounts:{[ref]:p.amount},...(config.manifest?.customer_email!==undefined?{customerEmail:config.manifest.customer_email}:{}),authorizations:{[ref]:a},transactions:a?.provider_id?[String(a.provider_id)]:[],refunds:refunds.filter(x=>x.reference===ref&&x.provider_refund_id).map(x=>String(x.provider_refund_id)),paidAmounts:{[ref]:a?.proof?.amount_kobo},refundApprovals:Object.fromEntries(approvals.filter(x=>x.reference===ref).map(x=>['hardware-refund:'+x.approval_id,{reference:ref,amount:Number(x.amount_kobo)}]))};
  }
  async function request(method,url,body,options){
   let ref;
