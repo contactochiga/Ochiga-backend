@@ -111,10 +111,19 @@ It forwards only `content-type`, `content-length` and `x-paystack-signature` to 
 
 `test-stage-run.py` runs all of this on a disposable `hwtest-*` stack: 30 checks covering startup, timing, rollback, an expired or short hold, tampered counter, public checkout on and the test-config guard.
 
-`verify-historical.py` is the read-only preservation check to use after authorized runs:
+`verify-historical.py` is the read-only preservation check to use before and after authorized runs:
 - the 9 baseline ledgers are byte-identical, and extra ledger volumes must belong to recorded runs;
-- historical financial rows match the baseline, excluding rows of recorded single-payment runs;
+- historical financial rows match the baseline, excluding only rows of recorded single-payment runs. Each excluded run must have:
+  - a valid ID, its run files and volumes bound to that ID;
+  - an order created after the baseline;
+  - no order shared with another run;
+  - a reference that is never the original attempt's.
+
+  Delivery-queue rows are attributed through their event reference;
 - the original uncertain attempt's fingerprint is unchanged;
+- each recorded run's own rows are reconciled against its durable counter (`new_run_records`, must be `RECONCILED`);
 - switches are off.
 
-`verify-after-approval.sh` reports DIFFERENCE after any authorized preparation, by design, because it compares the whole environment.
+`test-verify-historical.py` (read-only; tampers only with scratch copies) runs 28 control and negative cases.
+
+`verify-after-approval.sh` is kept as a diagnostic. It reports DIFFERENCE after any authorized preparation, by design, because it compares the whole environment.

@@ -7,7 +7,7 @@ presented), synthetic "setup" Backend/Office/GetOyi containers, a synthetic Offi
 ledgers/counters and a synthetic sk_test_ key. Test ledgers are armed with synthetic test-only authorizations. The real
 hardware-setup-* environment is never addressed (stage-run.py refuses a test config that names it).
 """
-import json, os, shutil, subprocess, sys, tempfile, time, uuid, hashlib, secrets
+import json, os, shutil, signal, subprocess, sys, tempfile, time, uuid, hashlib, secrets
 HERE = os.path.dirname(os.path.abspath(__file__)); X = os.path.join(HERE, '..', 'provider-execution')
 REAL_SETUP = '/Users/ochigaidoko/getoyi-commerce/phase4/stage4e/environment-setup'
 IMAGE = 'getoyi-bounded-execution:aca59b7-single-payment'; OFFICE_IMAGE = 'getoyi-phase4e-boundary:1033cdb-0c0bb0a'
@@ -182,6 +182,49 @@ def main():
         F = new_run(900)
         sh('docker', 'rm', '-f', CFG['getoyi']); run_c(CFG['getoyi'], IMAGE, {'HARDWARE_CATALOGUE_ENABLED': 'false', 'HARDWARE_CHECKOUT_ENABLED': 'true', 'HARDWARE_PAYMENTS_ENABLED': 'false'}, [], ['node', '-e', 'setInterval(()=>{},1e6)'], '/app/backend', [])
         rc, o, _ = stage('check', F['id']); rec('T9-PUBLIC-CHECKOUT-REFUSED', rc == 1 and o['code'] == 'public_checkout_not_disabled')
+        sh('docker', 'rm', '-f', CFG['getoyi']); run_c(CFG['getoyi'], IMAGE, {'HARDWARE_CATALOGUE_ENABLED': 'false', 'HARDWARE_CHECKOUT_ENABLED': 'false', 'HARDWARE_PAYMENTS_ENABLED': 'false'}, [], ['node', '-e', 'setInterval(()=>{},1e6)'], '/app/backend', [])
+        # 10. Interrupted start (SIGTERM / SIGINT mid-way): state-driven rollback, verified end state.
+        for sig_name, sig, delay in (('SIGTERM', signal.SIGTERM, 6.0), ('SIGINT', signal.SIGINT, 3.0)):
+            G = new_run(900); owner_auth(G); stage('install', G['id']); arm(G)
+            pr = subprocess.Popen([sys.executable, os.path.join(HERE, 'stage-run.py'), 'start', G['id'], '--window-end', window_end()], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                  env={**os.environ, 'STAGE_RUN_TEST_CONFIG': os.path.join(ROOT, 'cfg.json')})
+            time.sleep(delay); pr.send_signal(sig); so, _ = pr.communicate(timeout=180)
+            try: o = json.loads(so)
+            except Exception: o = {'raw': so[-300:]}
+            running = sh('docker', 'ps', '--filter', 'label=getoyi.run=' + G['id'], '--format', '{{.Names}}').stdout.split()
+            rec('T10-INTERRUPT-' + sig_name + '-ROLLBACK', pr.returncode == 1 and o.get('code', '').endswith(':rolled_back') and not running and not ledger_status(G)['run_enabled']
+                and setup_state() == {CFG['backend']: None, CFG['office']: None} and {n: env_of(n) for n in before} == before and inspect(CFG['backend'])['State']['Running'] and inspect(CFG['office'])['State']['Running']
+                and not os.path.exists(os.path.join(G['dir'], 'office-window.json')), {'code': o.get('code'), 'issues': o.get('issues'), 'running': running})
+        # 11. Failure after the Backend swap (relay egress network missing): Backend restored, failed Backend detached.
+        H = new_run(900); owner_auth(H); stage('install', H['id']); arm(H)
+        bad = json.load(open(os.path.join(ROOT, 'cfg.json'))); bad['egress'] = 'hwtest-egress-missing'; json.dump(bad, open(os.path.join(ROOT, 'bad-egress.json'), 'w'))
+        r11 = subprocess.run([sys.executable, os.path.join(HERE, 'stage-run.py'), 'start', H['id'], '--window-end', window_end()], capture_output=True, text=True, env={**os.environ, 'STAGE_RUN_TEST_CONFIG': os.path.join(ROOT, 'bad-egress.json')})
+        o = json.loads(r11.stdout); failed = [n for n in sh('docker', 'ps', '-a', '--format', '{{.Names}}').stdout.split() if n.startswith(CFG['backend'] + '-failed-' + H['id'])]
+        rec('T11-RELAY-FAIL-AFTER-BACKEND-SWAP', r11.returncode == 1 and o['code'] in ('command_failed:network:rolled_back', 'command_failed:start:rolled_back', 'relay_start_failed:rolled_back') and not ledger_status(H)['run_enabled'] and setup_state() == {CFG['backend']: None, CFG['office']: None}
+            and {n: env_of(n) for n in before} == before and failed and not inspect(failed[0])['NetworkSettings']['Networks'], {'code': o.get('code'), 'failed': failed,
+            'states': {n: inspect(n)['State']['Status'] for n in (CFG['backend'], CFG['office'])}, 'office_log': sh('docker', 'logs', '--tail', '5', CFG['office'], check=False).stderr[-400:]})
+        # 12. Tampering: order rebound to another held order; symlinked authorization; reformatted host authorization.
+        I = new_run(900); J = new_run(900)
+        so = os.path.join(I['dir'], 'scenario-orders.json'); d = json.load(open(so)); d['single_payment']['order_id'] = J['order']; json.dump(d, open(so, 'w'))
+        rc, o, _ = stage('check', I['id']); rec('T12-ORDER-REBIND-REFUSED', rc == 1 and o['code'] == 'order_not_bound_to_plan')
+        owner_auth(J); real = os.path.join(J['dir'], 'authorization.json'); os.rename(real, real + '.target'); os.symlink(real + '.target', real)
+        rc, o, _ = stage('install', J['id']); rec('T12-SYMLINK-AUTH-REFUSED', rc == 1 and o['code'] == 'authorization_file_missing_or_unsafe')
+        os.unlink(real); os.rename(real + '.target', real); stage('install', J['id']); arm(J)
+        a = json.load(open(real)); os.unlink(real); fd = os.open(real, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600); os.write(fd, json.dumps(a, indent=2).encode()); os.close(fd)
+        rc, o, _ = stage('start', J['id'], '--window-end', window_end()); rec('T12-HOST-AUTH-DIFFERS-FROM-LEDGER-REFUSED', rc == 1 and o['code'] == 'ledger_authorization_differs_from_owner_file' and not inspect(CFG['relay_prefix'] + J['id']))
+        # 13. Test-config guard: an image other than the reviewed one, and the real key fingerprint, are refused.
+        bad = json.load(open(os.path.join(ROOT, 'cfg.json'))); bad['image_id'] = 'sha256:' + '0' * 64; json.dump(bad, open(os.path.join(ROOT, 'bad-image.json'), 'w'))
+        r13 = subprocess.run([sys.executable, os.path.join(HERE, 'stage-run.py'), 'check', I['id']], capture_output=True, text=True, env={**os.environ, 'STAGE_RUN_TEST_CONFIG': os.path.join(ROOT, 'bad-image.json')})
+        rec('T13-TEST-CONFIG-IMAGE-GUARD', 'test_config_must_use_reviewed_image' in r13.stdout)
+        # 14. Env-file injection: a setup value containing a line break is refused before any bounded service exists.
+        K = new_run(900); owner_auth(K); stage('install', K['id']); arm(K)
+        sh('docker', 'rm', '-f', CFG['backend'])
+        run_c(CFG['backend'], IMAGE, {**before[CFG['backend']], 'HWTEST_NOTE': 'x\nHARDWARE_FINANCIAL_RECOVERY_ENABLED=true'}, [RT + '/tls/cert.pem:/tls/cert.pem:ro', os.path.join(RT, 'provider-test-key') + ':/run/secrets/hardware-test-key:ro'],
+              ['node', '-e', 'setInterval(()=>{},1e6)'], '/app/backend', [CFG['backend']])
+        injected = env_of(CFG['backend'])
+        rc, o, _ = stage('start', K['id'], '--window-end', window_end())
+        rec('T14-ENV-INJECTION-REFUSED', rc == 1 and o['code'] == 'container_env_unsafe:rolled_back' and env_of(CFG['backend']) == injected and setup_state() == {CFG['backend']: None, CFG['office']: None}
+            and not ledger_status(K)['run_enabled'], {'code': o.get('code'), 'issues': o.get('issues')})
     finally:
         # Diagnostics: last log lines of any service the staging script rolled back (secrets are never logged by these services).
         for n in sh('docker', 'ps', '-a', '--format', '{{.Names}}').stdout.split():
