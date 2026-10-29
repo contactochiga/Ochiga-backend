@@ -1,0 +1,28 @@
+'use strict';
+const assert=require('assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),{execFileSync}=require('child_process'),http=require('http');
+const {bridge,wireHash}=require('../release/provider-execution/integration.cjs'),{handler}=require('../release/provider-execution/financial-relay.cjs');
+const {assertEnvironment}=require('../release/provider-execution/execution-server.cjs');
+const {ProviderCounter,prepare}=require('../release/provider-execution/provider-counter.cjs');
+const manifest=require('../release/provider-preparation/run-manifest.json');
+(async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'relay-ticket-')),database=path.join(dir,'run.sqlite');
+ const py="import sys,json;sys.path.insert(0,sys.argv[1]);from executor import Executor;e=Executor(sys.argv[2],json.load(sys.stdin));print(e.digest);e.close()";
+ const hash=execFileSync('python3',['-c',py,path.resolve('release/provider-execution'),database],{input:JSON.stringify(manifest),encoding:'utf8'}).trim();
+ const ref='hwo_'+'a'.repeat(32),config={database,manifest,mode:'mock'};config.planSha256=bridge(config,'prepare',{plan:[{reference:ref,scenario:'success',amount:10000}]}).plan_sha256;
+ bridge(config,'arm',{approval:{manifest_sha256:hash,plan_sha256:config.planSha256,authorized:true,environment:'test',evidence:'mock'}});
+ const counterDir=path.join(dir,'counter');prepare(counterDir,config.planSha256,manifest);const counter=new ProviderCounter(counterDir,{planSha256:config.planSha256,manifest});
+ let calls=0;const app=http.createServer(handler({config,key:'sk_test_SYNTHETIC_NOT_A_CREDENTIAL',counter,send:async()=>{calls++;return {status:true,data:{reference:ref}};}}));await new Promise(r=>app.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+app.address().port;
+ const body={reference:ref,amount:10000,currency:'NGN'},method='POST',url='/transaction/initialize';
+ const {ticket}=bridge(config,'claim',{reference:ref,id:ref,kind:'payment',amount:10000,request_hash:wireHash(method,url,body)});
+ const payload={ticket,reference:ref,method,url,body},post=(p=payload,target='/financial')=>fetch(base+target,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(p)});
+ assert.equal((await post({...payload,body:{...body,amount:1}})).status,503);assert.equal(calls,0);
+ assert.equal((await post(payload,'/wallets/webhook')).status,403);
+ const results=await Promise.all(Array.from({length:8},()=>post()));assert.equal(results.filter(x=>x.status===200).length,1);assert.equal(calls,1);
+ assert.equal((await post()).status,503);assert.equal(calls,1);
+ assert.deepEqual(counter.summary().dispatched,{initialize:1,refund:0,read:0});assert.equal(counter.summary().open_dispatches,0);
+ bridge(config,'disable');assert.equal((await post()).status,503);assert.equal(counter.summary().dispatched.initialize,1);counter.release();
+ assert.throws(()=>assertEnvironment({}));
+ await new Promise(r=>app.close(r));
+ const disabled=http.createServer(handler({config:null,key:null,send:()=>{throw Error('must not send');}}));await new Promise(r=>disabled.listen(0,'127.0.0.1',r));assert.equal((await fetch('http://127.0.0.1:'+disabled.address().port+'/financial',{method:'POST',body:'{}'})).status,503);await new Promise(r=>disabled.close(r));
+ fs.rmSync(dir,{recursive:true,force:true});console.log('13 bounded relay HTTP/startup/counter assertions PASS; upstream mocked, real provider requests=0');
+})().catch(e=>{console.error(e);process.exitCode=1;});

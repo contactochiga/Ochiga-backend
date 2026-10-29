@@ -1,3 +1,4 @@
+import { hardwareWebhook, hardwarePaymentRouter } from './commerce/hardwarePaymentRoutes';
 // src/app.ts
 import express from "express";
 import cors from "cors";
@@ -102,6 +103,7 @@ app.options("*", corsMiddleware);
 // ----------------------------------------------------
 // ✅ PAYSTACK WEBHOOK (RAW BODY) — MUST COME BEFORE JSON
 // ----------------------------------------------------
+app.post("/hardware-payments/webhook", express.raw({ type: "application/json", limit: "256kb" }), hardwareWebhook);
 app.post(
   "/wallets/webhook",
   express.raw({ type: "application/json" }),
@@ -115,13 +117,21 @@ app.post(
     }
     next();
   },
-  WalletCtrl.handleWebhook
+  (req, res, next) => {
+    // Hardware namespace never enters wallet reconciliation, including unknown references.
+    if (String(req.body?.data?.reference || '').startsWith('hwo_')) {
+      req.body = (req as any).rawBody;
+      return hardwareWebhook(req, res, next);
+    }
+    return WalletCtrl.handleWebhook(req, res);
+  }
 );
 
 // -------------------------------
 // BODY PARSING & LOGGING
 // -------------------------------
 app.use(requestContextMiddleware);
+app.use("/hardware-payments", express.json({ limit: "16kb" }), hardwarePaymentRouter);
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
