@@ -82,3 +82,39 @@ It forwards only `content-type`, `content-length` and `x-paystack-signature` to 
 - Setup-only local engineering: GO, subject to temporary certificate/token expiry.
 - Actual Paystack test transactions/refunds: NO-GO until remaining setup and explicit transaction authorization.
 - Production release, public Hardware activation and live payments: NO-GO. Independent production approval/release/withdrawal gate remains mandatory.
+
+## Run staging (`stage-run.py`) and historical preservation (`verify-historical.py`)
+`stage-run.py` automates only the container startup, swap and checks between the owner's authorization and `run.cjs initialize` for one prepared single-payment run. It never creates or edits authorization, never arms, never initializes and never sends a provider request.
+- **`check <run>`** (read-only) verifies:
+  - the run hashes, the 1/3/0 budget and the inbox-bound manifest;
+  - the exact image ID;
+  - a fresh ledger and counter;
+  - the live hold;
+  - an internal private network, no other relay, probe egress stopped;
+  - public GetOyi checkout off;
+  - the merchant key fingerprint.
+- **`install <run>`** copies the **owner-created** `authorization.json`, byte-identical and validated against the run's required hashes, into the ledger volume. The run is not armed.
+- **`start <run> --window-end <UTC>`** requires:
+  - an armed, fresh run;
+  - at least 660 s of hold;
+  - an open window of at most 60 minutes.
+
+  It then:
+  1. derives `office-window.json` from the validated authorization;
+  2. starts the relay with provider-only egress, checking the counter and kernel counters are zero and the firewall is default-deny;
+  3. swaps in the bounded Backend (`single-payment-acceptance`, read-only root; 403 without the credential, 400 for a sweep, 404 outside the profile);
+  4. swaps in the bounded Office (the three switches on, behind the bounded guard);
+  5. rechecks the ledger, hold and public switches.
+
+  On any failure it disables the run ledger, keeps the failed containers stopped for evidence and restores the setup services.
+- **`stop <run>`** disables the ledger, stops and detaches the relay (logging its final counter line), and restores the setup containers.
+
+`test-stage-run.py` runs all of this on a disposable `hwtest-*` stack: 30 checks covering startup, timing, rollback, an expired or short hold, tampered counter, public checkout on and the test-config guard.
+
+`verify-historical.py` is the read-only preservation check to use after authorized runs:
+- the 9 baseline ledgers are byte-identical, and extra ledger volumes must belong to recorded runs;
+- historical financial rows match the baseline, excluding rows of recorded single-payment runs;
+- the original uncertain attempt's fingerprint is unchanged;
+- switches are off.
+
+`verify-after-approval.sh` reports DIFFERENCE after any authorized preparation, by design, because it compares the whole environment.
