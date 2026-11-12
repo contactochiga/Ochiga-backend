@@ -136,6 +136,53 @@ try {
   assert.ok(!/from\("oyi_communications"\)\s*\.upsert\(/.test(pipelineSource), "the inbound pipeline no longer upserts oyi_communications (no conflict target on the partial index)");
   console.log("G. Route wiring: replay needs an explicit true flag; the broken conflict target is gone — PASS");
 
+  // ---- H. media contract (Slice 3.1/3.2): message type, caption and attachment metadata, built exactly as the route builds them ----
+  const media = await import(pathToFileURL(path.join(DIST, "services", "communicationRuntime", "whatsappInboundMessage.js")));
+  const { isOptedOut } = await import(pathToFileURL(path.join(DIST, "services", "communicationRuntime", "optOutService.js")));
+  const routeEvent = (requestBody, over = {}) => { const m = media.normalizeWhatsAppInboundMessage(requestBody); return { ...event({ ...over, body: m.body }), message_type: m.message_type, attachments: m.attachments, caption: m.caption }; };
+  const img = (id, extra = {}) => ({ kind: "image", provider_media_id: `media-${id}`, mime_type: "image/jpeg", sha256: "abc=", size_bytes: 1234, ...extra });
+  const recipient = (phone) => ({ contact_id: null, lead_id: null, user_id: null, organization_id: null, name: null, email: null, phone: null, whatsapp_phone: phone });
+  const optOutCount = () => Number(psql("select count(*) from oyi_communication_opt_outs"));
+  // H1. media without a caption: empty body (never a placeholder), type and metadata kept, nothing inferred
+  const before = optOutCount();
+  const h1 = await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("h1")] }, { id: "wamid.media.1", from: "2348070000001" }));
+  const h1row = rows("provider_message_id='wamid.media.1'")[0];
+  assert.equal(h1.ok, true); assert.equal(h1row.body, ""); assert.equal(h1row.outcome_classification, "unknown", "media without text is not classified as anything");
+  assert.equal(h1row.attachments.length, 1); assert.equal(h1row.attachments[0].provider_media_id, "media-h1"); assert.equal(h1row.attachments[0].url, null, "no URL stored"); assert.equal(h1row.attachments[0].content_type, "image/jpeg");
+  assert.deepEqual(h1row.audit_metadata.inbound_message, { message_type: "image", caption: null, attachment_count: 1 });
+  assert.equal(optOutCount(), before, "no opt-out inferred from media");
+  // H2. STOP written as a video caption is honoured: classified, recorded, and reported by isOptedOut (what the route returns to Office as opted_out)
+  assert.equal(await isOptedOut("whatsapp", recipient("2348070000002")), false);
+  const h2 = await processInboundEvent(routeEvent({ text: "", message_type: "video", caption: "STOP", attachments: [{ kind: "video", provider_media_id: "media-h2", mime_type: "video/mp4" }] }, { id: "wamid.media.2", from: "2348070000002" }));
+  const h2row = rows("provider_message_id='wamid.media.2'")[0];
+  assert.equal(h2.outcome_classification, "unsubscribe"); assert.equal(h2row.body, "STOP"); assert.equal(h2row.audit_metadata.inbound_message.caption, "STOP", "the caption is kept in its own field");
+  assert.equal(optOutCount(), before + 1); assert.equal(await isOptedOut("whatsapp", recipient("2348070000002")), true, "the sender is now reported as opted out");
+  // H3. an older Office payload (no message_type / caption / attachments) is stored exactly as before
+  const h3 = await processInboundEvent(routeEvent({ text: "Old Office text" }, { id: "wamid.media.3" }));
+  const h3row = rows("provider_message_id='wamid.media.3'")[0];
+  assert.equal(h3.ok, true); assert.equal(h3row.body, "Old Office text"); assert.equal(h3row.attachments, null); assert.equal(h3row.audit_metadata.inbound_message.message_type, "text");
+  // H4. hostile / unexpected attachment input is reduced to the agreed metadata
+  const hostile = media.normalizeInboundAttachments([{ ...img("x"), url: "https://lookaside.fbsbx.com/x", bytes: "AAAA", data_url: "data:image/png;base64,AAAA" }, { kind: "executable", provider_media_id: "m" }, { kind: "image" }, "nope", ...Array.from({ length: 12 }, (_, i) => img(`n${i}`))]);
+  assert.equal(hostile.length, 10, "at most 10 attachments"); assert.ok(hostile.every((a) => a.url === null && !("bytes" in a) && !("data_url" in a)), "no URL, bytes or data URL survives");
+  assert.ok(!JSON.stringify(rows("provider_message_id like 'wamid.media.%'")).match(/https?:|data:|lookaside/), "nothing URL-like persisted for any media row");
+  // H5. duplicate media delivery
+  assert.equal((await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("h1")] }, { id: "wamid.media.1", from: "2348070000001" }))).duplicate, true);
+  // H6. a replayed captioned media message honours the opt-out and never wakes goals
+  const h6 = await processInboundEvent(routeEvent({ text: "", message_type: "document", caption: "unsubscribe", attachments: [{ kind: "document", provider_media_id: "media-h6", filename: "a.pdf" }] }, { id: "wamid.media.6", from: "2348070000006", at: replayAt }), { replay: true });
+  assert.equal(h6.outcome_classification, "unsubscribe"); assert.deepEqual(h6.woke_goal_ids, []); assert.equal(await isOptedOut("whatsapp", recipient("2348070000006")), true);
+  // H7. a live captioned media message on a goal's thread wakes the goal (single-responder: Office then defers), like any inbound reply
+  const h7Thread = computeThreadReference("whatsapp", recipient("2348070000007"));
+  const h7Goal = crypto.randomUUID();
+  psql(`insert into oyi_goals (id, correlation_id, surface, objective, status, linked_communication_threads) values ('${h7Goal}', 'goal-fixture-h7', 'office', 'fixture goal', 'waiting', '["${h7Thread}"]'::jsonb)`);
+  const h7 = await processInboundEvent(routeEvent({ text: "", message_type: "image", caption: "Here is the site", attachments: [img("h7")] }, { id: "wamid.media.7", from: "2348070000007" }));
+  assert.deepEqual(h7.woke_goal_ids, [h7Goal], "goal_active is reported for media messages too");
+  // H8. route wiring (source text): the normalizer feeds the canonical event, nothing is hardcoded, and opted_out is returned
+  assert.match(route, /const message = normalizeWhatsAppInboundMessage\(body\);/);
+  assert.match(route, /body: message\.body,\s*message_type: message\.message_type,\s*attachments: message\.attachments,\s*caption: message\.caption,/);
+  assert.ok(!/message_type: "text",\s*attachments: null,/.test(route), "the hardcoded text/null mapping is gone");
+  assert.match(route, /goal_active: result\.woke_goal_ids\.length > 0, opted_out: optedOut \}/);
+  console.log("H. Media contract: empty body for media-only, caption kept apart, STOP caption honoured + opted_out, old payloads unchanged, hostile metadata reduced, duplicates, replay, goal wake — PASS");
+
   console.log(JSON.stringify({ status: "PASS", suite: "whatsapp-inbound-persistence-postgres", dist: path.relative(ROOT, DIST) || "dist" }));
 } finally {
   if (proxy) proxy.close();

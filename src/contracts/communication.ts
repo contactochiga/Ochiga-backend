@@ -208,6 +208,15 @@ export type CommunicationAttachment = {
   filename: string;
   content_type: string | null;
   url: string | null;
+  // Inbound provider media (WhatsApp), metadata only -- additive and optional; url stays null for these (no bytes or URLs reach Backend).
+  kind?: "image" | "video" | "audio" | "document" | "sticker";
+  provider_media_id?: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  sha256?: string | null;
+  voice?: boolean;
+  animated?: boolean;
+  office_file_id?: string | null;
 };
 
 // The canonical, persisted record. A CommunicationRequest (what a

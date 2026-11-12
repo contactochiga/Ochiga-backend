@@ -9,6 +9,8 @@ import type { CapabilityModule } from "../oyi-core/contracts/capability";
 import { logger } from "../observability/logger";
 import { processInboundEvent } from "../services/communicationRuntime/inboundEventPipeline";
 import type { CanonicalInboundCommunicationEvent } from "../contracts/inboundCommunicationEvent";
+import { normalizeWhatsAppInboundMessage } from "../services/communicationRuntime/whatsappInboundMessage";
+import { isOptedOut } from "../services/communicationRuntime/optOutService";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -2377,6 +2379,7 @@ const WHATSAPP_STATUS_TO_CANONICAL: Record<string, string> = {
 };
 
 router.post("/communications/webhook-event", requireOfficeExportKey, async (req: Request, res: Response) => {
+  // Additive media contract (Office whatsapp-media.js): optional message_type, caption and attachments metadata. Absent fields behave exactly as before.
   const body = req.body || {};
   const channel = String(body.channel || "");
   const providerMessageId = String(body.provider_message_id || "").trim();
@@ -2405,6 +2408,7 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       // inboundEventPipeline.ts, shared by every provider, not
       // WhatsApp-specific business logic bolted onto this route.
       const leadId = body.lead_id ? String(body.lead_id) : null;
+      const message = normalizeWhatsAppInboundMessage(body);
       const canonicalEvent: CanonicalInboundCommunicationEvent = {
         provider: "whatsapp_cloud_api",
         provider_event_id: providerMessageId,
@@ -2420,9 +2424,10 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         related_task_id: null,
         related_goal_id: null,
         previous_communication_id: null,
-        body: String(body.text || ""),
-        message_type: "text",
-        attachments: null,
+        body: message.body,
+        message_type: message.message_type,
+        attachments: message.attachments,
+        caption: message.caption,
         occurred_at: body.occurred_at || new Date().toISOString(),
         provider_delivery_state: null,
         // body.replay === true marks a HISTORICAL re-delivery (recovering messages Office stored while Backend could not persist them): persisted with the original
@@ -2432,12 +2437,19 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         resolution_evidence: leadId ? `Matched an existing CRM lead by whatsapp_phone (${from}).` : `No CRM lead found for whatsapp_phone ${from}.`,
       };
       const result = await processInboundEvent(canonicalEvent, { replay: body.replay === true });
+      // The sender's opt-out state AFTER this message was processed (a STOP in this very message is already recorded): Office honours it before any
+      // automatic reply of its own. isOptedOut fails open on a lookup error; Office's own STOP check still applies to the message itself.
+      const optedOut = await isOptedOut("whatsapp", { contact_id: null, lead_id: leadId, user_id: null, organization_id: null, name: null, email: null, phone: null, whatsapp_phone: from });
       logger.info("communication_webhook_inbound_persisted", {
         provider_message_id: providerMessageId,
         thread_reference: result.thread_reference,
         duplicate: result.duplicate,
         outcome_classification: result.outcome_classification,
         woke_goal_count: result.woke_goal_ids.length,
+        message_type: message.message_type,
+        body_source: message.body_source,
+        attachment_count: message.attachments ? message.attachments.length : 0,
+        opted_out: optedOut,
       });
       // Oyi Communications Convergence, Slice 1 -- goal_active tells
       // Office whether an autonomous follow-up Goal is already watching
@@ -2448,7 +2460,7 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       // replying -- this is the single field that makes "at most one
       // Oyi outbound reply per inbound message" enforceable without a
       // second round trip.
-      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id), goal_active: result.woke_goal_ids.length > 0 });
+      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id), goal_active: result.woke_goal_ids.length > 0, opted_out: optedOut });
     } catch (err: any) {
       logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
       return res.status(200).json({ ok: false, error: err?.message || "inbound_processing_failed" });

@@ -110,6 +110,8 @@ export async function processInboundEvent(event: CanonicalInboundCommunicationEv
         body: event.body,
         plain_text: event.body,
         attachments: event.attachments,
+        // what kind of message this was and its caption, kept apart from the body (which is what classification, opt-out and goals read)
+        audit_metadata: { inbound_message: { message_type: event.message_type || "text", caption: event.caption ?? null, attachment_count: Array.isArray(event.attachments) ? event.attachments.length : 0 } },
         thread_reference: threadReference,
         priority: "normal",
         schedule_mode: "now",
