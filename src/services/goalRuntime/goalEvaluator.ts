@@ -7,7 +7,7 @@
 // advances the plan, completes, or stops -- bounded by max_attempts and
 // the plan's own fixed length.
 import { communicationRuntime } from "../communicationRuntime/CommunicationRuntime";
-import { classifyInboundReply, coarseSentimentFromOutcome } from "../communicationRuntime/replyClassifier";
+import { classifyInboundReply, coarseSentimentFromOutcome, hasCustomerText } from "../communicationRuntime/replyClassifier";
 import { resolveRecipientByEntity } from "../recipientResolutionService";
 import { createFollowUpTask } from "../officeTaskBridgeService";
 import { executeRegisteredAction } from "../../intelligence-core/executionRegistry";
@@ -31,10 +31,14 @@ function addHours(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 3600_000).toISOString();
 }
 
+// The latest inbound REPLY: a message with no customer-written text (media without a caption, location, reaction...) is recorded on the thread but is not a reply,
+// so it never completes, branches or skips a goal step and never hides an earlier text reply.
+// Known limitation (unchanged): each thread is read 10 messages deep, newest first, so a text reply followed by 10 or more newer messages on the same thread
+// (of any kind) between two evaluations is not seen by that evaluation.
 async function latestInboundAcross(threadReferences: string[], sinceIso: string | null) {
   for (const ref of threadReferences) {
     const thread = await communicationRuntime.getThread(ref, 10);
-    const inbound = thread.find((m) => m.direction === "inbound" && (!sinceIso || new Date(m.created_at).getTime() > new Date(sinceIso).getTime()));
+    const inbound = thread.find((m) => m.direction === "inbound" && hasCustomerText(m.body) && (!sinceIso || new Date(m.created_at).getTime() > new Date(sinceIso).getTime()));
     if (inbound) return inbound;
   }
   return null;

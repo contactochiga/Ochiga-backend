@@ -53,6 +53,30 @@ export async function isOptedOut(channel: CommunicationChannel, recipient: Commu
   }
 }
 
+// Tri-state answer for a caller that must DECIDE whether an automatic reply may be sent (the Office WhatsApp webhook bridge): "unknown" when the lookup
+// failed or the recipient has no identity key, so that caller can fail closed. isOptedOut() above, and its fail-open choice for CommunicationRuntime.plan(),
+// is unchanged.
+export type OptOutStatus = "opted_out" | "not_opted_out" | "unknown";
+
+export async function optOutStatus(channel: CommunicationChannel, recipient: CommunicationRecipient): Promise<OptOutStatus> {
+  const identityKey = identityKeyFor(channel, recipient);
+  if (!identityKey) return "unknown";
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("oyi_communication_opt_outs")
+      .select("id")
+      .eq("identity_key", identityKey)
+      .in("channel", [channel, "all"])
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? "opted_out" : "not_opted_out";
+  } catch (error) {
+    logger.error("communication_opt_out_status_unverified", { error, channel });
+    return "unknown";
+  }
+}
+
 export async function recordOptOut(input: {
   channel: CommunicationChannel | "all";
   identityKey: string;

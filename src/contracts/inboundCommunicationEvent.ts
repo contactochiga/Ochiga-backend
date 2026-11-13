@@ -38,9 +38,10 @@ export type CanonicalInboundCommunicationEvent = {
   related_goal_id: string | null; // set by the pipeline once a waiting goal is found watching this thread -- null on the initial normalized event
   previous_communication_id: string | null; // most recent OUTBOUND communication on the same thread, if any
 
-  body: string;
+  body: string; // the customer's own words: typed text, else the caption, else "" -- never a placeholder for media
   message_type: string; // "text" | "image" | "document" | ... -- whatever the provider reports; "text" when unspecified
   attachments: Record<string, unknown>[] | null;
+  caption?: string | null; // the caption on an image/video/document, kept distinct from the body even when it is also the body
 
   occurred_at: string;
   provider_delivery_state: string | null; // for a "message" event this is usually null; populated for a "status" event
