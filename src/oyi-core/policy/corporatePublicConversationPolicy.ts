@@ -14,6 +14,7 @@ import {
 import type { RankedKnowledgeItem } from "../domains/knowledge/knowledgeContracts";
 import { toPublicKnowledgeCitation } from "../domains/knowledge/corporateKnowledgeMapping";
 import { getKnowledgeItemByCanonicalKey } from "../domains/knowledge/knowledgeRetrieval";
+import { guardAnswerForUninspectedAttachments, inboundAttachmentContext } from "./inboundAttachmentNotice";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -202,7 +203,11 @@ export async function buildCorporatePublicResponse(
   // already awaits retrieveKnowledge() -- confirmed by direct audit this
   // slice, so this is a safe, fully-covered interface change.
   const baseAnswer = await answerFor({ ...request, business_unit: routed.business_unit, inquiry_type: routed.inquiry_type }, canonical, signal);
-  const answer = continuation ? `${baseAnswer}\n\n${continuation}` : baseAnswer;
+  // A WhatsApp turn whose media Oyi never received (caption answered, attachment described structurally by Office): the reply must not claim to have
+  // inspected it, and says so (inboundAttachmentNotice.ts). Website turns carry no such metadata and are unchanged.
+  const attachments = inboundAttachmentContext(request.metadata);
+  const guarded = guardAnswerForUninspectedAttachments(continuation ? `${baseAnswer}\n\n${continuation}` : baseAnswer, attachments);
+  const answer = guarded.answer;
   return {
     ok: true,
     request_id: request.request_id,
@@ -240,6 +245,7 @@ export async function buildCorporatePublicResponse(
       canonical_intelligence_authority: "ochiga-backend",
       crm_source_of_truth: "ochiga-office",
       blocked_operational_domains: PUBLIC_CORPORATE_SURFACE_POLICY.blocked_operational_domains,
+      ...(attachments ? { inbound_attachments: { kinds: attachments.kinds, inspected: false, notice_applied: guarded.notice_applied, removed_claims: guarded.removed_claims } } : {}),
     },
   };
 }

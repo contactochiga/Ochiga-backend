@@ -11,7 +11,7 @@ import { logger } from "../../observability/logger";
 import { computeThreadReference } from "./CommunicationRuntime";
 import { goalRuntime } from "../goalRuntime/GoalRuntime";
 import { claimAndEvaluateGoal } from "../goalRuntime/goalScheduler";
-import { classifyInboundReply } from "./replyClassifier";
+import { classifyInboundReply, hasCustomerText } from "./replyClassifier";
 import { recordOptOut, identityKeyForRecipient } from "./optOutService";
 import type { CanonicalInboundCommunicationEvent, InboundEventProcessingResult } from "../../contracts/inboundCommunicationEvent";
 import type { CommunicationRecipient } from "../../contracts/communication";
@@ -219,6 +219,10 @@ export async function processInboundEvent(event: CanonicalInboundCommunicationEv
   if (replay) {
     // history is never allowed to trigger autonomous behaviour; record that the wake was deliberately skipped
     await logDecisionEvent({ communicationId, eventType: "inbound.replayed", channel: event.channel, provider: event.provider, providerEventId: event.provider_event_id, fromAddress: event.sender_identifier, eventText: null, metadata: { goal_wake: "skipped_replay", original_occurred_at: event.occurred_at } });
+  } else if (!hasCustomerText(event.body)) {
+    // Nothing the customer wrote (media without a caption, a location, a reaction...): recorded and classified above like any message, but it is not a reply a goal
+    // can act on, so it never wakes, advances or completes one (goalEvaluator.ts skips such rows too).
+    await logDecisionEvent({ communicationId, eventType: "goal.wake_skipped", channel: event.channel, provider: event.provider, providerEventId: event.provider_event_id, fromAddress: event.sender_identifier, eventText: null, metadata: { reason: "no_customer_text", message_type: event.message_type || "text", attachment_count: Array.isArray(event.attachments) ? event.attachments.length : 0 } });
   } else if (threadReference) {
     try {
       const goals = await goalRuntime.findGoalsWatchingThread(threadReference);

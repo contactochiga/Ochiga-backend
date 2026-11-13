@@ -10,7 +10,7 @@ import { logger } from "../observability/logger";
 import { processInboundEvent } from "../services/communicationRuntime/inboundEventPipeline";
 import type { CanonicalInboundCommunicationEvent } from "../contracts/inboundCommunicationEvent";
 import { normalizeWhatsAppInboundMessage } from "../services/communicationRuntime/whatsappInboundMessage";
-import { isOptedOut } from "../services/communicationRuntime/optOutService";
+import { optOutStatus } from "../services/communicationRuntime/optOutService";
 import type { AuthUser } from "../middleware/auth";
 import {
   officeCredentialTimingSafeEqual,
@@ -2438,8 +2438,10 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       };
       const result = await processInboundEvent(canonicalEvent, { replay: body.replay === true });
       // The sender's opt-out state AFTER this message was processed (a STOP in this very message is already recorded): Office honours it before any
-      // automatic reply of its own. isOptedOut fails open on a lookup error; Office's own STOP check still applies to the message itself.
-      const optedOut = await isOptedOut("whatsapp", { contact_id: null, lead_id: leadId, user_id: null, organization_id: null, name: null, email: null, phone: null, whatsapp_phone: from });
+      // automatic reply of its own. opt_out_status is "unknown" when the lookup failed, and Office then sends no automatic reply (fail closed); opted_out
+      // stays the boolean it was.
+      const optOut = await optOutStatus("whatsapp", { contact_id: null, lead_id: leadId, user_id: null, organization_id: null, name: null, email: null, phone: null, whatsapp_phone: from });
+      const optedOut = optOut === "opted_out";
       logger.info("communication_webhook_inbound_persisted", {
         provider_message_id: providerMessageId,
         thread_reference: result.thread_reference,
@@ -2449,7 +2451,7 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
         message_type: message.message_type,
         body_source: message.body_source,
         attachment_count: message.attachments ? message.attachments.length : 0,
-        opted_out: optedOut,
+        opt_out_status: optOut,
       });
       // Oyi Communications Convergence, Slice 1 -- goal_active tells
       // Office whether an autonomous follow-up Goal is already watching
@@ -2460,7 +2462,7 @@ router.post("/communications/webhook-event", requireOfficeExportKey, async (req:
       // replying -- this is the single field that makes "at most one
       // Oyi outbound reply per inbound message" enforceable without a
       // second round trip.
-      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id), goal_active: result.woke_goal_ids.length > 0, opted_out: optedOut });
+      return res.status(200).json({ ok: result.ok, thread_reference: result.thread_reference, duplicate: result.duplicate, matched_outbound: Boolean(result.communication_id), goal_active: result.woke_goal_ids.length > 0, opted_out: optedOut, opt_out_status: optOut });
     } catch (err: any) {
       logger.error("communication_webhook_inbound_failed", { provider_message_id: providerMessageId, error: err?.message || String(err) });
       return res.status(200).json({ ok: false, error: err?.message || "inbound_processing_failed" });

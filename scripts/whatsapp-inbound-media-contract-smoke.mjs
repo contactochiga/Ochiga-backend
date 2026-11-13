@@ -49,4 +49,35 @@ ok(hostile[0].filename === "passwd" && hostile[0].url === null && hostile[0].mim
 ok(m.normalizeInboundAttachments("not-an-array") === null && m.normalizeInboundAttachments([]) === null && m.normalizeInboundAttachments([{ kind: "image" }]) === null, "attachments: nothing usable means null (as before)");
 ok(!JSON.stringify([t, o, i, v, a, d]).match(/https?:|data:|lookaside/), "no URL of any kind in any normalized message");
 
+// Hardening: what counts as a reply (goal wake / evaluation), and the uninspected-attachment guard on Oyi's answer
+const { hasCustomerText } = await import(pathToFileURL(path.join(DIST, "services", "communicationRuntime", "replyClassifier.js")));
+ok(hasCustomerText(t.body) && hasCustomerText(v.body) && hasCustomerText(d.body) && !hasCustomerText(i.body) && !hasCustomerText(a.body) && !hasCustomerText("  \n ") && !hasCustomerText(null), "customer text: typed text and captions count; media-only, blank and missing bodies do not");
+const g = await import(pathToFileURL(path.join(DIST, "oyi-core", "policy", "inboundAttachmentNotice.js")));
+ok(g.inboundAttachmentContext(undefined) === null && g.inboundAttachmentContext({}) === null && g.inboundAttachmentContext({ inbound_message: { attachment_kinds: [] } }) === null && g.inboundAttachmentContext({ inbound_message: { attachment_kinds: ["<b>", 3] } }) === null, "no attachment metadata (website, text turns): no guard");
+const ctxImage = g.inboundAttachmentContext({ inbound_message: { message_type: "image", caption_present: true, attachment_kinds: ["image", "image", "evil"] } });
+ok(ctxImage && ctxImage.kinds.length === 1 && ctxImage.kinds[0] === "image", "attachment kinds: known kinds only, de-duplicated");
+const unchangedWebsite = g.guardAnswerForUninspectedAttachments("I've looked at your photo.", null);
+ok(unchangedWebsite.answer === "I've looked at your photo." && unchangedWebsite.notice_applied === false, "website / text turns: answer unchanged");
+const claims = [
+  "I've looked at your photo and the plot looks great.", "I can see in the image that the roof is damaged.", "Your photo shows a lovely duplex.", "In the picture, the fence is complete.",
+  "Having reviewed the attached document, everything is in order.", "I listened to your voice note.", "The video looks like the Lekki site.", "Nice photo!", "From the PDF, the price is clear.", "I have carefully read your document.",
+];
+ok(claims.every((s) => g.claimsMediaInspection(s)), `claims of inspecting media are recognised (${claims.length} phrasings)`);
+const honest = ["Thanks for sending the photo.", "Could you tell me what the photo is of?", "Ochiga develops intelligent places in Lekki.", "I can see why you'd ask about pricing.", "Please share the document's title in text.", "I read your message about the plot."];
+ok(honest.every((s) => !g.claimsMediaInspection(s)), "acknowledging receipt, asking about the media and ordinary answers are not treated as claims");
+const guarded = g.guardAnswerForUninspectedAttachments("Thanks for reaching out! I've looked at your photo and the plot looks great. The Lekki plots start from a site visit with our team.", ctxImage);
+ok(!g.claimsMediaInspection(guarded.answer.split("\n\n")[0]) && guarded.removed_claims === 1 && guarded.answer.startsWith("Thanks for reaching out! The Lekki plots start from a site visit with our team.") && guarded.answer.endsWith("I can't open attachments in this chat, so I haven't seen the photo you sent; my reply is based on your message only.") && guarded.notice_applied, "captioned media: the claim is removed, the rest of the answer is kept, the not-inspected notice is appended");
+const allClaims = g.guardAnswerForUninspectedAttachments("Your photo shows a lovely duplex.", g.inboundAttachmentContext({ inbound_message: { attachment_kinds: ["document", "audio"] } }));
+ok(allClaims.answer === "I can't open attachments in this chat, so I haven't seen the document and audio message you sent; my reply is based on your message only.", "an answer made only of claims is replaced by the notice alone");
+const clean = g.guardAnswerForUninspectedAttachments("Our team can arrange a site visit.\n\nWould Tuesday work?", ctxImage);
+ok(clean.removed_claims === 0 && clean.answer.startsWith("Our team can arrange a site visit.\n\nWould Tuesday work?\n\n"), "an honest answer is kept verbatim (paragraphs preserved) with the notice added");
+// the guard runs inside the ONE corporate answer builder the /office/conversation/corporate route uses (real function, canonical runtime result stubbed)
+const { buildCorporatePublicResponse } = await import(pathToFileURL(path.join(DIST, "oyi-core", "policy", "corporatePublicConversationPolicy.js")));
+const corporateRequest = (metadata) => ({ request_id: "r", message: "Is this plot available?", public_session_id: "s", conversation_thread_id: null, public_identity: "ochiga_intelligence", agent_role: "oma", business_unit: "corporate", inquiry_type: "general_enquiry", source: { source_site: "whatsapp", source_page: "", source_form: null, source_channel: "whatsapp", campaign: {} }, visitor_state: "known", crm_context: { contact_ref: null, opportunity_ref: null, lead_ref: "lead-1", safe_summary: null }, form_context_ref: null, engagement_mode: "text_conversation", handoff_state: "none", requested_capability: null, knowledge_context: [], metadata });
+const canonicalReply = { id: "c", thread_id: "t", reply: "I've looked at your photo and it looks great. Our team can confirm availability." };
+const withMedia = await buildCorporatePublicResponse(corporateRequest({ inbound_message: { message_type: "image", caption_present: true, attachment_kinds: ["image"] } }), canonicalReply, []);
+ok(withMedia.answer === "Our team can confirm availability.\n\nI can't open attachments in this chat, so I haven't seen the photo you sent; my reply is based on your message only." && withMedia.safe_metadata.inbound_attachments.inspected === false && withMedia.safe_metadata.inbound_attachments.notice_applied === true && withMedia.safe_metadata.inbound_attachments.removed_claims === 1, "corporate answer builder: claim removed, notice appended, safe_metadata.inbound_attachments reported");
+const websiteTurn = await buildCorporatePublicResponse(corporateRequest({}), { id: "c", thread_id: "t", reply: "Our team can confirm availability." }, []);
+ok(websiteTurn.answer === "Our team can confirm availability." && !("inbound_attachments" in websiteTurn.safe_metadata), "corporate answer builder: a turn without attachments is unchanged");
+
 console.log(JSON.stringify({ status: "PASS", suite: "whatsapp-inbound-media-contract", checks }));

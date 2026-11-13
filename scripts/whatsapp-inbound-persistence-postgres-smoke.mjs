@@ -180,8 +180,72 @@ try {
   assert.match(route, /const message = normalizeWhatsAppInboundMessage\(body\);/);
   assert.match(route, /body: message\.body,\s*message_type: message\.message_type,\s*attachments: message\.attachments,\s*caption: message\.caption,/);
   assert.ok(!/message_type: "text",\s*attachments: null,/.test(route), "the hardcoded text/null mapping is gone");
-  assert.match(route, /goal_active: result\.woke_goal_ids\.length > 0, opted_out: optedOut \}/);
+  assert.match(route, /goal_active: result\.woke_goal_ids\.length > 0, opted_out: optedOut, opt_out_status: optOut \}/);
   console.log("H. Media contract: empty body for media-only, caption kept apart, STOP caption honoured + opted_out, old payloads unchanged, hostile metadata reduced, duplicates, replay, goal wake — PASS");
+
+  // ---- I. hardening: a message with no customer text never wakes, advances, completes or classifies a goal; opt-out status is tri-state ----
+  const { evaluateGoal } = await import(pathToFileURL(path.join(DIST, "services", "goalRuntime", "goalEvaluator.js")));
+  const { optOutStatus } = await import(pathToFileURL(path.join(DIST, "services", "communicationRuntime", "optOutService.js")));
+  const goalStatus = (id) => psql(`select status from oyi_goals where id='${id}'`);
+  const iPhone = "2348070000010";
+  const iThread = computeThreadReference("whatsapp", recipient(iPhone));
+  const iGoal = crypto.randomUUID();
+  psql(`insert into oyi_goals (id, correlation_id, surface, objective, status, linked_communication_threads) values ('${iGoal}', 'goal-fixture-i', 'office', 'fixture goal', 'waiting', '["${iThread}"]'::jsonb)`);
+  const wakeEvents = (id) => events(`provider_event_id like '${id}:%'`).map((e) => e.event_type);
+  // I1. live media without a caption on an active goal's thread: recorded and classified, but no wake (goal_active false), and the skip is in the decision trail
+  const i1 = await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("i1")] }, { id: "wamid.goal.media", from: iPhone }));
+  assert.equal(i1.ok, true); assert.equal(i1.duplicate, false); assert.deepEqual(i1.woke_goal_ids, [], "a media-only message does not wake the goal watching its thread");
+  assert.deepEqual(wakeEvents("wamid.goal.media"), ["goal.wake_skipped", "inbound.classified"], "recorded and classified; the skipped wake is logged, no goal.wake_triggered");
+  assert.equal(rows("provider_message_id='wamid.goal.media'")[0].outcome_classification, "unknown");
+  assert.equal(goalStatus(iGoal), "waiting", "goal untouched");
+  // I2. location / reaction (no text, no attachment) behaves the same
+  const i2 = await processInboundEvent({ ...routeEvent({ text: "", message_type: "location" }, { id: "wamid.goal.loc", from: iPhone }) });
+  assert.deepEqual(i2.woke_goal_ids, []); assert.ok(wakeEvents("wamid.goal.loc").includes("goal.wake_skipped"));
+  // I3. duplicate delivery of the media-only message: still one row, no wake, no extra decision events
+  const i3 = await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("i1")] }, { id: "wamid.goal.media", from: iPhone }));
+  assert.equal(i3.duplicate, true); assert.deepEqual(i3.woke_goal_ids, []); assert.equal(rows("provider_message_id='wamid.goal.media'").length, 1); assert.equal(wakeEvents("wamid.goal.media").length, 2);
+  // I4. history re-delivery of a media-only message: no wake (replay rule), nothing outbound
+  const i4 = await processInboundEvent(routeEvent({ text: "", message_type: "video", attachments: [{ kind: "video", provider_media_id: "media-i4" }] }, { id: "wamid.goal.media.hist", from: iPhone, at: replayAt }), { replay: true });
+  assert.deepEqual(i4.woke_goal_ids, []); assert.deepEqual(wakeEvents("wamid.goal.media.hist"), ["inbound.classified", "inbound.replayed"]);
+  // I5. whitespace-only text (an older Office) is not a reply either
+  const i5 = await processInboundEvent(routeEvent({ text: "   " }, { id: "wamid.goal.blank", from: iPhone }));
+  assert.deepEqual(i5.woke_goal_ids, []);
+  // I6. genuine text and captioned media on the same thread still wake the goal exactly as before
+  const i6 = await processInboundEvent(routeEvent({ text: "", message_type: "image", caption: "Is this plot available?", attachments: [img("i6")] }, { id: "wamid.goal.caption", from: iPhone }));
+  assert.deepEqual(i6.woke_goal_ids, [iGoal], "captioned media still wakes the goal");
+  // I7. goal EVALUATION: media-only rows are never observed as a reply, never complete a reply_received goal, never skip a step, never hide a text reply
+  const goalRecord = (over = {}) => ({ id: null, correlation_id: "goal-eval", surface: "office", objective: "fixture", status: "waiting", schedule: { deadline: null }, attempts_completed: 0, max_attempts: 5, linked_communication_threads: [over.thread], observations: [], evidence: [], execution_history: [], reply_branches: over.reply_branches || [], success_condition: { type: "reply_received" }, stop_condition: { type: "none" }, plan: [{ step_index: 0, action_type: "escalate", channel: null, status: "pending", skip_if: "reply_received" }], current_step_index: 0, target_entities: {}, linked_tasks: [], created_at: "2026-01-01T00:00:00.000Z", ...over });
+  const evThread = (n) => ({ phone: `23480700001${n}`, thread: computeThreadReference("whatsapp", recipient(`23480700001${n}`)) });
+  const ev1 = evThread(1);
+  await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("e1")] }, { id: "wamid.eval.media.1", from: ev1.phone }));
+  await processInboundEvent(routeEvent({ text: "", message_type: "audio", attachments: [{ kind: "audio", provider_media_id: "media-e1a", voice: true }] }, { id: "wamid.eval.media.2", from: ev1.phone }));
+  const g1 = await evaluateGoal(goalRecord({ thread: ev1.thread, reply_branches: [{ on_outcomes: ["unknown"], action: "complete" }] }));
+  assert.equal(g1.observations.length, 0, "media-only messages are not observed as a reply"); assert.equal(g1.evidence.length, 0, "and are not classified into goal evidence");
+  assert.notEqual(g1.completion_reason, "A reply was received.", "a reply_received goal is not completed by media-only messages");
+  assert.notEqual(g1.completion_reason, "Reply matched a completion condition.", "an 'unknown' reply branch is not triggered by media-only messages");
+  assert.equal(g1.plan[0].status, "done", "the step ran (escalate) rather than being skipped as 'reply received'");
+  const ev2 = evThread(2);
+  await processInboundEvent(routeEvent({ text: "Yes, I am interested" }, { id: "wamid.eval.text.2", from: ev2.phone, at: new Date(Date.now() - 60_000).toISOString() }));
+  await processInboundEvent(routeEvent({ text: "", message_type: "image", attachments: [img("e2")] }, { id: "wamid.eval.media.3", from: ev2.phone }));
+  const textRowId = rows("provider_message_id='wamid.eval.text.2'")[0].id;
+  const g2 = await evaluateGoal(goalRecord({ thread: ev2.thread }));
+  assert.equal(g2.status, "completed"); assert.equal(g2.completion_reason, "A reply was received.");
+  assert.equal(g2.observations[0].source_reference, textRowId, "the earlier text reply is found even though a newer media-only message sits on top of it");
+  const ev3 = evThread(3);
+  await processInboundEvent(routeEvent({ text: "", message_type: "document", caption: "Signed form attached", attachments: [{ kind: "document", provider_media_id: "media-e3", filename: "form.pdf" }] }, { id: "wamid.eval.caption.3", from: ev3.phone }));
+  const g3 = await evaluateGoal(goalRecord({ thread: ev3.thread }));
+  assert.equal(g3.completion_reason, "A reply was received.", "captioned media is still a reply"); assert.equal(g3.observations[0].detail, "Signed form attached");
+  // I8. opt-out status is tri-state: not_opted_out / opted_out / unknown (lookup failure or no identity), and never "not_opted_out" when it could not check
+  assert.equal(await optOutStatus("whatsapp", recipient("2348070000099")), "not_opted_out");
+  assert.equal(await optOutStatus("whatsapp", recipient("2348070000002")), "opted_out");
+  assert.equal(await optOutStatus("whatsapp", recipient(null)), "unknown", "no identity key: cannot verify");
+  psql("alter table oyi_communication_opt_outs rename to oyi_communication_opt_outs_hidden"); psql("notify pgrst, 'reload schema'"); await sleep(1500);
+  assert.equal(await optOutStatus("whatsapp", recipient("2348070000099")), "unknown", "a database failure is reported as unknown, never as consent");
+  assert.equal(await isOptedOut("whatsapp", recipient("2348070000099")), false, "isOptedOut (used by CommunicationRuntime.plan) keeps its existing behaviour");
+  psql("alter table oyi_communication_opt_outs_hidden rename to oyi_communication_opt_outs"); psql("notify pgrst, 'reload schema'"); await sleep(1500);
+  assert.equal(await optOutStatus("whatsapp", recipient("2348070000002")), "opted_out", "restored");
+  assert.match(route, /const optOut = await optOutStatus\("whatsapp", /);
+  console.log("I. No-text messages: recorded + classified, no goal wake / advance / completion / branch (live, duplicate, replay, blank text); text and captions unchanged; opt-out status tri-state incl. DB failure — PASS");
 
   console.log(JSON.stringify({ status: "PASS", suite: "whatsapp-inbound-persistence-postgres", dist: path.relative(ROOT, DIST) || "dist" }));
 } finally {

@@ -48,6 +48,12 @@ export function quickUnsubscribeCheck(text: string): boolean {
   return STOP_PATTERN.test(String(text || "").trim());
 }
 
+// True when an inbound message carries words the customer wrote (typed text or a caption). A media-only message, location, contact card or reaction has an
+// empty body: it is classified "unknown" below without any AI call, and it is not a reply a goal can act on (inboundEventPipeline.ts, goalEvaluator.ts).
+export function hasCustomerText(body: string | null | undefined): boolean {
+  return typeof body === "string" && body.trim().length > 0;
+}
+
 export async function classifyInboundReply(text: string): Promise<InboundReplyClassification> {
   const trimmed = String(text || "").trim();
   if (!trimmed) return UNKNOWN;
