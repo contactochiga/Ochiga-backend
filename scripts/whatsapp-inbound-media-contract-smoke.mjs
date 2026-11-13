@@ -77,6 +77,14 @@ const corporateRequest = (metadata) => ({ request_id: "r", message: "Is this plo
 const canonicalReply = { id: "c", thread_id: "t", reply: "I've looked at your photo and it looks great. Our team can confirm availability." };
 const withMedia = await buildCorporatePublicResponse(corporateRequest({ inbound_message: { message_type: "image", caption_present: true, attachment_kinds: ["image"] } }), canonicalReply, []);
 ok(withMedia.answer === "Our team can confirm availability.\n\nI can't open attachments in this chat, so I haven't seen the photo you sent; my reply is based on your message only." && withMedia.safe_metadata.inbound_attachments.inspected === false && withMedia.safe_metadata.inbound_attachments.notice_applied === true && withMedia.safe_metadata.inbound_attachments.removed_claims === 1, "corporate answer builder: claim removed, notice appended, safe_metadata.inbound_attachments reported");
+// the explicit rule that travels with the turn into the canonical conversation context
+const rule = g.UNINSPECTED_ATTACHMENT_INSTRUCTION;
+ok(["viewed", "read", "heard", "analysed"].every((verb) => rule.includes(verb)) && /do not claim/i.test(rule) && /cannot open attachments/.test(rule), "instruction: explicitly prohibits claiming to have viewed, heard, read or analysed the media");
+const conv = g.inboundAttachmentConversationContext(ctxImage);
+ok(conv.contents_inspected === false && conv.instruction === rule && conv.kinds.join() === "image" && g.inboundAttachmentConversationContext(null) === null, "instruction: attached to attachment turns only, with contents_inspected:false");
+const fs = await import("node:fs");
+const routeSource = fs.readFileSync(path.join(ROOT, "src", "routes", "officeExport.ts"), "utf8");
+ok(/const inboundAttachments = inboundAttachmentConversationContext\(inboundAttachmentContext\(corporateRequest\.metadata\)\);/.test(routeSource) && /\.\.\.\(inboundAttachments \? \{ inbound_attachments: inboundAttachments \} : \{\}\)/.test(routeSource), "instruction: the /conversation/corporate route passes it into the canonical conversation context (source text: importing the route pulls in ioredis)");
 const websiteTurn = await buildCorporatePublicResponse(corporateRequest({}), { id: "c", thread_id: "t", reply: "Our team can confirm availability." }, []);
 ok(websiteTurn.answer === "Our team can confirm availability." && !("inbound_attachments" in websiteTurn.safe_metadata), "corporate answer builder: a turn without attachments is unchanged");
 

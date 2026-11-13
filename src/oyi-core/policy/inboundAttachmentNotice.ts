@@ -28,6 +28,16 @@ const CLAIM_PATTERNS: RegExp[] = [
 
 export type InboundAttachmentContext = { kinds: string[] };
 
+// The explicit rule for anything composing a reply to such a turn. It travels with the turn in the canonical conversation context (officeExport.ts
+// /conversation/corporate); today no model composes public corporate answers, so the deterministic guard below is what enforces it on every answer.
+export const UNINSPECTED_ATTACHMENT_INSTRUCTION =
+  "The customer attached media that Oyi has NOT received or processed. Do not claim or imply that you have viewed, seen, opened, read, heard, listened to, watched, analysed or understood it, and do not describe its contents. Answer only the customer's written message, and say plainly that you cannot open attachments in this chat.";
+
+// What the canonical runtime receives about the turn's media: the kinds, the fact that nothing was inspected, and the rule above.
+export function inboundAttachmentConversationContext(context: InboundAttachmentContext | null) {
+  return context ? { kinds: context.kinds, contents_inspected: false as const, instruction: UNINSPECTED_ATTACHMENT_INSTRUCTION } : null;
+}
+
 // The structural media description Office sent, or null when this turn carried no attachment.
 export function inboundAttachmentContext(metadata: Record<string, unknown> | null | undefined): InboundAttachmentContext | null {
   const inbound = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>).inbound_message : null;

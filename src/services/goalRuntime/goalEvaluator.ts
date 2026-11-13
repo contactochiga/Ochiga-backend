@@ -33,6 +33,8 @@ function addHours(iso: string, hours: number): string {
 
 // The latest inbound REPLY: a message with no customer-written text (media without a caption, location, reaction...) is recorded on the thread but is not a reply,
 // so it never completes, branches or skips a goal step and never hides an earlier text reply.
+// Known limitation (unchanged): each thread is read 10 messages deep, newest first, so a text reply followed by 10 or more newer messages on the same thread
+// (of any kind) between two evaluations is not seen by that evaluation.
 async function latestInboundAcross(threadReferences: string[], sinceIso: string | null) {
   for (const ref of threadReferences) {
     const thread = await communicationRuntime.getThread(ref, 10);

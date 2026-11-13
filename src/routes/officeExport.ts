@@ -21,6 +21,7 @@ import type { CorporateAgentRole, CorporateBusinessUnit, CorporateInquiryType, C
 import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
 import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/officeMaterialEventAdapter";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
+import { inboundAttachmentContext, inboundAttachmentConversationContext } from "../oyi-core/policy/inboundAttachmentNotice";
 import { buildOfficeInternalResponse, deniedOfficeInternalOperationalRequest } from "../oyi-core/policy/corporateOfficeInternalPolicy";
 import { retrieveKnowledge } from "../oyi-core/domains/knowledge/knowledgeRetrieval";
 import { publicConversationActor } from "../oyi-core/context/conversationOwnership";
@@ -685,6 +686,7 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
     });
   }
 
+  const inboundAttachments = inboundAttachmentConversationContext(inboundAttachmentContext(corporateRequest.metadata));
   const canonical = await conversationOrchestrator.run({
     actor: publicCorporateActor,
     oisContext: {
@@ -713,6 +715,8 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
       engagement_mode: corporateRequest.engagement_mode,
       surface_policy: PUBLIC_CORPORATE_SURFACE_POLICY,
       contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
+      // a WhatsApp turn whose media Oyi never received: the explicit do-not-claim rule travels with the turn (website turns carry nothing here)
+      ...(inboundAttachments ? { inbound_attachments: inboundAttachments } : {}),
     },
     conversation_context: {
       public_session_id: corporateRequest.public_session_id,
