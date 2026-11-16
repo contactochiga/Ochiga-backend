@@ -11,6 +11,8 @@ import {
 const officeRouteSource = fs.readFileSync(new URL("../dist/routes/officeExport.js", import.meta.url), "utf8");
 assert.ok(officeRouteSource.includes("/conversation/corporate"), "Office corporate conversation route must be mounted");
 assert.ok(officeRouteSource.includes("conversationOrchestrator.run"), "Corporate route must call canonical Oyi ConversationOrchestrator");
+assert.ok(officeRouteSource.includes("normalizeVerifiedOfficeConversationContext"), "Corporate route validates Office transcript bindings");
+assert.ok(officeRouteSource.includes("office_verified_conversation_context: corporateRequest.verified_conversation_context"), "Validated CRM transcript is passed into canonical Oyi context");
 
 assert.equal(deniedPublicCorporateOperationalRequest({ message: "Unlock my front door." }), true);
 assert.equal(deniedPublicCorporateOperationalRequest({ message: "Show my wallet balance." }), true);

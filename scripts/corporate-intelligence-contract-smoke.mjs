@@ -7,6 +7,7 @@ import {
   isPublicOperationalRequestBlocked,
   routeCorporateBusinessUnit,
   selectCorporateAgentRole,
+  normalizeVerifiedOfficeConversationContext,
 } from "../dist/contracts/corporateIntelligence.js";
 import { getIntelligenceAgent } from "../dist/intelligence-core/agentRegistry.js";
 import { PLATFORM_SOURCE_OF_TRUTH, getPlatformBoundaryContract } from "../dist/contracts/platformBoundaries.js";
@@ -54,6 +55,24 @@ assert.ok(PUBLIC_CORPORATE_SURFACE_POLICY.blocked_operational_domains.includes("
 assert.equal(assertOpaquePublicReference("pubctx_123456789abc"), true);
 assert.equal(assertOpaquePublicReference("lead-123"), false);
 assert.equal(assertOpaquePublicReference("contact-123"), false);
+
+const socialHistory = {
+  version: 1, source: "office_crm", channel: "instagram", lead_ref: "lead-1",
+  conversation_thread_id: "oyi-thread-1", complete: true, current_event_id: "event-2",
+  messages: [
+    { message_id: "event-1", role: "customer", text: "Question", created_at: "2026-11-16T10:00:00.000Z" },
+    { message_id: "staff-1", role: "staff", text: "Human answer", created_at: "2026-11-16T10:01:00.000Z" },
+    { message_id: "event-2", role: "customer", text: "Follow up", created_at: "2026-11-16T10:02:00.000Z" },
+  ],
+};
+const socialBinding = { message: "Follow up", leadRef: "lead-1", threadId: "oyi-thread-1", sourceChannel: "instagram" };
+assert.deepEqual(normalizeVerifiedOfficeConversationContext(socialHistory, socialBinding), socialHistory);
+assert.equal(normalizeVerifiedOfficeConversationContext({ ...socialHistory, complete: false }, socialBinding), null);
+assert.equal(normalizeVerifiedOfficeConversationContext(socialHistory, { ...socialBinding, leadRef: "other-lead" }), null);
+assert.equal(normalizeVerifiedOfficeConversationContext(socialHistory, { ...socialBinding, threadId: "other-thread" }), null);
+assert.equal(normalizeVerifiedOfficeConversationContext(socialHistory, { ...socialBinding, sourceChannel: "facebook" }), null);
+assert.equal(normalizeVerifiedOfficeConversationContext({ ...socialHistory, messages: [socialHistory.messages[0], socialHistory.messages[0]] }, socialBinding), null);
+assert.equal(normalizeVerifiedOfficeConversationContext({ ...socialHistory, messages: [socialHistory.messages[2], socialHistory.messages[0]] }, socialBinding), null);
 
 const textSession = {
   session_id: "pubsess_1",
