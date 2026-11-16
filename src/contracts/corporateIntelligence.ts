@@ -104,8 +104,65 @@ export type CorporateOyiCoreRequest = {
   handoff_state: PublicCorporateSession["handoff_state"];
   requested_capability: PublicCorporateCapability | null;
   knowledge_context: CorporateKnowledgeReference[];
+  verified_conversation_context?: VerifiedOfficeConversationContext | null;
   metadata: Record<string, unknown>;
 };
+
+export type VerifiedOfficeConversationContext = {
+  version: 1;
+  source: "office_crm";
+  channel: "whatsapp" | "facebook" | "instagram";
+  lead_ref: string;
+  conversation_thread_id: string | null;
+  complete: true;
+  current_event_id: string;
+  messages: Array<{
+    message_id: string;
+    role: "customer" | "staff" | "assistant";
+    text: string;
+    created_at: string;
+  }>;
+};
+
+export function normalizeVerifiedOfficeConversationContext(
+  value: unknown,
+  binding: { message: string; leadRef: string | null; threadId: string | null; sourceChannel: string },
+): VerifiedOfficeConversationContext | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const source = value as Record<string, any>;
+  const channel = String(source.channel || "");
+  const rows = source.messages;
+  if (source.version !== 1 || source.source !== "office_crm" || source.complete !== true ||
+      !["whatsapp", "facebook", "instagram"].includes(channel) || !binding.leadRef ||
+      String(source.lead_ref || "") !== binding.leadRef ||
+      (String(source.conversation_thread_id || "") || null) !== binding.threadId ||
+      binding.sourceChannel !== channel || !Array.isArray(rows) || rows.length < 1 || rows.length > 200) return null;
+  const seen = new Set<string>();
+  const messages: VerifiedOfficeConversationContext["messages"] = [];
+  for (const item of rows) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    const row = item as Record<string, any>;
+    const messageId = String(row.message_id || "").trim();
+    const role = String(row.role || "");
+    const text = typeof row.text === "string" ? row.text : "";
+    const timestamp = Date.parse(String(row.created_at || ""));
+    if (!messageId || seen.has(messageId) || !["customer", "staff", "assistant"].includes(role) ||
+        !text.trim() || text.length > 4000 || !Number.isFinite(timestamp)) return null;
+    seen.add(messageId);
+    messages.push({ message_id: messageId, role: role as VerifiedOfficeConversationContext["messages"][number]["role"], text, created_at: new Date(timestamp).toISOString() });
+  }
+  const current = messages.at(-1);
+  if (!current || current.message_id !== String(source.current_event_id || "") || current.role !== "customer" ||
+      current.text !== binding.message) return null;
+  for (let index = 1; index < messages.length; index++) {
+    if (messages[index - 1].created_at > messages[index].created_at) return null;
+  }
+  return {
+    version: 1, source: "office_crm", channel: channel as VerifiedOfficeConversationContext["channel"],
+    lead_ref: binding.leadRef, conversation_thread_id: binding.threadId, complete: true,
+    current_event_id: current.message_id, messages,
+  };
+}
 
 export type CorporateKnowledgeReference = { id: string; title: string; excerpt: string; source: string };
 

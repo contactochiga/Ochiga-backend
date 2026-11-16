@@ -18,7 +18,7 @@ import {
   resolveOfficeSyncKey,
 } from "../middleware/officeCredential";
 import type { CorporateAgentRole, CorporateBusinessUnit, CorporateInquiryType, CorporateMaterialEvent, CorporateMaterialEventType, CorporateOyiCoreRequest, OfficeInternalOyiCoreRequest } from "../contracts/corporateIntelligence";
-import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY } from "../contracts/corporateIntelligence";
+import { CORPORATE_INTELLIGENCE_CONTRACT_VERSION, PUBLIC_CORPORATE_SURFACE_POLICY, normalizeVerifiedOfficeConversationContext } from "../contracts/corporateIntelligence";
 import { submitOfficeMaterialEventCanonicalSignal } from "../oyi-core/ingress/officeMaterialEventAdapter";
 import { buildCorporatePublicResponse, deniedPublicCorporateOperationalRequest } from "../oyi-core/policy/corporatePublicConversationPolicy";
 import { inboundAttachmentContext, inboundAttachmentConversationContext } from "../oyi-core/policy/inboundAttachmentNotice";
@@ -271,6 +271,12 @@ function normalizeCorporateConversationRequest(body: any, requestId: string): Co
     handoff_state: safeText(body.handoff_state, "none") as CorporateOyiCoreRequest["handoff_state"],
     requested_capability: safeText(body.requested_capability) as CorporateOyiCoreRequest["requested_capability"] || null,
     knowledge_context: knowledgeContext(body.knowledge_context),
+    verified_conversation_context: normalizeVerifiedOfficeConversationContext(recordOf(body.metadata).verified_conversation_context, {
+      message: safeText(body.message),
+      leadRef: safeText(crm.lead_ref) || null,
+      threadId: safeText(body.conversation_thread_id || body.thread_id) || null,
+      sourceChannel: safeText(source.source_channel || body.source_channel, "website"),
+    }),
     metadata: recordOf(body.metadata),
   };
 }
@@ -662,6 +668,9 @@ router.post("/events/material", requireOfficeExportKey, async (req: Request, res
 router.post("/conversation/corporate", requireOfficeExportKey, async (req: Request, res: Response) => {
   const requestId = safeText(req.headers["x-request-id"], crypto.randomUUID());
   const corporateRequest = normalizeCorporateConversationRequest(req.body || {}, requestId);
+  if (recordOf(recordOf(req.body).metadata).verified_conversation_context && !corporateRequest.verified_conversation_context) {
+    return res.status(400).json({ ok: false, error: "invalid_verified_conversation_context", request_id: requestId });
+  }
   const publicCorporateActor = publicConversationActor(corporateRequest.public_session_id);
   if (!corporateRequest.message) {
     return res.status(400).json({ ok: false, error: "message is required", request_id: requestId });
@@ -717,6 +726,7 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
       contract_version: CORPORATE_INTELLIGENCE_CONTRACT_VERSION,
       // a WhatsApp turn whose media Oyi never received: the explicit do-not-claim rule travels with the turn (website turns carry nothing here)
       ...(inboundAttachments ? { inbound_attachments: inboundAttachments } : {}),
+      ...(corporateRequest.verified_conversation_context ? { office_verified_conversation_context: corporateRequest.verified_conversation_context } : {}),
     },
     conversation_context: {
       public_session_id: corporateRequest.public_session_id,
@@ -724,6 +734,7 @@ router.post("/conversation/corporate", requireOfficeExportKey, async (req: Reque
       inquiry_type: corporateRequest.inquiry_type,
       agent_role: corporateRequest.agent_role,
       crm_safe_summary: corporateRequest.crm_context.safe_summary,
+      ...(corporateRequest.verified_conversation_context ? { office_verified_conversation_context: corporateRequest.verified_conversation_context } : {}),
     },
     intent_hint: "corporate_public_conversation",
     operation_class_hint: "read",
